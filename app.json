@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "LiLove",
+    "slug": "lilove",
+    "version": "1.0.0",
+    "extra": {
+      "eas": {
+        "projectId": "97832aa3-0a79-461a-ac9f-e47bb822b951"
+      }
+    }
+  }
+}
