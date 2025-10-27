@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "LiLove",
+    "slug": "lilove",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "owner": "berkekahraman",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#9333EA"
+    },
+    "scheme": "lilove",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.lilove.app",
+      "buildNumber": "23",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "Konum bilginizi yakındaki kullanıcıları göstermek için kullanırız.",
+        "NSCameraUsageDescription": "Profil fotoğrafı çekmek için kamera erişimi gerekir.",
+        "NSPhotoLibraryUsageDescription": "Fotoğraf seçmek için galeri erişimi gerekir."
+      }
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "ab7bb029-eeb4-4407-a810-a9b27462f0ae"
+      },
+      "apiUrl": "https://lilove.org"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
