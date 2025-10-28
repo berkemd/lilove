@@ -5,8 +5,9 @@ import { eq, and, gte, desc, count, sql } from 'drizzle-orm';
 
 export class AnalyticsService {
   async trackEvent(userId: string, eventType: string, eventData: any = {}) {
-    // Log event for analytics
-    console.log(`Analytics event: ${eventType} for user ${userId}`, eventData);
+    // Log event for analytics - sanitize eventType to prevent format string issues
+    const sanitizedEventType = String(eventType).replace(/%/g, '');
+    console.log('Analytics event:', sanitizedEventType, 'for user', userId, eventData);
     
     // In a real implementation, this would send to an analytics service like PostHog
     return { success: true };

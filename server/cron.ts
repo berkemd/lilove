@@ -4,6 +4,10 @@ import { db } from './storage';
 import { users, userLoginStreaks } from '@shared/schema';
 import { eq, lt } from 'drizzle-orm';
 
+// Configuration constants
+const STREAK_RESET_HOURS = 48; // Hours of inactivity before streak resets
+const STREAK_RESET_MS = STREAK_RESET_HOURS * 60 * 60 * 1000;
+
 export function initializeCronJobs() {
   console.log('✅ Initializing cron jobs...');
 
@@ -12,10 +16,10 @@ export function initializeCronJobs() {
     try {
       console.log('Running daily login streak check...');
       
-      // Get all users with active streaks
+      // Get all users with active streaks who haven't logged in within reset period
       const usersWithStreaks = await db.select()
         .from(users)
-        .where(lt(users.lastLoginAt, new Date(Date.now() - 48 * 60 * 60 * 1000))); // 48 hours ago
+        .where(lt(users.lastLoginAt, new Date(Date.now() - STREAK_RESET_MS)));
 
       // Reset streaks for users who haven't logged in
       for (const user of usersWithStreaks) {

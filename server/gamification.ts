@@ -139,13 +139,16 @@ export class GamificationService {
       .from(userAchievements)
       .where(eq(userAchievements.userId, userId));
 
+    // Prevent division by zero
+    const xpPercentage = xpRequired > 0 ? Math.floor((xpProgress / xpRequired) * 100) : 0;
+
     return {
       level: currentLevel,
       xp: currentXP,
       xpForNextLevel,
       xpProgress,
       xpRequired,
-      xpPercentage: Math.floor((xpProgress / xpRequired) * 100),
+      xpPercentage,
       coins: user.coins || 0,
       achievementsUnlocked: userAchievementsRecord.length,
       loginStreak: user.loginStreak || 0

@@ -16,10 +16,9 @@ export function initPostHog() {
 }
 
 export function getPostHogClient(): PostHog | null {
-  if (!posthogClient && process.env.POSTHOG_API_KEY) {
+  if (!posthogClient) {
     initPostHog();
   }
-  
   return posthogClient;
 }
 
