@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initializeCronJobs } from "./cron";
 import { initPostHog } from "./analytics/posthog";
+import { validateEnvironment, logValidationResults } from "./config/env-validation";
 import helmet from "helmet";
 import compression from "compression";
 import cors from "cors";
@@ -11,6 +12,17 @@ import crypto from "crypto";
 import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import rateLimit from "express-rate-limit";
+
+// Validate environment variables at startup
+const envValidation = validateEnvironment();
+logValidationResults(envValidation);
+
+// Only block startup for critical errors in production
+if (!envValidation.isValid && process.env.NODE_ENV === 'production') {
+  console.error('\n💥 Startup aborted due to missing critical environment variables');
+  console.error('   Please configure the required environment variables and restart\n');
+  process.exit(1);
+}
 
 // Initialize Sentry for production monitoring
 if (process.env.SENTRY_DSN) {

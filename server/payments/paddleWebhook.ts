@@ -25,7 +25,7 @@ function verifyPaddleSignature(
   secret: string
 ): boolean {
   if (!signature) {
-    console.error('No Paddle-Signature header found');
+    console.error('[Paddle Webhook] No Paddle-Signature header found');
     return false;
   }
 
@@ -36,7 +36,7 @@ function verifyPaddleSignature(
     const signaturePart = parts.find(p => p.startsWith('h1='));
 
     if (!timestampPart || !signaturePart) {
-      console.error('Invalid Paddle-Signature format');
+      console.error('[Paddle Webhook] Invalid Paddle-Signature format:', { signature });
       return false;
     }
 
@@ -47,7 +47,11 @@ function verifyPaddleSignature(
     const currentTime = Math.floor(Date.now() / 1000);
     const webhookTime = parseInt(timestamp, 10);
     if (Math.abs(currentTime - webhookTime) > 300) {
-      console.error('Webhook timestamp too old or too far in future');
+      console.error('[Paddle Webhook] Timestamp verification failed:', {
+        currentTime,
+        webhookTime,
+        diff: Math.abs(currentTime - webhookTime),
+      });
       return false;
     }
 
@@ -58,12 +62,21 @@ function verifyPaddleSignature(
       .update(signedPayload)
       .digest('hex');
 
-    return crypto.timingSafeEqual(
+    const isValid = crypto.timingSafeEqual(
       Buffer.from(receivedSignature),
       Buffer.from(expectedSignature)
     );
+
+    if (!isValid) {
+      console.error('[Paddle Webhook] Signature verification failed:', {
+        expected: expectedSignature.substring(0, 10) + '...',
+        received: receivedSignature.substring(0, 10) + '...',
+      });
+    }
+
+    return isValid;
   } catch (error) {
-    console.error('Signature verification failed:', error);
+    console.error('[Paddle Webhook] Signature verification error:', error);
     return false;
   }
 }
@@ -229,8 +242,12 @@ export const handlePaddleWebhook: RequestHandler = async (req, res) => {
   const webhookSecret = process.env.PADDLE_WEBHOOK_SECRET;
   
   if (!webhookSecret) {
-    console.error('PADDLE_WEBHOOK_SECRET not configured');
-    return res.status(500).json({ error: 'Webhook not configured' });
+    console.error('[Paddle Webhook] PADDLE_WEBHOOK_SECRET not configured - webhook security disabled');
+    console.error('[Paddle Webhook] This is a critical security issue - webhooks are vulnerable to spoofing');
+    return res.status(500).json({ 
+      error: 'Webhook not configured',
+      message: 'PADDLE_WEBHOOK_SECRET environment variable is required'
+    });
   }
 
   try {
@@ -240,7 +257,11 @@ export const handlePaddleWebhook: RequestHandler = async (req, res) => {
 
     // Verify signature
     if (!verifyPaddleSignature(rawBody, signature, webhookSecret)) {
-      console.error('Webhook signature verification failed');
+      console.error('[Paddle Webhook] Signature verification failed:', {
+        hasSignature: !!signature,
+        bodyLength: rawBody.length,
+        eventType: req.body?.event_type,
+      });
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
@@ -250,15 +271,21 @@ export const handlePaddleWebhook: RequestHandler = async (req, res) => {
 
     // Check idempotency
     if (isEventProcessed(eventId)) {
-      console.log(`⚠️  Duplicate event ${eventId} - already processed`);
+      console.log(`⚠️  [Paddle Webhook] Duplicate event ${eventId} (${eventType}) - already processed`);
       return res.json({ received: true, duplicate: true });
     }
 
     // Mark as processed before handling (to prevent race conditions)
     markEventProcessed(eventId);
 
-    // Log event
-    console.log(`📥 Paddle webhook received: ${eventType} (${eventId})`);
+    // Log event with context
+    console.log(`📥 [Paddle Webhook] Event received:`, {
+      eventId,
+      eventType,
+      customerId: event.data?.customer_id,
+      subscriptionId: event.data?.id,
+      userId: event.data?.custom_data?.user_id,
+    });
 
     // Handle event by type
     switch (eventType) {
@@ -283,13 +310,18 @@ export const handlePaddleWebhook: RequestHandler = async (req, res) => {
         break;
 
       default:
-        console.log(`ℹ️  Unhandled event type: ${eventType}`);
+        console.log(`ℹ️  [Paddle Webhook] Unhandled event type: ${eventType}`);
     }
 
     // Acknowledge receipt
     res.json({ received: true });
   } catch (error) {
-    console.error('Webhook processing error:', error);
+    console.error('[Paddle Webhook] Processing error:', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      eventType: req.body?.event_type,
+      eventId: req.body?.event_id || req.body?.id,
+    });
     
     // Return 500 to trigger Paddle retry
     res.status(500).json({ 
