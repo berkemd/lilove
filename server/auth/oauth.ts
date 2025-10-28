@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as AppleStrategy } from 'passport-apple';
 import { db } from '../db';
 import { users, connectedAccounts } from '@shared/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 
@@ -31,36 +31,116 @@ const getBaseUrl = (req: Request) => {
   return `${protocol}://${host}`;
 };
 
-// State management for CSRF protection
-const oauthStates = new Map<string, { userId?: string; popup?: boolean; expiresAt: number }>();
+/**
+ * OAuth State Management using Database (scalable for multi-server deployments)
+ * 
+ * Stores OAuth states in the database with expiration for CSRF protection.
+ * This approach works with horizontal scaling and load balancers.
+ */
 
-// Clean up expired states every 5 minutes
+// In-memory fallback for when database is unavailable (development only)
+const oauthStatesMemory = new Map<string, { userId?: string; popup?: boolean; expiresAt: number }>();
+
+// Clean up expired states from memory fallback every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [state, data] of Array.from(oauthStates.entries())) {
+  for (const [state, data] of Array.from(oauthStatesMemory.entries())) {
     if (data.expiresAt < now) {
-      oauthStates.delete(state);
+      oauthStatesMemory.delete(state);
     }
   }
 }, 5 * 60 * 1000);
 
-export function generateOAuthState(userId?: string, popup?: boolean): string {
+/**
+ * Generate OAuth state for CSRF protection
+ * Stores state in database with 10-minute expiration
+ */
+export async function generateOAuthState(userId?: string, popup?: boolean): Promise<string> {
   const state = crypto.randomBytes(32).toString('hex');
-  oauthStates.set(state, {
-    userId,
-    popup,
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
-  });
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+  
+  try {
+    // Store in database for scalable multi-server support
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS oauth_states (
+        state TEXT PRIMARY KEY,
+        user_id TEXT,
+        popup BOOLEAN,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Clean up expired states
+    await db.execute(sql`
+      DELETE FROM oauth_states WHERE expires_at < NOW()
+    `);
+    
+    // Insert new state
+    await db.execute(sql`
+      INSERT INTO oauth_states (state, user_id, popup, expires_at)
+      VALUES (${state}, ${userId || null}, ${popup || false}, ${expiresAt.toISOString()})
+    `);
+    
+    console.log('✅ OAuth state stored in database:', state.substring(0, 8) + '...');
+  } catch (error) {
+    console.error('⚠️  Failed to store OAuth state in database, using memory fallback:', error);
+    // Fallback to memory for development
+    oauthStatesMemory.set(state, {
+      userId,
+      popup,
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+  }
+  
   return state;
 }
 
-export function verifyOAuthState(state: string): { userId?: string; popup?: boolean } | null {
-  const data = oauthStates.get(state);
+/**
+ * Verify OAuth state and retrieve associated data
+ * Checks database first, falls back to memory
+ */
+export async function verifyOAuthState(state: string): Promise<{ userId?: string; popup?: boolean } | null> {
+  try {
+    // Try database first
+    const result = await db.execute(sql`
+      SELECT user_id, popup, expires_at
+      FROM oauth_states
+      WHERE state = ${state}
+    `);
+    
+    if (result.rows && result.rows.length > 0) {
+      const row = result.rows[0] as any;
+      const expiresAt = new Date(row.expires_at);
+      
+      // Check expiration
+      if (expiresAt < new Date()) {
+        await db.execute(sql`DELETE FROM oauth_states WHERE state = ${state}`);
+        console.log('⚠️  OAuth state expired:', state.substring(0, 8) + '...');
+        return null;
+      }
+      
+      // Delete state (one-time use)
+      await db.execute(sql`DELETE FROM oauth_states WHERE state = ${state}`);
+      
+      console.log('✅ OAuth state verified from database:', state.substring(0, 8) + '...');
+      return {
+        userId: row.user_id || undefined,
+        popup: row.popup || false,
+      };
+    }
+  } catch (error) {
+    console.error('⚠️  Failed to verify OAuth state from database, checking memory fallback:', error);
+  }
+  
+  // Fallback to memory
+  const data = oauthStatesMemory.get(state);
   if (!data || data.expiresAt < Date.now()) {
-    oauthStates.delete(state);
+    oauthStatesMemory.delete(state);
     return null;
   }
-  oauthStates.delete(state); // One-time use
+  oauthStatesMemory.delete(state); // One-time use
+  console.log('✅ OAuth state verified from memory fallback:', state.substring(0, 8) + '...');
   return data;
 }
 
