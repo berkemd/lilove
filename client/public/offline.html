@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - LiLove</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      padding: 20px;
+    }
+    
+    .container {
+      text-align: center;
+      max-width: 500px;
+    }
+    
+    .icon {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 30px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 60px;
+      backdrop-filter: blur(10px);
+    }
+    
+    h1 {
+      font-size: 32px;
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+    
+    p {
+      font-size: 18px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+      opacity: 0.9;
+    }
+    
+    .button {
+      display: inline-block;
+      background: white;
+      color: #667eea;
+      padding: 14px 32px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      border: none;
+      font-size: 16px;
+    }
+    
+    .button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
+    
+    .features {
+      margin-top: 40px;
+      text-align: left;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    
+    .feature {
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .feature:last-child {
+      margin-bottom: 0;
+    }
+    
+    .feature-icon {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>You're Offline</h1>
+    <p>
+      It looks like you've lost your internet connection. Don't worry, you can still access
+      cached content and some features will work offline.
+    </p>
+    <button class="button" onclick="window.location.reload()">
+      Try Again
+    </button>
+    
+    <div class="features">
+      <h3 style="margin-bottom: 20px; font-size: 20px;">Available Offline:</h3>
+      <div class="feature">
+        <span class="feature-icon">💾</span>
+        <span>Cached AI responses and insights</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">📊</span>
+        <span>Your progress data</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">🎯</span>
+        <span>View your goals and habits</span>
+      </div>
+      <div class="feature">
+        <span class="feature-icon">✨</span>
+        <span>Motivational quotes</span>
+      </div>
+    </div>
+    
+    <p style="margin-top: 30px; font-size: 14px; opacity: 0.7;">
+      Your data will sync automatically when you're back online.
+    </p>
+  </div>
+</body>
+</html>
