@@ -3,7 +3,7 @@ import { PostHog } from 'posthog-node';
 
 let posthogClient: PostHog | null = null;
 
-export function getPostHogClient(): PostHog | null {
+export function initPostHog() {
   if (!posthogClient && process.env.POSTHOG_API_KEY) {
     posthogClient = new PostHog(
       process.env.POSTHOG_API_KEY,
@@ -12,6 +12,12 @@ export function getPostHogClient(): PostHog | null {
       }
     );
     console.log('✅ PostHog analytics initialized');
+  }
+}
+
+export function getPostHogClient(): PostHog | null {
+  if (!posthogClient && process.env.POSTHOG_API_KEY) {
+    initPostHog();
   }
   
   return posthogClient;
