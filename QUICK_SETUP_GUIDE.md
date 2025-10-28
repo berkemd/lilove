@@ -13,7 +13,11 @@ cp .env.example .env
 
 ### Step 2: Generate Session Secret
 ```bash
+# This command generates a cryptographically secure random secret
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+
+# Alternative if the above doesn't work:
+# openssl rand -hex 64
 ```
 Copy the output and add it to `.env`:
 ```bash
@@ -23,7 +27,8 @@ SESSION_SECRET=<paste-the-generated-secret-here>
 ### Step 3: Configure Database
 Add your PostgreSQL connection string to `.env`:
 ```bash
-DATABASE_URL=postgresql://user:password@host.neon.tech/database?sslmode=require
+# Example format (replace with your actual credentials)
+DATABASE_URL=postgresql://your-username:your-password@your-host.neon.tech/your-database?sslmode=require
 ```
 
 **Don't have a database?** Get a free one at [Neon.tech](https://neon.tech) in 2 minutes.
@@ -114,7 +119,11 @@ SMTP_PASS=your-app-specific-password
 MAIL_FROM=LiLove <noreply@lilove.org>
 ```
 
-**Gmail Users:** Use an [App Password](https://support.google.com/accounts/answer/185833), not your regular password.
+**Gmail Users:** 
+- ⚠️ **NEVER use your regular Gmail password** - this is a security risk!
+- Instead, create an [App Password](https://support.google.com/accounts/answer/185833)
+- App Passwords are 16-character codes that let apps access your Gmail securely
+- Steps: Google Account → Security → 2-Step Verification → App Passwords
 
 ---
 
@@ -192,7 +201,11 @@ Should create tables without errors.
 ### Error: "SESSION_SECRET not set"
 **Fix:** Generate and add SESSION_SECRET to `.env`:
 ```bash
+# Option 1: Using Node.js
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+
+# Option 2: Using OpenSSL (if Node.js doesn't work)
+openssl rand -hex 64
 ```
 
 ### Error: "401 Not authenticated"
