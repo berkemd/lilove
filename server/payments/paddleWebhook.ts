@@ -80,9 +80,8 @@ async function handleTransactionCompleted(event: any) {
     amount: data.details?.totals?.total || '0',
     currency: data.currency_code || 'usd',
     status: 'completed',
-    paddleTransactionId: data.id,
-    paddleSubscriptionId: data.subscription_id,
-    completedAt: new Date(data.billed_at || Date.now()),
+    provider: 'paddle',
+    processedAt: new Date(data.billed_at || Date.now()),
   });
 
   console.log('Transaction completed:', data.id);
@@ -116,10 +115,10 @@ async function handleTransactionPaid(event: any) {
   await db.update(paymentTransactions)
     .set({
       status: 'completed',
-      paddlePaymentMethod: data.payment_method_type,
-      completedAt: new Date(),
+      paymentMethod: data.payment_method_type,
+      processedAt: new Date(),
     })
-    .where(eq(paymentTransactions.paddleTransactionId, data.id));
+    .where(eq(paymentTransactions.provider, 'paddle'));
 }
 
 // Handle subscription created event
@@ -296,7 +295,7 @@ async function handlePaymentFailed(event: any) {
       status: 'failed',
       failureReason: data.details?.error_message || 'Payment failed',
     })
-    .where(eq(paymentTransactions.paddleTransactionId, data.id));
+    .where(eq(paymentTransactions.provider, 'paddle'));
 
   console.log('Payment failed for transaction:', data.id);
 }

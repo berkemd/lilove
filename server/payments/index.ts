@@ -10,7 +10,7 @@ if (!stripeKey) {
 }
 
 const stripe = stripeKey ? new Stripe(stripeKey, {
-  apiVersion: '2024-12-18.acacia',
+  apiVersion: '2025-08-27.basil',
 }) : null;
 
 // Stripe Price IDs
@@ -46,7 +46,7 @@ class PaymentService {
       
       if (!customerId) {
         const customer = await stripe.customers.create({
-          email: user[0].email,
+          email: user[0].email || undefined,
           name: user[0].displayName || undefined,
           metadata: {
             userId: userId,
@@ -112,7 +112,7 @@ class PaymentService {
       
       if (!customerId) {
         const customer = await stripe.customers.create({
-          email: user[0].email,
+          email: user[0].email || undefined,
           name: user[0].displayName || undefined,
           metadata: {
             userId: userId,
@@ -158,15 +158,15 @@ class PaymentService {
     }
 
     try {
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      const subscription: any = await stripe.subscriptions.retrieve(subscriptionId);
       
       return {
         id: subscription.id,
         status: subscription.status,
-        currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        currentPeriodStart: new Date(subscription.current_period_start * 1000),
+        currentPeriodEnd: new Date((subscription.current_period_end || 0) * 1000),
+        currentPeriodStart: new Date((subscription.current_period_start || 0) * 1000),
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        items: subscription.items.data,
+        items: subscription.items?.data || [],
       };
     } catch (error) {
       console.error('Failed to get Stripe subscription:', error);
@@ -294,19 +294,19 @@ class PaymentService {
     }
   }
 
-  private async handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  private async handleCheckoutCompleted(session: any) {
     const userId = session.metadata?.userId;
     if (!userId) return;
 
     if (session.mode === 'subscription' && session.subscription) {
-      const subscription = await stripe!.subscriptions.retrieve(session.subscription as string);
+      const subscription: any = await stripe!.subscriptions.retrieve(session.subscription as string);
       
       // Determine tier from price
       let tier = 'pro';
-      if (subscription.items.data.length > 0) {
-        const priceId = subscription.items.data[0].price.id;
-        if (priceId.includes('team')) tier = 'team';
-        else if (priceId.includes('enterprise')) tier = 'enterprise';
+      if (subscription.items?.data?.length > 0) {
+        const priceId = subscription.items.data[0].price?.id;
+        if (priceId?.includes('team')) tier = 'team';
+        else if (priceId?.includes('enterprise')) tier = 'enterprise';
       }
 
       await db.update(users)
@@ -316,13 +316,13 @@ class PaymentService {
           stripeSubscriptionId: subscription.id,
           stripeCustomerId: subscription.customer as string,
           paymentProvider: 'stripe',
-          subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          subscriptionCurrentPeriodEnd: new Date((subscription.current_period_end || 0) * 1000),
         })
         .where(eq(users.id, userId));
     }
   }
 
-  private async handleInvoicePaid(invoice: Stripe.Invoice) {
+  private async handleInvoicePaid(invoice: any) {
     const customerId = invoice.customer as string;
     const subscriptionId = invoice.subscription as string;
 
@@ -342,7 +342,7 @@ class PaymentService {
     }
   }
 
-  private async handlePaymentFailed(invoice: Stripe.Invoice) {
+  private async handlePaymentFailed(invoice: any) {
     const subscriptionId = invoice.subscription as string;
 
     if (subscriptionId) {
@@ -361,7 +361,7 @@ class PaymentService {
     }
   }
 
-  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  private async handleSubscriptionUpdated(subscription: any) {
     const user = await db.select()
       .from(users)
       .where(eq(users.stripeSubscriptionId, subscription.id))
@@ -371,13 +371,13 @@ class PaymentService {
       await db.update(users)
         .set({
           subscriptionStatus: subscription.status,
-          subscriptionCurrentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          subscriptionCurrentPeriodEnd: new Date((subscription.current_period_end || 0) * 1000),
         })
         .where(eq(users.id, user[0].id));
     }
   }
 
-  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  private async handleSubscriptionDeleted(subscription: any) {
     const user = await db.select()
       .from(users)
       .where(eq(users.stripeSubscriptionId, subscription.id))

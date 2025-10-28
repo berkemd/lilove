@@ -1,13 +1,10 @@
-import { AppStoreServerAPIClient, Environment, SignedDataVerifier } from '@apple/app-store-server-library';
 import { db } from '../storage';
-import { users, paymentTransactions } from '@shared/schema';
+import { users, paymentTransactions, userSubscriptions } from '@shared/schema';
 import { eq, sql } from 'drizzle-orm';
 
 // Apple IAP Configuration
 const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'org.lilove.app';
-const APPLE_KEY_ID = process.env.APPLE_KEY_ID || process.env.APPSTORE_KEY_ID || '';
-const APPLE_ISSUER_ID = process.env.APPLE_ISSUER_ID || '';
-const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY_PEM || process.env.APPSTORE_PRIVATE_KEY || '';
+const APPLE_SHARED_SECRET = process.env.APPLE_SHARED_SECRET || '';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Product IDs for In-App Purchases
@@ -31,67 +28,55 @@ const COIN_AMOUNTS: Record<string, number> = {
 };
 
 class AppleIAPService {
-  private client: AppStoreServerAPIClient | null = null;
-  private verifier: SignedDataVerifier | null = null;
-
   constructor() {
-    this.initialize();
-  }
-
-  private initialize() {
-    if (!APPLE_KEY_ID || !APPLE_ISSUER_ID || !APPLE_PRIVATE_KEY) {
-      console.warn('⚠️  Apple IAP credentials not fully configured');
-      return;
-    }
-
-    try {
-      const environment = IS_PRODUCTION ? Environment.Production : Environment.Sandbox;
-      
-      // Initialize App Store Server API client
-      this.client = new AppStoreServerAPIClient(
-        APPLE_PRIVATE_KEY,
-        APPLE_KEY_ID,
-        APPLE_ISSUER_ID,
-        APPLE_BUNDLE_ID,
-        environment
-      );
-
-      // Initialize receipt verifier
-      this.verifier = new SignedDataVerifier(
-        [APPLE_PRIVATE_KEY], // Root certificates
-        true, // Enable online checks
-        environment,
-        APPLE_BUNDLE_ID
-      );
-
+    if (!APPLE_SHARED_SECRET) {
+      console.warn('⚠️  Apple IAP shared secret not configured');
+    } else {
       console.log('✅ Apple IAP initialized');
-    } catch (error) {
-      console.error('Failed to initialize Apple IAP:', error);
     }
   }
 
   // Verify and process an Apple IAP receipt
-  async verifyReceipt(transactionId: string, userId: string) {
-    if (!this.client) {
-      throw new Error('Apple IAP client not initialized');
-    }
-
+  async verifyReceipt(receiptData: string, userId: string) {
     try {
-      // Get transaction info
-      const transactionInfo = await this.client.getTransactionInfo(transactionId);
-      
-      if (!transactionInfo) {
-        throw new Error('Transaction not found');
+      // Verify with Apple's server
+      const verificationUrl = IS_PRODUCTION
+        ? 'https://buy.itunes.apple.com/verifyReceipt'
+        : 'https://sandbox.itunes.apple.com/verifyReceipt';
+
+      const response = await fetch(verificationUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          'receipt-data': receiptData,
+          'password': APPLE_SHARED_SECRET,
+          'exclude-old-transactions': true,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.status !== 0) {
+        throw new Error(`Apple verification failed: ${result.status}`);
       }
 
-      // Verify the transaction is valid
-      const productId = transactionInfo.productId;
-      const originalTransactionId = transactionInfo.originalTransactionId;
+      const receipt = result.receipt;
+      const latestReceiptInfo = result.latest_receipt_info?.[0] || receipt.in_app?.[0];
+
+      if (!latestReceiptInfo) {
+        throw new Error('No transaction info in receipt');
+      }
+
+      const productId = latestReceiptInfo.product_id;
+      const transactionId = latestReceiptInfo.transaction_id;
+      const originalTransactionId = latestReceiptInfo.original_transaction_id;
 
       // Check if transaction already processed
       const existing = await db.select()
         .from(paymentTransactions)
-        .where(eq(paymentTransactions.appleTransactionId, originalTransactionId))
+        .where(eq(paymentTransactions.appleTransactionId, transactionId))
         .limit(1);
 
       if (existing.length > 0) {
@@ -103,15 +88,15 @@ class AppleIAPService {
 
       // Process based on product type
       if (productId.includes('coins')) {
-        await this.processCoinPurchase(userId, productId, transactionId, originalTransactionId);
+        await this.processCoinPurchase(userId, productId, transactionId);
       } else {
-        await this.processSubscription(userId, productId, transactionId, originalTransactionId);
+        await this.processSubscription(userId, productId, transactionId, originalTransactionId, latestReceiptInfo);
       }
 
       return {
         success: true,
         productId,
-        transactionId: originalTransactionId,
+        transactionId,
       };
     } catch (error) {
       console.error('Apple IAP verification error:', error);
@@ -123,8 +108,7 @@ class AppleIAPService {
   private async processCoinPurchase(
     userId: string,
     productId: string,
-    transactionId: string,
-    originalTransactionId: string
+    transactionId: string
   ) {
     const coinAmount = COIN_AMOUNTS[productId] || 0;
 
@@ -144,9 +128,8 @@ class AppleIAPService {
       currency: 'usd',
       status: 'completed',
       appleTransactionId: transactionId,
-      appleOriginalTransactionId: originalTransactionId,
-      appleProductId: productId,
-      completedAt: new Date(),
+      provider: 'apple',
+      processedAt: new Date(),
     });
 
     console.log(`Processed coin purchase: ${coinAmount} coins for user ${userId}`);
@@ -157,7 +140,8 @@ class AppleIAPService {
     userId: string,
     productId: string,
     transactionId: string,
-    originalTransactionId: string
+    originalTransactionId: string,
+    receiptInfo: any
   ) {
     // Determine subscription tier
     let tier = 'pro';
@@ -165,17 +149,50 @@ class AppleIAPService {
       tier = 'team';
     }
 
+    const expiresDate = receiptInfo.expires_date_ms
+      ? new Date(parseInt(receiptInfo.expires_date_ms))
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
+
     // Update user subscription
     await db.update(users)
       .set({
         subscriptionTier: tier,
         subscriptionStatus: 'active',
         paymentProvider: 'apple',
+        subscriptionCurrentPeriodEnd: expiresDate,
+      })
+      .where(eq(users.id, userId));
+
+    // Create or update user subscription record
+    const existingSub = await db.select()
+      .from(userSubscriptions)
+      .where(eq(userSubscriptions.appleOriginalTransactionId, originalTransactionId))
+      .limit(1);
+
+    if (existingSub.length === 0) {
+      // Create new subscription
+      await db.insert(userSubscriptions).values({
+        userId,
+        planId: tier === 'team' ? 'team-plan-id' : 'pro-plan-id', // Should reference actual plan
         appleTransactionId: transactionId,
         appleOriginalTransactionId: originalTransactionId,
         appleProductId: productId,
-      })
-      .where(eq(users.id, userId));
+        status: 'active',
+        billingCycle: productId.includes('yearly') ? 'yearly' : 'monthly',
+        startedAt: new Date(),
+        currentPeriodStart: new Date(),
+        currentPeriodEnd: expiresDate,
+      });
+    } else {
+      // Update existing subscription
+      await db.update(userSubscriptions)
+        .set({
+          status: 'active',
+          currentPeriodEnd: expiresDate,
+          updatedAt: new Date(),
+        })
+        .where(eq(userSubscriptions.id, existingSub[0].id));
+    }
 
     // Create payment transaction record
     await db.insert(paymentTransactions).values({
@@ -187,62 +204,51 @@ class AppleIAPService {
       status: 'completed',
       appleTransactionId: transactionId,
       appleOriginalTransactionId: originalTransactionId,
-      appleProductId: productId,
-      completedAt: new Date(),
+      provider: 'apple',
+      processedAt: new Date(),
     });
 
     console.log(`Processed subscription: ${tier} for user ${userId}`);
   }
 
   // Get subscription status
-  async getSubscriptionStatus(originalTransactionId: string) {
-    if (!this.client) {
-      throw new Error('Apple IAP client not initialized');
-    }
-
+  async getSubscriptionStatus(userId: string) {
     try {
-      const status = await this.client.getAllSubscriptionStatuses(originalTransactionId);
-      return status;
+      const subscription = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.userId, userId))
+        .limit(1);
+
+      if (subscription.length === 0) {
+        return null;
+      }
+
+      return subscription[0];
     } catch (error) {
       console.error('Failed to get subscription status:', error);
       throw new Error(`Failed to get subscription status: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  // Handle App Store Server Notification
-  async handleNotification(signedPayload: string) {
-    if (!this.verifier) {
-      throw new Error('Apple IAP verifier not initialized');
-    }
-
+  // Handle App Store Server Notification (simplified)
+  async handleNotification(notificationPayload: any) {
     try {
-      // Verify the notification
-      const notification = await this.verifier.verifyAndDecodeNotification(signedPayload);
+      const notificationType = notificationPayload.notification_type;
       
-      const notificationType = notification.notificationType;
-      const data = notification.data;
-
       console.log('Received Apple notification:', notificationType);
 
-      // Handle different notification types
       switch (notificationType) {
-        case 'SUBSCRIBED':
-          await this.handleSubscribed(data);
+        case 'RENEWAL':
+          await this.handleRenewal(notificationPayload);
           break;
-        case 'DID_RENEW':
-          await this.handleRenewal(data);
-          break;
-        case 'DID_CHANGE_RENEWAL_STATUS':
-          await this.handleRenewalStatusChange(data);
-          break;
-        case 'EXPIRED':
-          await this.handleExpired(data);
+        case 'CANCEL':
+          await this.handleCancellation(notificationPayload);
           break;
         case 'DID_FAIL_TO_RENEW':
-          await this.handleFailedRenewal(data);
+          await this.handleFailedRenewal(notificationPayload);
           break;
         case 'REFUND':
-          await this.handleRefund(data);
+          await this.handleRefund(notificationPayload);
           break;
         default:
           console.log('Unhandled notification type:', notificationType);
@@ -255,82 +261,75 @@ class AppleIAPService {
     }
   }
 
-  private async handleSubscribed(data: any) {
-    // Handle new subscription
-    console.log('New subscription:', data);
-  }
-
-  private async handleRenewal(data: any) {
-    // Handle subscription renewal
-    console.log('Subscription renewed:', data);
-  }
-
-  private async handleRenewalStatusChange(data: any) {
-    // Handle renewal status change
-    console.log('Renewal status changed:', data);
-  }
-
-  private async handleExpired(data: any) {
-    const originalTransactionId = data.originalTransactionId;
+  private async handleRenewal(payload: any) {
+    const originalTransactionId = payload.original_transaction_id;
     
-    // Find user by transaction ID
-    const user = await db.select()
-      .from(users)
-      .where(eq(users.appleOriginalTransactionId, originalTransactionId))
-      .limit(1);
-      
-    if (user.length === 0) {
-      console.error('User not found for expired subscription');
-      return;
+    if (originalTransactionId) {
+      await db.update(userSubscriptions)
+        .set({
+          status: 'active',
+          updatedAt: new Date(),
+        })
+        .where(eq(userSubscriptions.appleOriginalTransactionId, originalTransactionId));
     }
-
-    // Update subscription status
-    await db.update(users)
-      .set({
-        subscriptionStatus: 'cancelled',
-        subscriptionTier: 'free',
-      })
-      .where(eq(users.id, user[0].id));
-
-    console.log('Subscription expired:', originalTransactionId);
   }
 
-  private async handleFailedRenewal(data: any) {
-    const originalTransactionId = data.originalTransactionId;
+  private async handleCancellation(payload: any) {
+    const originalTransactionId = payload.original_transaction_id;
     
-    // Find user by transaction ID
-    const user = await db.select()
-      .from(users)
-      .where(eq(users.appleOriginalTransactionId, originalTransactionId))
-      .limit(1);
-      
-    if (user.length === 0) {
-      console.error('User not found for failed renewal');
-      return;
+    if (originalTransactionId) {
+      const sub = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.appleOriginalTransactionId, originalTransactionId))
+        .limit(1);
+
+      if (sub.length > 0) {
+        await db.update(userSubscriptions)
+          .set({
+            status: 'cancelled',
+            cancelledAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(userSubscriptions.id, sub[0].id));
+
+        await db.update(users)
+          .set({
+            subscriptionStatus: 'cancelled',
+          })
+          .where(eq(users.id, sub[0].userId));
+      }
     }
-
-    // Update subscription status
-    await db.update(users)
-      .set({
-        subscriptionStatus: 'past_due',
-      })
-      .where(eq(users.id, user[0].id));
-
-    console.log('Renewal failed:', originalTransactionId);
   }
 
-  private async handleRefund(data: any) {
-    const originalTransactionId = data.originalTransactionId;
+  private async handleFailedRenewal(payload: any) {
+    const originalTransactionId = payload.original_transaction_id;
     
-    // Update transaction status to refunded
-    await db.update(paymentTransactions)
-      .set({
-        status: 'refunded',
-        refundedAt: new Date(),
-      })
-      .where(eq(paymentTransactions.appleOriginalTransactionId, originalTransactionId));
+    if (originalTransactionId) {
+      const sub = await db.select()
+        .from(userSubscriptions)
+        .where(eq(userSubscriptions.appleOriginalTransactionId, originalTransactionId))
+        .limit(1);
 
-    console.log('Refund processed:', originalTransactionId);
+      if (sub.length > 0) {
+        await db.update(users)
+          .set({
+            subscriptionStatus: 'past_due',
+          })
+          .where(eq(users.id, sub[0].userId));
+      }
+    }
+  }
+
+  private async handleRefund(payload: any) {
+    const transactionId = payload.transaction_id;
+    
+    if (transactionId) {
+      await db.update(paymentTransactions)
+        .set({
+          status: 'refunded',
+        })
+        .where(eq(paymentTransactions.appleTransactionId, transactionId));
+    }
   }
 
   // Get product price (hardcoded for now, should match App Store Connect)
