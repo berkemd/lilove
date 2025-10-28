@@ -10,7 +10,7 @@
 import type { RequestHandler } from "express";
 import crypto from 'crypto';
 import { db } from '../db';
-import { subscriptions, users } from '@shared/schema';
+import { userSubscriptions, users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 /**
@@ -111,7 +111,7 @@ async function handleSubscriptionActivated(event: any) {
   const planId = event.data.custom_data?.plan_id || 'unknown';
 
   // Create or update subscription in database
-  await db.insert(subscriptions).values({
+  await db.insert(userSubscriptions).values({
     userId,
     paddleSubscriptionId: subscriptionId,
     paddleCustomerId: customer_id,
@@ -121,7 +121,7 @@ async function handleSubscriptionActivated(event: any) {
     currentPeriodEnd: new Date(current_billing_period.ends_at),
     cancelAtPeriodEnd: false,
   }).onConflictDoUpdate({
-    target: subscriptions.userId,
+    target: userSubscriptions.userId,
     set: {
       paddleSubscriptionId: subscriptionId,
       paddleCustomerId: customer_id,
@@ -143,7 +143,7 @@ async function handleSubscriptionUpdated(event: any) {
   const { id: subscriptionId, status, current_billing_period, canceled_at } = event.data;
 
   await db
-    .update(subscriptions)
+    .update(userSubscriptions)
     .set({
       status: status === 'canceled' ? 'canceled' : 'active',
       currentPeriodStart: current_billing_period ? new Date(current_billing_period.starts_at) : undefined,
@@ -151,7 +151,7 @@ async function handleSubscriptionUpdated(event: any) {
       canceledAt: canceled_at ? new Date(canceled_at) : null,
       cancelAtPeriodEnd: status === 'canceled' && current_billing_period !== null,
     })
-    .where(eq(subscriptions.paddleSubscriptionId, subscriptionId));
+    .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
   console.log(`✅ Subscription updated: ${subscriptionId} -> ${status}`);
 }
@@ -163,12 +163,12 @@ async function handleSubscriptionCanceled(event: any) {
   const { id: subscriptionId } = event.data;
 
   await db
-    .update(subscriptions)
+    .update(userSubscriptions)
     .set({
       status: 'canceled',
       canceledAt: new Date(),
     })
-    .where(eq(subscriptions.paddleSubscriptionId, subscriptionId));
+    .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
   console.log(`✅ Subscription canceled: ${subscriptionId}`);
 }
@@ -180,11 +180,11 @@ async function handleSubscriptionPastDue(event: any) {
   const { id: subscriptionId } = event.data;
 
   await db
-    .update(subscriptions)
+    .update(userSubscriptions)
     .set({
       status: 'past_due',
     })
-    .where(eq(subscriptions.paddleSubscriptionId, subscriptionId));
+    .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
   console.log(`⚠️  Subscription past due: ${subscriptionId}`);
 }

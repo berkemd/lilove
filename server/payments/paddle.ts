@@ -11,7 +11,7 @@
 
 import { Paddle, Environment } from '@paddle/paddle-node-sdk';
 import { db } from '../db';
-import { subscriptions, users } from '@shared/schema';
+import { userSubscriptions, users } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 // Initialize Paddle client
@@ -182,8 +182,8 @@ export async function getPaddleSubscription(userId: string) {
     // Get subscription from database
     const [subscription] = await db
       .select()
-      .from(subscriptions)
-      .where(eq(subscriptions.userId, userId))
+      .from(userSubscriptions)
+      .where(eq(userSubscriptions.userId, userId))
       .limit(1);
 
     if (!subscription || !subscription.paddleSubscriptionId) {
@@ -191,7 +191,7 @@ export async function getPaddleSubscription(userId: string) {
     }
 
     // Fetch latest data from Paddle
-    const paddleSubscription = await paddleClient.subscriptions.get(subscription.paddleSubscriptionId);
+    const paddleSubscription = await paddleClient.userSubscriptions.get(subscription.paddleSubscriptionId);
 
     return {
       id: paddleSubscription.id,
@@ -217,18 +217,18 @@ export async function cancelPaddleSubscription(subscriptionId: string, immediate
   }
 
   try {
-    await paddleClient.subscriptions.cancel(subscriptionId, {
+    await paddleClient.userSubscriptions.cancel(subscriptionId, {
       effective_from: immediate ? 'immediately' : 'next_billing_period',
     });
 
     // Update database
     await db
-      .update(subscriptions)
+      .update(userSubscriptions)
       .set({ 
         status: immediate ? 'canceled' : 'canceling',
         canceledAt: new Date(),
       })
-      .where(eq(subscriptions.paddleSubscriptionId, subscriptionId));
+      .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
     return { success: true };
   } catch (error) {
@@ -250,7 +250,7 @@ export async function updatePaddleSubscription(
   }
 
   try {
-    const updated = await paddleClient.subscriptions.update(subscriptionId, {
+    const updated = await paddleClient.userSubscriptions.update(subscriptionId, {
       items: [
         {
           price_id: newPriceId,
@@ -279,18 +279,18 @@ export async function reactivatePaddleSubscription(subscriptionId: string) {
   }
 
   try {
-    await paddleClient.subscriptions.resume(subscriptionId, {
+    await paddleClient.userSubscriptions.resume(subscriptionId, {
       effective_from: 'immediately',
     });
 
     // Update database
     await db
-      .update(subscriptions)
+      .update(userSubscriptions)
       .set({ 
         status: 'active',
         canceledAt: null,
       })
-      .where(eq(subscriptions.paddleSubscriptionId, subscriptionId));
+      .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
     return { success: true };
   } catch (error) {
@@ -311,8 +311,8 @@ export async function getPaddleCustomerPortal(userId: string) {
 
   const [subscription] = await db
     .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.userId, userId))
+    .from(userSubscriptions)
+    .where(eq(userSubscriptions.userId, userId))
     .limit(1);
 
   if (!subscription || !subscription.paddleCustomerId) {
