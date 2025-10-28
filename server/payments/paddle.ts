@@ -191,7 +191,7 @@ export async function getPaddleSubscription(userId: string) {
     }
 
     // Fetch latest data from Paddle
-    const paddleSubscription = await paddleClient.userSubscriptions.get(subscription.paddleSubscriptionId);
+    const paddleSubscription = await paddleClient.subscriptions.get(subscription.paddleSubscriptionId);
 
     return {
       id: paddleSubscription.id,
@@ -217,7 +217,7 @@ export async function cancelPaddleSubscription(subscriptionId: string, immediate
   }
 
   try {
-    await paddleClient.userSubscriptions.cancel(subscriptionId, {
+    await paddleClient.subscriptions.cancel(subscriptionId, {
       effective_from: immediate ? 'immediately' : 'next_billing_period',
     });
 
@@ -250,7 +250,7 @@ export async function updatePaddleSubscription(
   }
 
   try {
-    const updated = await paddleClient.userSubscriptions.update(subscriptionId, {
+    const updated = await paddleClient.subscriptions.update(subscriptionId, {
       items: [
         {
           price_id: newPriceId,
@@ -279,7 +279,7 @@ export async function reactivatePaddleSubscription(subscriptionId: string) {
   }
 
   try {
-    await paddleClient.userSubscriptions.resume(subscriptionId, {
+    await paddleClient.subscriptions.resume(subscriptionId, {
       effective_from: 'immediately',
     });
 
