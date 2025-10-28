@@ -121,41 +121,15 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Background sync for offline actions
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-data') {
-    event.waitUntil(syncData());
-  }
-});
+// Background sync for offline actions (disabled until fully implemented)
+// self.addEventListener('sync', (event) => {
+//   if (event.tag === 'sync-data') {
+//     event.waitUntil(syncData());
+//   }
+// });
 
-async function syncData() {
-  // Sync any pending data when connection is restored
-  const syncQueue = await getSyncQueue();
-  
-  for (const item of syncQueue) {
-    try {
-      await fetch(item.url, {
-        method: item.method,
-        headers: item.headers,
-        body: item.body,
-      });
-      
-      // Remove from queue on success
-      await removeSyncQueueItem(item.id);
-    } catch (error) {
-      console.error('Sync failed for:', item.url, error);
-    }
-  }
-}
-
-async function getSyncQueue() {
-  // Get sync queue from IndexedDB or similar storage
-  return [];
-}
-
-async function removeSyncQueueItem(id) {
-  // Remove item from sync queue
-}
+// Note: Background sync functionality requires IndexedDB implementation
+// for queuing offline actions. This will be added in a future update.
 
 // Push notification handler
 self.addEventListener('push', (event) => {
@@ -165,8 +139,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body || 'You have a new notification',
-    icon: '/icon-192x192.png',
-    badge: '/badge-72x72.png',
+    icon: '/icon-192.png', // Updated to match manifest.json
+    badge: '/icon-192.png', // Using same icon as badge fallback
     vibrate: [200, 100, 200],
     data: {
       url: data.url || '/',

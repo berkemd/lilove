@@ -166,10 +166,21 @@ export async function getStorageEstimate(): Promise<{
   }
 }
 
+interface ServiceWorkerMessage {
+  type: string;
+  payload?: any;
+}
+
+interface ServiceWorkerResponse {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
 /**
  * Send message to service worker
  */
-export function sendMessageToServiceWorker(message: any): Promise<any> {
+export function sendMessageToServiceWorker(message: ServiceWorkerMessage): Promise<ServiceWorkerResponse> {
   return new Promise((resolve, reject) => {
     if (!navigator.serviceWorker.controller) {
       reject(new Error('No service worker controller'));
@@ -179,10 +190,11 @@ export function sendMessageToServiceWorker(message: any): Promise<any> {
     const messageChannel = new MessageChannel();
 
     messageChannel.port1.onmessage = (event) => {
-      if (event.data.error) {
-        reject(event.data.error);
+      const response = event.data as ServiceWorkerResponse;
+      if (response.error) {
+        reject(new Error(response.error));
       } else {
-        resolve(event.data);
+        resolve(response);
       }
     };
 

@@ -10,6 +10,11 @@ export function useOnlineStatus() {
   );
 
   useEffect(() => {
+    // Check if window is defined (for SSR compatibility)
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     function handleOnline() {
       setIsOnline(true);
     }
