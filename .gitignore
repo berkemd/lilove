@@ -25,3 +25,6 @@ package-lock.json
 .git/objects
 .git/logs
 .git/refs/remotes
+.env
+.env.local
+.env.*.local
