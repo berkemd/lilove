@@ -82,15 +82,12 @@ jobs:
         env:
           REPLIT_TOKEN: ${{ secrets.REPLIT_TOKEN }}
 
-      - name: Wait for deployment
-        run: sleep 30
-
       - name: Health check
         run: |
           echo "🏥 Performing health checks..."
           
-          MAX_RETRIES=10
-          RETRY_DELAY=5
+          MAX_RETRIES=20
+          RETRY_DELAY=10
           
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Attempt $i/$MAX_RETRIES..."

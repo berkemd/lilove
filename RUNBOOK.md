@@ -478,6 +478,13 @@ ORDER BY pg_total_relation_size(table_name::text) DESC;
 
 **Check Slow Queries:**
 ```sql
+-- First, check if pg_stat_statements is available
+SELECT * FROM pg_available_extensions WHERE name = 'pg_stat_statements';
+
+-- If available but not enabled, enable it
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+-- Then query slow queries
 SELECT query, mean_exec_time, calls
 FROM pg_stat_statements
 ORDER BY mean_exec_time DESC
