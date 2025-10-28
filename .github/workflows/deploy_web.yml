@@ -1,0 +1,157 @@
+name: Deploy Web to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - staging
+          - production
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment || 'production' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: https://lilove.org
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate secrets
+        run: npm run check-secrets:ci
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          APPLE_CLIENT_ID: ${{ secrets.APPLE_CLIENT_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          PADDLE_ENV: ${{ secrets.PADDLE_ENV }}
+          PADDLE_VENDOR_ID: ${{ secrets.PADDLE_VENDOR_ID }}
+          PADDLE_API_KEY: ${{ secrets.PADDLE_API_KEY }}
+          PADDLE_WEBHOOK_SECRET: ${{ secrets.PADDLE_WEBHOOK_SECRET }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          IOS_BUNDLE_ID: ${{ secrets.IOS_BUNDLE_ID }}
+
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Deploy to Replit
+        run: |
+          echo "🚀 Deploying to Replit..."
+          # Note: Replit deployment happens automatically via GitHub integration
+          # or can be triggered via Replit CLI if REPLIT_TOKEN is configured
+          if [ -n "${{ secrets.REPLIT_TOKEN }}" ]; then
+            npx @replit/cli deploy
+          else
+            echo "ℹ️  REPLIT_TOKEN not configured. Deployment will happen via Replit GitHub integration."
+          fi
+        env:
+          REPLIT_TOKEN: ${{ secrets.REPLIT_TOKEN }}
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Health check
+        run: |
+          echo "🏥 Performing health checks..."
+          
+          MAX_RETRIES=10
+          RETRY_DELAY=5
+          
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "Attempt $i/$MAX_RETRIES..."
+            
+            if curl -f -s https://lilove.org/healthz | grep -q "healthy"; then
+              echo "✅ Health check passed!"
+              exit 0
+            fi
+            
+            if [ $i -lt $MAX_RETRIES ]; then
+              echo "⏳ Health check failed, retrying in ${RETRY_DELAY}s..."
+              sleep $RETRY_DELAY
+            fi
+          done
+          
+          echo "❌ Health check failed after $MAX_RETRIES attempts"
+          exit 1
+
+      - name: Smoke tests
+        run: |
+          echo "🧪 Running smoke tests..."
+          
+          # Test main page
+          if ! curl -f -s https://lilove.org/ | grep -q "LiLove"; then
+            echo "❌ Main page test failed"
+            exit 1
+          fi
+          echo "✅ Main page accessible"
+          
+          # Test API health
+          if ! curl -f -s https://lilove.org/api/health | grep -q "ok"; then
+            echo "❌ API health test failed"
+            exit 1
+          fi
+          echo "✅ API health check passed"
+          
+          echo "✅ All smoke tests passed!"
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "🌐 Application URL: https://lilove.org"
+          echo "📊 Health Check: https://lilove.org/healthz"
+          echo "🔌 API Health: https://lilove.org/api/health"
+
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Please check the logs and retry."
+
+  rollback:
+    name: Rollback (manual trigger only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.rollback == 'true'
+    steps:
+      - name: Rollback deployment
+        run: |
+          echo "🔄 Rolling back deployment..."
+          echo "Note: Rollback must be done manually in Replit dashboard"
+          echo "1. Go to Replit deployment history"
+          echo "2. Select previous successful deployment"
+          echo "3. Click 'Deploy this version'"
