@@ -92,11 +92,13 @@ setInterval(() => {
   const now = Date.now();
   const oneDayAgo = now - 24 * 60 * 60 * 1000;
   
+  const entriesToDelete: string[] = [];
   for (const [eventId, timestamp] of processedEvents.entries()) {
     if (timestamp < oneDayAgo) {
-      processedEvents.delete(eventId);
+      entriesToDelete.push(eventId);
     }
   }
+  entriesToDelete.forEach(id => processedEvents.delete(id));
 }, 60 * 60 * 1000);
 
 function isEventProcessed(eventId: string): boolean {
@@ -128,8 +130,10 @@ async function handleSubscriptionActivated(event: any) {
     userId,
     paddleSubscriptionId: subscriptionId,
     paddleCustomerId: customer_id,
-    plan: planId,
+    planId: planId,
     status: 'active',
+    billingCycle: 'monthly', // TODO: determine from product
+    startedAt: new Date(current_billing_period.starts_at),
     currentPeriodStart: new Date(current_billing_period.starts_at),
     currentPeriodEnd: new Date(current_billing_period.ends_at),
     cancelAtPeriodEnd: false,
@@ -138,7 +142,7 @@ async function handleSubscriptionActivated(event: any) {
     set: {
       paddleSubscriptionId: subscriptionId,
       paddleCustomerId: customer_id,
-      plan: planId,
+      planId: planId,
       status: 'active',
       currentPeriodStart: new Date(current_billing_period.starts_at),
       currentPeriodEnd: new Date(current_billing_period.ends_at),
@@ -161,7 +165,7 @@ async function handleSubscriptionUpdated(event: any) {
       status: status === 'canceled' ? 'canceled' : 'active',
       currentPeriodStart: current_billing_period ? new Date(current_billing_period.starts_at) : undefined,
       currentPeriodEnd: current_billing_period ? new Date(current_billing_period.ends_at) : undefined,
-      canceledAt: canceled_at ? new Date(canceled_at) : null,
+      cancelledAt: canceled_at ? new Date(canceled_at) : null,
       cancelAtPeriodEnd: status === 'canceled' && current_billing_period !== null,
     })
     .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
@@ -179,7 +183,7 @@ async function handleSubscriptionCanceled(event: any) {
     .update(userSubscriptions)
     .set({
       status: 'canceled',
-      canceledAt: new Date(),
+      cancelledAt: new Date(),
     })
     .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
@@ -224,14 +228,18 @@ async function handleTransactionCompleted(event: any) {
 
   const coinsToAdd = coinAmounts[coinPackage] || 0;
   if (coinsToAdd > 0) {
-    await db
-      .update(users)
-      .set({
-        coins: db.raw(`coins + ${coinsToAdd}`),
-      })
-      .where(eq(users.id, userId));
+    // Get current coins and add
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (user) {
+      await db
+        .update(users)
+        .set({
+          coins: (user.coins || 0) + coinsToAdd,
+        })
+        .where(eq(users.id, userId));
 
-    console.log(`✅ Awarded ${coinsToAdd} coins to user ${userId}`);
+      console.log(`✅ Awarded ${coinsToAdd} coins to user ${userId}`);
+    }
   }
 }
 

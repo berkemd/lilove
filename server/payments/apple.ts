@@ -30,8 +30,8 @@ const APPLE_ROOT_CA_PATH = process.env.APPLE_ROOT_CA_PATH; // Optional: path to 
 
 // Use sandbox for testing, production for live
 const APP_STORE_ENVIRONMENT = process.env.APPLE_IAP_ENV === 'production' 
-  ? Environment.Production 
-  : Environment.Sandbox;
+  ? Environment.PRODUCTION 
+  : Environment.SANDBOX;
 
 let appStoreClient: AppStoreServerAPIClient | null = null;
 let signedDataVerifier: SignedDataVerifier | null = null;
@@ -54,8 +54,10 @@ if (ASC_ISSUER_ID && ASC_KEY_ID && ASC_PRIVATE_KEY) {
     );
 
     // Initialize signed data verifier for webhook payloads
+    const rootCertPath = APPLE_ROOT_CA_PATH || 'AppleRootCA-G3.cer';
+    const rootCerts = [Buffer.from(rootCertPath)];
     signedDataVerifier = new SignedDataVerifier(
-      [APPLE_ROOT_CA_PATH || 'AppleRootCA-G3.cer'],
+      rootCerts,
       true,
       APP_STORE_ENVIRONMENT,
       IOS_BUNDLE_ID
@@ -100,25 +102,16 @@ export async function verifyReceipt(receiptData: string): Promise<{ valid: boole
   }
 
   try {
-    // Decode receipt (base64 encoded)
-    const receipt = Buffer.from(receiptData, 'base64').toString('utf-8');
-    
-    // Parse transaction ID from receipt
-    const transactionId = ReceiptUtility.extractTransactionIdFromAppReceipt(receipt);
-    
-    if (!transactionId) {
-      return { valid: false };
-    }
-
+    // For StoreKit 2, we can use the transaction ID directly
     // Get transaction info from App Store Server API
-    const transactionResponse = await appStoreClient.getTransactionInfo(transactionId);
+    const transactionResponse = await appStoreClient.getTransactionInfo(receiptData);
     
     if (!transactionResponse || !transactionResponse.signedTransactionInfo) {
       return { valid: false };
     }
 
     // Decode signed transaction
-    const transactionInfo = await signedDataVerifier?.verifyAndDecodeSignedTransaction(
+    const transactionInfo = await signedDataVerifier?.verifyAndDecodeTransaction(
       transactionResponse.signedTransactionInfo
     );
 
@@ -126,7 +119,11 @@ export async function verifyReceipt(receiptData: string): Promise<{ valid: boole
       return { valid: false };
     }
 
-    // Check if transaction is valid
+    // Check if transaction is valid and has required fields
+    if (!transactionInfo.transactionId || !transactionInfo.originalTransactionId || !transactionInfo.productId) {
+      return { valid: false };
+    }
+
     const expiresDate = transactionInfo.expiresDate ? new Date(transactionInfo.expiresDate) : undefined;
     const isExpired = expiresDate ? expiresDate < new Date() : false;
     const revocationDate = transactionInfo.revocationDate ? new Date(transactionInfo.revocationDate) : undefined;
@@ -137,7 +134,7 @@ export async function verifyReceipt(receiptData: string): Promise<{ valid: boole
         transactionId: transactionInfo.transactionId,
         originalTransactionId: transactionInfo.originalTransactionId,
         productId: transactionInfo.productId,
-        purchaseDate: new Date(transactionInfo.purchaseDate),
+        purchaseDate: new Date(transactionInfo.purchaseDate || Date.now()),
         expiresDate,
         isExpired,
         revocationDate,
@@ -166,13 +163,19 @@ export async function processTransaction(userId: string, receiptData: string) {
   }
 
   try {
+    // Determine billing cycle from product ID
+    const billingCycle = transaction.productId.includes('annual') ? 'yearly' : 'monthly';
+    
     // Create or update subscription in database
     await db.insert(userSubscriptions).values({
       userId,
       appleTransactionId: transaction.transactionId,
       appleOriginalTransactionId: transaction.originalTransactionId,
-      plan: tier,
+      appleProductId: transaction.productId,
+      planId: tier, // Reference to subscriptionPlans.id
       status: 'active',
+      billingCycle,
+      startedAt: transaction.purchaseDate,
       currentPeriodStart: transaction.purchaseDate,
       currentPeriodEnd: transaction.expiresDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       cancelAtPeriodEnd: false,
@@ -181,7 +184,8 @@ export async function processTransaction(userId: string, receiptData: string) {
       set: {
         appleTransactionId: transaction.transactionId,
         appleOriginalTransactionId: transaction.originalTransactionId,
-        plan: tier,
+        appleProductId: transaction.productId,
+        planId: tier,
         status: 'active',
         currentPeriodStart: transaction.purchaseDate,
         currentPeriodEnd: transaction.expiresDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
@@ -222,7 +226,7 @@ export async function getSubscriptionStatus(originalTransactionId: string) {
     }
 
     // Decode signed transaction info
-    const transactionInfo = await signedDataVerifier?.verifyAndDecodeSignedTransaction(
+    const transactionInfo = await signedDataVerifier?.verifyAndDecodeTransaction(
       latestTransaction.signedTransactionInfo
     );
 
@@ -233,7 +237,6 @@ export async function getSubscriptionStatus(originalTransactionId: string) {
     return {
       originalTransactionId: latestTransaction.originalTransactionId,
       status: latestTransaction.status,
-      renewalInfo: latestStatus.renewalInfo,
       transactionInfo,
     };
   } catch (error) {
@@ -270,7 +273,6 @@ export async function syncSubscriptionStatus(userId: string, originalTransaction
     .set({
       status: isExpired ? 'expired' : 'active',
       currentPeriodEnd: expiresDate,
-      cancelAtPeriodEnd: status.renewalInfo?.autoRenewStatus === false,
     })
     .where(eq(userSubscriptions.appleOriginalTransactionId, originalTransactionId));
 
@@ -339,10 +341,12 @@ async function handleSubscriptionRenewed(data: any) {
   const signedTransactionInfo = data?.signedTransactionInfo;
   if (!signedTransactionInfo) return;
 
-  const transaction = await signedDataVerifier?.verifyAndDecodeSignedTransaction(signedTransactionInfo);
+  const transaction = await signedDataVerifier?.verifyAndDecodeTransaction(signedTransactionInfo);
   if (!transaction) return;
 
   const originalTransactionId = transaction.originalTransactionId;
+  if (!originalTransactionId) return;
+  
   const expiresDate = transaction.expiresDate ? new Date(transaction.expiresDate) : undefined;
 
   await db
@@ -367,6 +371,7 @@ async function handleRenewalStatusChanged(data: any) {
 
   const autoRenewStatus = renewalInfo.autoRenewStatus;
   const originalTransactionId = renewalInfo.originalTransactionId;
+  if (!originalTransactionId) return;
 
   await db
     .update(userSubscriptions)
@@ -382,10 +387,11 @@ async function handleSubscriptionExpired(data: any) {
   const signedTransactionInfo = data?.signedTransactionInfo;
   if (!signedTransactionInfo) return;
 
-  const transaction = await signedDataVerifier?.verifyAndDecodeSignedTransaction(signedTransactionInfo);
+  const transaction = await signedDataVerifier?.verifyAndDecodeTransaction(signedTransactionInfo);
   if (!transaction) return;
 
   const originalTransactionId = transaction.originalTransactionId;
+  if (!originalTransactionId) return;
 
   await db
     .update(userSubscriptions)
@@ -401,10 +407,11 @@ async function handleGracePeriodExpired(data: any) {
   const signedTransactionInfo = data?.signedTransactionInfo;
   if (!signedTransactionInfo) return;
 
-  const transaction = await signedDataVerifier?.verifyAndDecodeSignedTransaction(signedTransactionInfo);
+  const transaction = await signedDataVerifier?.verifyAndDecodeTransaction(signedTransactionInfo);
   if (!transaction) return;
 
   const originalTransactionId = transaction.originalTransactionId;
+  if (!originalTransactionId) return;
 
   await db
     .update(userSubscriptions)
@@ -420,16 +427,17 @@ async function handleRefund(data: any) {
   const signedTransactionInfo = data?.signedTransactionInfo;
   if (!signedTransactionInfo) return;
 
-  const transaction = await signedDataVerifier?.verifyAndDecodeSignedTransaction(signedTransactionInfo);
+  const transaction = await signedDataVerifier?.verifyAndDecodeTransaction(signedTransactionInfo);
   if (!transaction) return;
 
   const originalTransactionId = transaction.originalTransactionId;
+  if (!originalTransactionId) return;
 
   await db
     .update(userSubscriptions)
     .set({
       status: 'canceled',
-      canceledAt: new Date(),
+      cancelledAt: new Date(),
     })
     .where(eq(userSubscriptions.appleOriginalTransactionId, originalTransactionId));
 
