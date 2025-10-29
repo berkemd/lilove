@@ -136,7 +136,7 @@ eas submit --platform ios
    - Bu hatalar zamanla düzeltilebilir
 
 2. **App Assets:**
-   - `mobile/assets/` klasörüne icon ve splash eklenmeliuygulaması
+   - `mobile/assets/` klasörüne icon ve splash eklenmelidir
    
 3. **RevenueCat API Keys:**
    - `mobile/app.json` dosyasına gerçek API anahtarlarını eklemeniz gerekiyor
