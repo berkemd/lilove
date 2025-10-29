@@ -87,22 +87,22 @@ export async function createPaddleCheckout(
     const checkout = await paddleClient.transactions.create({
       items: [
         {
-          price_id: priceId,
+          priceId: priceId,
           quantity: 1,
         },
       ],
       customer: {
         email: user.email,
       },
-      custom_data: {
+      customData: {
         user_id: userId,
         plan_id: planId,
       },
       checkout: {
-        url_type: 'overlay',
+        urlType: 'overlay',
       },
-      success_url: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
-      cancel_url: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
+      successUrl: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
+      cancelUrl: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
       ...(options.couponCode && { discount: { code: options.couponCode } }),
     });
 
@@ -142,22 +142,22 @@ export async function createPaddleCoinCheckout(
     const checkout = await paddleClient.transactions.create({
       items: [
         {
-          price_id: priceId,
+          priceId: priceId,
           quantity: 1,
         },
       ],
       customer: {
         email: user.email,
       },
-      custom_data: {
+      customData: {
         user_id: userId,
         coin_package: coinPackage,
       },
       checkout: {
-        url_type: 'overlay',
+        urlType: 'overlay',
       },
-      success_url: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
-      cancel_url: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
+      successUrl: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
+      cancelUrl: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
     });
 
     return {
@@ -196,10 +196,10 @@ export async function getPaddleSubscription(userId: string) {
     return {
       id: paddleSubscription.id,
       status: paddleSubscription.status,
-      currentBillingPeriod: paddleSubscription.current_billing_period,
-      nextBilledAt: paddleSubscription.next_billed_at,
-      canceledAt: paddleSubscription.canceled_at,
-      pausedAt: paddleSubscription.paused_at,
+      currentBillingPeriod: paddleSubscription.currentBillingPeriod,
+      nextBilledAt: paddleSubscription.nextBilledAt,
+      canceledAt: paddleSubscription.canceledAt,
+      pausedAt: paddleSubscription.pausedAt,
       items: paddleSubscription.items,
     };
   } catch (error) {
@@ -218,7 +218,7 @@ export async function cancelPaddleSubscription(subscriptionId: string, immediate
 
   try {
     await paddleClient.subscriptions.cancel(subscriptionId, {
-      effective_from: immediate ? 'immediately' : 'next_billing_period',
+      effectiveFrom: immediate ? 'immediately' : 'next_billing_period',
     });
 
     // Update database
@@ -226,7 +226,7 @@ export async function cancelPaddleSubscription(subscriptionId: string, immediate
       .update(userSubscriptions)
       .set({ 
         status: immediate ? 'canceled' : 'canceling',
-        canceledAt: new Date(),
+        cancelledAt: new Date(),
       })
       .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
@@ -253,11 +253,11 @@ export async function updatePaddleSubscription(
     const updated = await paddleClient.subscriptions.update(subscriptionId, {
       items: [
         {
-          price_id: newPriceId,
+          priceId: newPriceId,
           quantity: 1,
         },
       ],
-      proration_billing_mode: prorationBehavior,
+      prorationBillingMode: prorationBehavior,
     });
 
     return {
@@ -280,7 +280,7 @@ export async function reactivatePaddleSubscription(subscriptionId: string) {
 
   try {
     await paddleClient.subscriptions.resume(subscriptionId, {
-      effective_from: 'immediately',
+      effectiveFrom: 'immediately',
     });
 
     // Update database
@@ -288,7 +288,7 @@ export async function reactivatePaddleSubscription(subscriptionId: string) {
       .update(userSubscriptions)
       .set({ 
         status: 'active',
-        canceledAt: null,
+        cancelledAt: null,
       })
       .where(eq(userSubscriptions.paddleSubscriptionId, subscriptionId));
 
