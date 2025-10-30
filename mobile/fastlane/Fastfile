@@ -1,0 +1,113 @@
+# Fastfile for LiLove iOS Deployment
+default_platform(:ios)
+
+platform :ios do
+  
+  desc "Submit metadata to App Store"
+  lane :submit_metadata do
+    # Configure App Store Connect API key
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"] || "725AYMVS7J",
+      issuer_id: ENV["ASC_ISSUER_ID"] || "69a6de96-a049-47e3-e053-5b8c7c11a4d1",
+      key_filepath: ENV["ASC_KEY_PATH"] || "./AuthKey_725AYMVS7J.p8",
+      in_house: false
+    )
+    
+    # Upload metadata and screenshots
+    deliver(
+      app_identifier: "org.lilove.app",
+      skip_binary_upload: true,
+      skip_screenshots: false,
+      overwrite_screenshots: true,
+      submit_for_review: false,
+      automatic_release: false,
+      force: true,
+      
+      # Metadata
+      name: {
+        "en-US" => "LiLove - AI Life Coach",
+        "tr" => "LiLove - AI Yaşam Koçu"
+      },
+      
+      subtitle: {
+        "en-US" => "Transform with AI Coaching",
+        "tr" => "AI Koçunla Dönüşüm"
+      },
+      
+      description: {
+        "en-US" => File.read("./fastlane/metadata/en-US/description.txt"),
+        "tr" => File.read("./fastlane/metadata/tr/description.txt")
+      },
+      
+      keywords: {
+        "en-US" => "ai coach,life coach,habit tracker,goal setting,personal growth,mindfulness,wellness,self care,motivation",
+        "tr" => "ai koç,yaşam koçu,alışkanlık takibi,hedef belirleme,kişisel gelişim,farkındalık,sağlık,motivasyon"
+      },
+      
+      promotional_text: {
+        "en-US" => "Transform your life with LiLove's AI coaching! Set goals, build habits, and grow with compassion. Your personal AI life coach awaits. Start your journey today! 💝",
+        "tr" => "LiLove'un AI koçluğuyla hayatınızı dönüştürün! Hedef belirleyin, alışkanlık oluşturun ve şefkatle büyüyün. AI yaşam koçunuz sizi bekliyor! 💝"
+      },
+      
+      release_notes: {
+        "en-US" => File.read("./fastlane/metadata/en-US/release_notes.txt"),
+        "tr" => File.read("./fastlane/metadata/tr/release_notes.txt")
+      },
+      
+      # App Information
+      support_url: "https://lilove.org/support",
+      marketing_url: "https://lilove.org",
+      privacy_url: "https://lilove.org/privacy",
+      
+      # Categories
+      primary_category: "HEALTH_AND_FITNESS",
+      secondary_category: "LIFESTYLE",
+      
+      # App Review Information
+      app_review_information: {
+        first_name: "Berke",
+        last_name: "Kahraman",
+        phone_number: "+905321234567",
+        email_address: "brkekahraman@icloud.com",
+        demo_user: "demo@lilove.org",
+        demo_password: "DemoLiLove2025!",
+        notes: "Use the demo account to test premium features. The AI coach will guide you through onboarding."
+      }
+    )
+    
+    puts "✅ Metadata submitted successfully!"
+  end
+  
+  desc "Submit for App Store review"
+  lane :submit_for_review do
+    submit_metadata
+    
+    # Submit the app for review
+    deliver(
+      app_identifier: "org.lilove.app",
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      submit_for_review: true,
+      automatic_release: true,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        content_rights_contains_third_party_content: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+    
+    puts "✅ App submitted for review!"
+  end
+  
+  desc "Setup RevenueCat products"
+  lane :setup_iap do
+    # This would normally create IAP products via App Store Connect API
+    # For now, providing the product IDs that need to be created manually
+    puts "📱 Create these In-App Purchases in App Store Connect:"
+    puts "1. lilove_premium_monthly - $9.99"
+    puts "2. lilove_premium_yearly - $99.99"
+    puts "3. lilove_team_monthly - $19.99"
+    puts "4. lilove_team_yearly - $199.99"
+  end
+end

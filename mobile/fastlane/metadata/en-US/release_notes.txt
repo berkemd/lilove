@@ -1,0 +1,10 @@
+Version 1.0.0 - Hello, World!
+
+• Introducing LiLove - Your AI Life Coach
+• Personalized AI coaching conversations
+• Smart goal and habit tracking
+• Team collaboration features
+• Beautiful analytics dashboard
+• Daily motivational insights
+• Premium subscription options
+• Support for iOS 13.4 and above
