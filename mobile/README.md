@@ -1,207 +1,113 @@
 # LiLove Mobile App
 
-Mobile application for LiLove built with Expo and React Native, featuring RevenueCat for in-app purchases.
+Mobile application for LiLove built with Expo and React Native.
 
-## Features
+## 📱 iOS App Store Submission - AUTOMATED
 
-- ✅ RevenueCat integration for subscriptions
-- ✅ iOS and Android support
-- ✅ Expo Router for navigation
-- ✅ TypeScript support
-- ✅ EAS Build configuration
+### 🚀 Quick Start for App Store Submission
 
-## Prerequisites
+Since you already have build #37 in TestFlight, follow these steps to submit to the App Store:
 
-- Node.js 18+ installed
-- Expo CLI installed (`npm install -g expo-cli eas-cli`)
-- EAS account (https://expo.dev)
-- RevenueCat account (https://www.revenuecat.com)
-
-## Setup
-
-### 1. Install Dependencies
+#### Step 1: Setup Credentials (5 minutes)
 
 ```bash
 cd mobile
+npm run appstore:setup
+```
+
+Or manually create `.env.local`:
+```bash
+ASC_KEY_ID=725AYMVS7J
+ASC_ISSUER_ID=your-issuer-id-here
+ASC_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+...your private key...
+-----END PRIVATE KEY-----"
+```
+
+#### Step 2: Upload Metadata (2 minutes)
+
+```bash
+source .env.local
+npm run appstore:metadata
+```
+
+This uploads app name, description, keywords, and URLs in English + Turkish.
+
+#### Step 3: Add & Upload Screenshots (20 minutes)
+
+Add screenshots to `fastlane/metadata/en-US/screenshots/iphone65/` then:
+
+```bash
+npm run appstore:screenshots
+```
+
+See [APP_STORE_AUTOMATION_GUIDE.md](./APP_STORE_AUTOMATION_GUIDE.md) for how to capture screenshots.
+
+#### Step 4: Complete Manual Steps (30-45 minutes first time)
+
+Go to [App Store Connect](https://appstoreconnect.apple.com/apps/6670815109) and complete:
+- App category
+- Age rating
+- App review information
+- Pricing
+- In-app purchases (if applicable)
+
+**Detailed instructions**: [MANUAL_APPSTORE_STEPS.md](./MANUAL_APPSTORE_STEPS.md)
+
+#### Step 5: Submit for Review (1 minute)
+
+```bash
+npm run appstore:submit 37
+```
+
+Done! Monitor at: https://appstoreconnect.apple.com/apps/6670815109
+
+### Available Commands
+
+```bash
+npm run appstore:setup          # Interactive setup wizard
+npm run appstore:metadata       # Upload descriptions/keywords
+npm run appstore:screenshots    # Upload screenshots
+npm run appstore:submit 37      # Submit build for review
+npm run appstore:full           # Complete flow (build + metadata)
+```
+
+### Documentation
+
+- **[APP_STORE_AUTOMATION_GUIDE.md](./APP_STORE_AUTOMATION_GUIDE.md)** - Complete guide
+- **[MANUAL_APPSTORE_STEPS.md](./MANUAL_APPSTORE_STEPS.md)** - Required manual steps
+
+---
+
+## 🔧 Development
+
+### Setup
+
+```bash
 npm install
-```
-
-### 2. Configure RevenueCat
-
-1. Create a project in RevenueCat dashboard
-2. Get your API keys (iOS and Android)
-3. Update `app.json` with your RevenueCat API keys:
-
-```json
-{
-  "extra": {
-    "revenueCatApiKey": {
-      "ios": "appl_YOUR_IOS_API_KEY_HERE",
-      "android": "goog_YOUR_ANDROID_API_KEY_HERE"
-    }
-  }
-}
-```
-
-4. Configure products in RevenueCat dashboard to match your subscription plans
-
-### 3. Add Assets
-
-Place the following files in the `assets/` directory:
-- `icon.png` - App icon (1024x1024px)
-- `splash.png` - Splash screen image
-
-### 4. Configure EAS Build
-
-Make sure you're logged into EAS:
-
-```bash
-eas login
-```
-
-## Development
-
-### Run on iOS Simulator
-
-```bash
-npm run ios
-```
-
-### Run on Android Emulator
-
-```bash
-npm run android
-```
-
-### Run on Physical Device
-
-```bash
 npm start
-# Scan QR code with Expo Go app
 ```
 
-## Building
-
-### Development Build
+### Run
 
 ```bash
-eas build --profile development --platform ios
-# or
-eas build --profile development --platform android
+npm run ios      # iOS simulator
+npm run android  # Android emulator
 ```
 
-### Preview Build (Internal Testing)
+### Build
 
 ```bash
-eas build --profile preview --platform ios
-# or
-eas build --profile preview --platform android
+eas build --platform ios --profile production
 ```
 
-### Production Build
+## Features
 
-```bash
-eas build --profile production --platform ios
-# or
-eas build --profile production --platform android
-```
+- ✅ Expo Router navigation
+- ✅ RevenueCat subscriptions
+- ✅ TypeScript
+- ✅ **Automated App Store submission**
 
-## Submitting to App Stores
+## License
 
-### iOS App Store
-
-1. Build for production:
-```bash
-eas build --profile production --platform ios
-```
-
-2. Submit to App Store:
-```bash
-eas submit --platform ios
-```
-
-### Google Play Store
-
-1. Build for production:
-```bash
-eas build --profile production --platform android
-```
-
-2. Submit to Play Store:
-```bash
-eas submit --platform android
-```
-
-## Environment Variables
-
-The app uses the following environment variables (configured in `eas.json`):
-
-- `EXPO_PUBLIC_API_URL` - Backend API URL (default: https://lilove.org)
-
-## RevenueCat Integration
-
-### Subscription Plans
-
-The app supports the following subscription tiers:
-- Free
-- Heart (Monthly/Annual)
-- Peak (Monthly/Annual)
-- Champion (Monthly/Annual)
-
-Configure these products in your RevenueCat dashboard with the appropriate pricing.
-
-### Entitlements
-
-Configure the following entitlements in RevenueCat:
-- `pro` - For paid tier access
-- `premium` - For premium features
-- `all_access` - For full access
-
-## Troubleshooting
-
-### Build Errors
-
-If you encounter build errors:
-
-1. Clear cache:
-```bash
-rm -rf node_modules
-npm install
-```
-
-2. Check EAS build logs:
-```bash
-eas build:list
-```
-
-### RevenueCat Issues
-
-- Verify API keys are correct in `app.json`
-- Check RevenueCat dashboard for product configuration
-- Enable debug logging in development
-
-### iOS Specific
-
-- Ensure bundle identifier matches: `org.lilove.app`
-- Check Apple Developer account capabilities
-- Verify In-App Purchase capability is enabled
-
-### Android Specific
-
-- Ensure package name matches: `org.lilove.app`
-- Configure Google Play billing in Play Console
-- Link RevenueCat to Google Play
-
-## Documentation
-
-- [Expo Documentation](https://docs.expo.dev)
-- [RevenueCat Documentation](https://docs.revenuecat.com)
-- [EAS Build Documentation](https://docs.expo.dev/build/introduction/)
-- [React Native Documentation](https://reactnative.dev)
-
-## Support
-
-For issues specific to:
-- Expo/EAS: https://expo.dev/support
-- RevenueCat: https://support.revenuecat.com
-- LiLove platform: Contact development team
+Private - All rights reserved

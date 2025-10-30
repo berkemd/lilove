@@ -6,7 +6,14 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "appstore:setup": "./setup-appstore.sh",
+    "appstore:metadata": "./appstore-submit.sh --metadata-only",
+    "appstore:screenshots": "./appstore-submit.sh --screenshots-only",
+    "appstore:build": "./appstore-submit.sh --build-only",
+    "appstore:testflight": "./appstore-submit.sh --testflight-only",
+    "appstore:submit": "./appstore-submit.sh --submit-review",
+    "appstore:full": "./appstore-submit.sh --full"
   },
   "dependencies": {
     "@react-navigation/native": "^6.1.9",
