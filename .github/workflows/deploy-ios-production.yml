@@ -8,6 +8,9 @@ on:
     paths:
       - 'mobile/**'
 
+permissions:
+  contents: write
+
 jobs:
   deploy-ios:
     name: Smart iOS Deployment
@@ -35,7 +38,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
       
       - name: Install dependencies
-        run: npm ci
+        run: npm install
       
       - name: Create fingerprint
         id: fingerprint
