@@ -66,7 +66,10 @@ platform :ios do
   lane :submit_review do |options|
     setup_asc_key
     
-    build_number = options[:build_number] || "37"
+    build_number = options[:build_number]
+    if build_number.nil?
+      UI.user_error!("You must provide a build_number when submitting for review.")
+    end
     
     deliver(
       username: "brkekahraman@icloud.com",
