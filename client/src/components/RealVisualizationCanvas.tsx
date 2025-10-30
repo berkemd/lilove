@@ -193,7 +193,7 @@ export default function RealVisualizationCanvas({
     if (!ctx) return;
 
     // Get frequency data
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current as Uint8Array<ArrayBuffer>);
 
     // Draw based on theme
     switch (theme) {

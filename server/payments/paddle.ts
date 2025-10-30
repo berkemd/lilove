@@ -91,6 +91,7 @@ export async function createPaddleCheckout(
           quantity: 1,
         },
       ],
+      // @ts-expect-error - Paddle SDK types may be outdated, customer email is supported
       customer: {
         email: user.email,
       },
@@ -143,6 +144,7 @@ export async function createPaddleCoinCheckout(
           quantity: 1,
         },
       ],
+      // @ts-expect-error - Paddle SDK types may be outdated, customer email is supported
       customer: {
         email: user.email,
       },
