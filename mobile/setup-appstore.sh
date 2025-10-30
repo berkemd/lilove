@@ -116,6 +116,10 @@ if [ ! -d "fastlane" ]; then
     echo "❌ Error: fastlane directory not found"
     exit 1
 fi
+if [ ! -d "fastlane" ]; then
+    echo "❌ Error: fastlane directory not found"
+    exit 1
+fi
 cd fastlane
 
 # Try to validate credentials
