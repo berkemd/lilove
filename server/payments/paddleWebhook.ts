@@ -20,19 +20,18 @@ export async function handlePaddleWebhook(req: Request, res: Response) {
       return res.status(400).json({ error: 'Missing signature' });
     }
 
-    // Verify the webhook signature
-    const isValid = paddle.webhooks.unmarshal(
-      JSON.stringify(req.body),
-      PADDLE_WEBHOOK_SECRET,
-      signature
-    );
-
-    if (!isValid) {
+    // Verify the webhook signature and parse event
+    let event;
+    try {
+      event = paddle.webhooks.unmarshal(
+        JSON.stringify(req.body),
+        PADDLE_WEBHOOK_SECRET,
+        signature
+      );
+    } catch (err) {
       console.error('Invalid Paddle webhook signature');
       return res.status(401).json({ error: 'Invalid signature' });
     }
-
-    const event = req.body;
     const eventType = event.event_type;
 
     console.log(`Processing Paddle webhook: ${eventType}`);
