@@ -98,9 +98,6 @@ export async function createPaddleCheckout(
         user_id: userId,
         plan_id: planId,
       },
-      checkout: {
-        urlType: 'overlay',
-      },
       successUrl: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
       cancelUrl: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
       ...(options.couponCode && { discount: { code: options.couponCode } }),
@@ -152,9 +149,6 @@ export async function createPaddleCoinCheckout(
       customData: {
         user_id: userId,
         coin_package: coinPackage,
-      },
-      checkout: {
-        urlType: 'overlay',
       },
       successUrl: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
       cancelUrl: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
