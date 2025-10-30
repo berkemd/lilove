@@ -47,8 +47,11 @@ check_prerequisites() {
     
     # Check for eas-cli
     if ! command -v eas &> /dev/null; then
-        echo -e "${RED}❌ EAS CLI not found. Installing...${NC}"
-        npm install -g eas-cli
+        echo -e "${RED}❌ EAS CLI not found.${NC}"
+        echo -e "${YELLOW}ℹ️  You can run EAS commands using 'npx eas <command>' without installing globally.${NC}"
+        # Alternatively, install locally: npm install eas-cli
+        # Or install globally (requires permissions): npm install -g eas-cli
+        # exit 1 # Uncomment to require EAS CLI to be available
     fi
     
     echo -e "${GREEN}✅ Prerequisites check passed${NC}"
