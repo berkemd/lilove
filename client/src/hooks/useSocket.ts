@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
+import type { Socket } from 'socket.io-client';
 import { 
   initializeSocket, 
   disconnectSocket, 

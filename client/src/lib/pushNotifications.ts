@@ -125,7 +125,10 @@ export class PushNotificationService {
   // Send subscription to server
   private async sendSubscriptionToServer(subscription: PushSubscriptionJSON): Promise<void> {
     try {
-      await apiRequest('POST', '/api/notifications/subscribe', subscription);
+      await apiRequest('/api/notifications/subscribe', {
+        method: 'POST',
+        body: JSON.stringify(subscription)
+      });
     } catch (error) {
       console.error('Failed to send subscription to server:', error);
       throw error;
@@ -145,7 +148,10 @@ export class PushNotificationService {
         await subscription.unsubscribe();
         
         // Notify server about unsubscription
-        await apiRequest('POST', '/api/notifications/unsubscribe', { endpoint: subscription.endpoint });
+        await apiRequest('/api/notifications/unsubscribe', {
+          method: 'POST',
+          body: JSON.stringify({ endpoint: subscription.endpoint })
+        });
         
         this.subscription = null;
         console.log('Unsubscribed from push notifications');
@@ -206,7 +212,7 @@ export class PushNotificationService {
   }
 
   // Convert VAPID key to Uint8Array
-  private urlBase64ToUint8Array(base64String: string): Uint8Array {
+  private urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding)
       .replace(/\-/g, '+')
@@ -218,7 +224,7 @@ export class PushNotificationService {
     for (let i = 0; i < rawData.length; ++i) {
       outputArray[i] = rawData.charCodeAt(i);
     }
-    return outputArray;
+    return outputArray as Uint8Array<ArrayBuffer>;
   }
 
   // Register background sync

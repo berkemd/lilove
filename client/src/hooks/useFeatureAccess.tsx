@@ -76,7 +76,10 @@ export function useFeatureAccess(featureKey: FeatureKey) {
   const { data: featureAccess, isLoading } = useQuery({
     queryKey: ['/api/check-feature-access', featureKey],
     queryFn: async () => {
-      const response = await apiRequest('POST', '/api/check-feature-access', { featureKey });
+      const response = await apiRequest('/api/check-feature-access', { 
+        method: 'POST',
+        body: JSON.stringify({ featureKey })
+      });
       return await response.json();
     },
     enabled: !!user,
@@ -184,7 +187,10 @@ export function useCoins() {
     }
 
     try {
-      const response = await apiRequest('POST', '/api/spend-coins', { amount, purpose, sourceId });
+      const response = await apiRequest('/api/spend-coins', { 
+        method: 'POST',
+        body: JSON.stringify({ amount, purpose, sourceId })
+      });
       await response.json();
 
       toast({

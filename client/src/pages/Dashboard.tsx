@@ -15,12 +15,39 @@ import {
   Clock
 } from "lucide-react";
 
+interface DashboardStats {
+  activeGoals: number;
+  completedToday: number;
+  currentStreak: number;
+  totalXP: number;
+  todayTasks?: Array<{
+    id: string;
+    title: string;
+    category: string;
+    priority: string;
+  }>;
+  weeklyProgress?: number;
+  habitAdherence?: number;
+  taskCompletion?: number;
+  recentAchievements?: Array<{
+    id: string;
+    name: string;
+    description: string;
+  }>;
+}
+
+interface RecentActivity {
+  id: string;
+  description: string;
+  timeAgo: string;
+}
+
 export default function Dashboard() {
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<DashboardStats>({
     queryKey: ['/api/dashboard/stats'],
   });
 
-  const { data: recentActivity } = useQuery({
+  const { data: recentActivity } = useQuery<RecentActivity[]>({
     queryKey: ['/api/dashboard/activity'],
   });
 
