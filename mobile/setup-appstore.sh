@@ -122,17 +122,24 @@ if [ ! -d "fastlane" ]; then
 fi
 cd fastlane
 
-# Try to validate credentials
+# Write the private key to a temporary file with restricted permissions
+ASC_PRIVATE_KEY_FILE=$(mktemp)
+chmod 600 "$ASC_PRIVATE_KEY_FILE"
+echo "$ASC_PRIVATE_KEY" > "$ASC_PRIVATE_KEY_FILE"
+
+# Try to validate credentials using the key file
 if fastlane run validate_app_store_connect_api_key_json_key \
     key_id:"$ASC_KEY_ID" \
     issuer_id:"$ASC_ISSUER_ID" \
-    key:"$ASC_PRIVATE_KEY" 2>/dev/null; then
+    key_filepath:"$ASC_PRIVATE_KEY_FILE" 2>/dev/null; then
     echo "✅ Credentials are valid!"
 else
     echo "⚠️  Could not validate credentials (this might be normal)"
     echo "   You can test by running: ./appstore-submit.sh --metadata-only"
 fi
 
+# Remove the temporary key file
+rm -f "$ASC_PRIVATE_KEY_FILE"
 cd ..
 
 # Summary
