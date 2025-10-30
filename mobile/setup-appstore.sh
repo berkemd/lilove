@@ -134,7 +134,7 @@ fi
 cd fastlane
 
 # Write the private key to a temporary file with restricted permissions
-ASC_PRIVATE_KEY_FILE=$(mktemp)
+ASC_PRIVATE_KEY_FILE=$(mktemp -t ASC_PRIVATE_KEY.XXXXXX)
 chmod 600 "$ASC_PRIVATE_KEY_FILE"
 echo "$ASC_PRIVATE_KEY" > "$ASC_PRIVATE_KEY_FILE"
 
