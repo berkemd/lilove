@@ -120,7 +120,7 @@ upload_metadata() {
 upload_screenshots() {
     echo "📸 Checking for screenshots..."
     
-    if [ -n "$(find fastlane/metadata/en-US/screenshots -name '*.png' -o -name '*.jpg' 2>/dev/null)" ]; then
+    if [ -d "fastlane/metadata/en-US/screenshots" ] && [ -n "$(find fastlane/metadata/en-US/screenshots -type f \( -name '*.png' -o -name '*.jpg' \) 2>/dev/null)" ]; then
         echo "Uploading screenshots..."
         cd fastlane
         fastlane upload_screenshots
