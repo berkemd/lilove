@@ -20,7 +20,7 @@ export default function RealVisualizationCanvas({
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const dataArrayRef = useRef<Uint8Array<ArrayBufferLike> | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   
@@ -64,7 +64,7 @@ export default function RealVisualizationCanvas({
   };
 
   // Visualization drawing functions
-  const drawSpectrum = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array<ArrayBufferLike>) => {
+  const drawSpectrum = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array) => {
     const width = canvas.width;
     const height = canvas.height;
     
@@ -95,7 +95,7 @@ export default function RealVisualizationCanvas({
     }
   };
 
-  const drawWaveform = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array<ArrayBufferLike>) => {
+  const drawWaveform = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array) => {
     const width = canvas.width;
     const height = canvas.height;
     
@@ -128,7 +128,7 @@ export default function RealVisualizationCanvas({
     ctx.stroke();
   };
 
-  const drawParticles = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array<ArrayBufferLike>) => {
+  const drawParticles = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array) => {
     const width = canvas.width;
     const height = canvas.height;
     
@@ -152,7 +152,7 @@ export default function RealVisualizationCanvas({
     }
   };
 
-  const drawCircular = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array<ArrayBufferLike>) => {
+  const drawCircular = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, dataArray: Uint8Array) => {
     const width = canvas.width;
     const height = canvas.height;
     const centerX = width / 2;
@@ -193,7 +193,7 @@ export default function RealVisualizationCanvas({
     if (!ctx) return;
 
     // Get frequency data
-    analyserRef.current.getByteFrequencyData(dataArrayRef.current as Uint8Array<ArrayBuffer>);
+    analyserRef.current.getByteFrequencyData(dataArrayRef.current as Uint8Array);
 
     // Draw based on theme
     switch (theme) {

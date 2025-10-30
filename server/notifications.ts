@@ -1,7 +1,21 @@
+type NotificationType = 
+  | 'info' 
+  | 'success' 
+  | 'warning' 
+  | 'error' 
+  | 'goal_checkin' 
+  | 'task_reminder' 
+  | 'achievement' 
+  | 'friend_request' 
+  | 'team_invite' 
+  | 'challenge_update' 
+  | 'streak_warning' 
+  | 'level_up';
+
 interface Notification {
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'goal_checkin' | 'task_reminder' | 'achievement' | 'friend_request' | 'team_invite' | 'challenge_update' | 'streak_warning' | 'level_up';
+  type: NotificationType;
   userId?: string;
   category?: string;
   priority?: string;
