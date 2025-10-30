@@ -94,7 +94,10 @@ platform :ios do
   lane :release do |options|
     setup_asc_key
     
-    build_number = options[:build_number] || "37"
+    build_number = options[:build_number]
+    if build_number.nil?
+      UI.user_error!("You must provide a build_number when running the release lane.")
+    end
     
     # Upload metadata and screenshots
     upload_to_app_store(
