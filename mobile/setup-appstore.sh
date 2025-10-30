@@ -104,7 +104,26 @@ source .env.local
 # Check if fastlane is installed
 if ! command -v fastlane &> /dev/null; then
     echo "Installing Fastlane..."
-    gem install fastlane
+    # Check for Ruby version manager
+    if command -v rbenv &> /dev/null; then
+        echo "Detected rbenv. Installing fastlane gem in user context..."
+        gem install fastlane
+    elif command -v rvm &> /dev/null; then
+        echo "Detected RVM. Installing fastlane gem in user context..."
+        gem install fastlane
+    else
+        echo "⚠️  Warning: No Ruby version manager (rbenv or RVM) detected."
+        echo "   Installing gems globally may fail or modify system Ruby."
+        echo "   It is recommended to install a Ruby version manager (rbenv or RVM)."
+        echo "   See: https://github.com/rbenv/rbenv or https://rvm.io/"
+        echo "   Alternatively, you can install fastlane via Homebrew (macOS):"
+        echo "     brew install fastlane"
+        echo "   Attempting to install fastlane gem globally..."
+        gem install fastlane || {
+            echo "❌ Failed to install fastlane gem. Please install a Ruby version manager or use Homebrew."
+            exit 1
+        }
+    fi
 fi
 
 echo "Testing App Store Connect API connection..."
