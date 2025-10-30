@@ -8,6 +8,18 @@ export default function VisualizationCanvasExample() {
 
   const themes = ['particles', 'waveform', 'fractal', 'fluid'] as const;
 
+  // Mock data for the example
+  const mockAudioAnalysis = {
+    tempo: 120,
+    key: 'C',
+    energy: 0.7,
+  };
+
+  const mockVisualization = {
+    name: 'Example Visualization',
+    status: 'ready',
+  };
+
   return (
     <div className="p-8 space-y-4">
       <div className="flex items-center gap-4 mb-4">
@@ -27,7 +39,13 @@ export default function VisualizationCanvasExample() {
           ))}
         </div>
       </div>
-      <VisualizationCanvas theme={theme} isPlaying={isPlaying} />
+      <VisualizationCanvas 
+        audioFileId="example-audio-id" 
+        visualizationId="example-viz-id"
+        audioAnalysis={mockAudioAnalysis}
+        visualization={mockVisualization}
+        theme={theme} 
+      />
     </div>
   );
 }
