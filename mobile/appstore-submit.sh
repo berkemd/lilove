@@ -27,9 +27,23 @@ check_prerequisites() {
     
     # Check for fastlane
     if ! command -v fastlane &> /dev/null; then
-        echo -e "${RED}❌ Fastlane not found. Installing...${NC}"
-        gem install fastlane
-    fi
+        echo -e "${RED}❌ Fastlane not found.${NC}"
+        # Check for Ruby version manager
+        if command -v rbenv &> /dev/null || command -v rvm &> /dev/null; then
+            echo -e "${YELLOW}⚠️  Ruby version manager detected (rbenv/RVM). Installing fastlane gem...${NC}"
+            if ! gem install fastlane; then
+                echo -e "${RED}❌ Failed to install fastlane. Please check your Ruby environment.${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${YELLOW}⚠️  No Ruby version manager (rbenv/RVM) detected.${NC}"
+            echo -e "${YELLOW}It is NOT recommended to install gems globally with system Ruby.${NC}"
+            echo -e "${YELLOW}Please install rbenv or RVM and re-run this script.${NC}"
+            echo -e "${YELLOW}Alternatively, you can try running:${NC}"
+            echo -e "${YELLOW}    sudo gem install fastlane${NC}"
+            echo -e "${YELLOW}But this may modify your system Ruby and is not recommended.${NC}"
+            exit 1
+        fi
     
     # Check for eas-cli
     if ! command -v eas &> /dev/null; then
