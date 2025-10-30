@@ -113,7 +113,7 @@ platform :ios do
     # This lane assumes EAS CLI is already installed and configured
     # Run: eas build --platform ios --profile production --non-interactive
     
-    sh("cd .. && eas build --platform ios --profile production --non-interactive")
+    Dir.chdir('..') { sh("eas build --platform ios --profile production --non-interactive") }
     
     # The build will automatically be uploaded to TestFlight via EAS
     UI.success("🎉 Build submitted to TestFlight!")
