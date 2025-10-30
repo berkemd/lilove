@@ -2,7 +2,7 @@
 # LiLove iOS App Store Automated Submission Script
 # This script automates the complete App Store submission process
 
-set -e # Exit on error
+set -eo pipefail # Exit on error and fail on pipeline errors
 
 echo "🚀 LiLove iOS App Store Automation"
 echo "===================================="
