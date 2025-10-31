@@ -8,6 +8,9 @@ on:
     paths:
       - 'mobile/**'
 
+permissions:
+  contents: write
+
 jobs:
   deploy-ios:
     name: Smart iOS Deployment
