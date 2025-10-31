@@ -1,0 +1,131 @@
+name: iOS App Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        type: choice
+        options:
+          - metadata-only
+          - screenshots-only
+          - build-and-testflight
+          - submit-for-review
+          - full-release
+      build_number:
+        description: 'Build number (required for submit-for-review)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ios-release:
+    name: iOS App Store Release
+    runs-on: macos-latest
+    environment:
+      name: production-ios
+      url: https://appstoreconnect.apple.com/apps/6670815109
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: false
+
+      - name: Install Fastlane
+        run: |
+          gem install fastlane
+          fastlane --version
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Install dependencies
+        run: |
+          cd mobile
+          npm ci
+
+      - name: Setup EAS credentials
+        run: |
+          cd mobile
+          echo "${{ secrets.EXPO_TOKEN }}" | eas login --token-stdin
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Execute iOS release action
+        run: |
+          cd mobile
+          
+          case "${{ github.event.inputs.action }}" in
+            metadata-only)
+              echo "📝 Uploading metadata only..."
+              ./appstore-submit.sh --metadata-only
+              ;;
+            screenshots-only)
+              echo "📸 Uploading screenshots only..."
+              ./appstore-submit.sh --screenshots-only
+              ;;
+            build-and-testflight)
+              echo "🏗️ Building and submitting to TestFlight..."
+              ./appstore-submit.sh --build-only
+              ./appstore-submit.sh --testflight-only
+              ;;
+            submit-for-review)
+              if [ -z "${{ github.event.inputs.build_number }}" ]; then
+                echo "❌ Build number is required for submit-for-review"
+                exit 1
+              fi
+              echo "🎯 Submitting build ${{ github.event.inputs.build_number }} for review..."
+              ./appstore-submit.sh --submit-review ${{ github.event.inputs.build_number }}
+              ;;
+            full-release)
+              echo "🚀 Running complete release flow..."
+              ./appstore-submit.sh --full
+              ;;
+            *)
+              echo "❌ Unknown action: ${{ github.event.inputs.action }}"
+              exit 1
+              ;;
+          esac
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Upload Fastlane logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastlane-logs
+          path: mobile/fastlane/*.log
+          retention-days: 7
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ iOS release action completed successfully!"
+          echo "📊 Monitor status at: https://appstoreconnect.apple.com/apps/6670815109"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ iOS release action failed!"
+          echo "Check the logs above for details."

@@ -1,0 +1,10 @@
+# Appfile for LiLove iOS App
+
+app_identifier("org.lilove.app") # The bundle identifier of your app
+apple_id("brkekahraman@icloud.com") # Your Apple Developer Portal email address
+
+itc_team_id("126542810") # App Store Connect Team ID (if you have multiple teams)
+team_id("87U9ZK37M2") # Developer Portal Team ID
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile

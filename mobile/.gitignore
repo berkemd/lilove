@@ -60,3 +60,13 @@ web-build/
 
 # Testing
 coverage/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+fastlane/*.log
+
+# App Store Connect secrets
+.env.local
