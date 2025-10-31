@@ -7,12 +7,16 @@ platform :ios do
   desc "Setup App Store Connect API Key"
   lane :setup_asc_key do
     # App Store Connect API Key configuration
-    # Key ID: 725AYMVS7J
-    # Issuer ID should be set in environment
-    # Key file should be stored securely
+    # Key ID should be set in environment variable ASC_KEY_ID
+    # Issuer ID should be set in environment variable ASC_ISSUER_ID
+    # Key content should be set in environment variable ASC_PRIVATE_KEY
+    
+    unless ENV["ASC_KEY_ID"]
+      UI.user_error!("ASC_KEY_ID environment variable must be set. Do not hardcode API Key IDs.")
+    end
     
     app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"] || "725AYMVS7J",
+      key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
       key_content: ENV["ASC_PRIVATE_KEY"],
       duration: 1200, # 20 minutes
