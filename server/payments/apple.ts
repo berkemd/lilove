@@ -221,7 +221,7 @@ export async function getSubscriptionStatus(originalTransactionId: string) {
     const latestStatus = statusResponse.data[0];
     const latestTransaction = latestStatus.lastTransactions?.[0];
 
-    if (!latestTransaction) {
+    if (!latestTransaction || !latestTransaction.signedTransactionInfo) {
       return null;
     }
 
@@ -347,13 +347,14 @@ async function handleSubscriptionRenewed(data: any) {
   const originalTransactionId = transaction.originalTransactionId;
   if (!originalTransactionId) return;
   
+  const purchaseDate = transaction.purchaseDate ? new Date(transaction.purchaseDate) : new Date();
   const expiresDate = transaction.expiresDate ? new Date(transaction.expiresDate) : undefined;
 
   await db
     .update(userSubscriptions)
     .set({
       status: 'active',
-      currentPeriodStart: new Date(transaction.purchaseDate),
+      currentPeriodStart: purchaseDate,
       currentPeriodEnd: expiresDate,
       appleTransactionId: transaction.transactionId,
     })

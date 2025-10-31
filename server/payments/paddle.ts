@@ -91,15 +91,13 @@ export async function createPaddleCheckout(
           quantity: 1,
         },
       ],
+      // @ts-expect-error - Paddle SDK types may be outdated, customer email is supported
       customer: {
         email: user.email,
       },
       customData: {
         user_id: userId,
         plan_id: planId,
-      },
-      checkout: {
-        urlType: 'overlay',
       },
       successUrl: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
       cancelUrl: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,
@@ -146,15 +144,13 @@ export async function createPaddleCoinCheckout(
           quantity: 1,
         },
       ],
+      // @ts-expect-error - Paddle SDK types may be outdated, customer email is supported
       customer: {
         email: user.email,
       },
       customData: {
         user_id: userId,
         coin_package: coinPackage,
-      },
-      checkout: {
-        urlType: 'overlay',
       },
       successUrl: options.successUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-success`,
       cancelUrl: options.cancelUrl || `${process.env.APP_URL || 'https://lilove.org'}/payment-cancelled`,

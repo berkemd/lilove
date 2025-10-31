@@ -234,7 +234,7 @@ async function handleTransactionCompleted(event: any) {
       await db
         .update(users)
         .set({
-          coins: (user.coins || 0) + coinsToAdd,
+          coinBalance: (user.coinBalance || 0) + coinsToAdd,
         })
         .where(eq(users.id, userId));
 

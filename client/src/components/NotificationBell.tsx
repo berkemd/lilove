@@ -81,7 +81,7 @@ export function NotificationBell({ className = "" }: { className?: string }) {
       const response = await apiRequest(`/api/notifications?${params.toString()}`, {
         method: 'GET',
       });
-      return response as Notification[];
+      return await response.json() as Notification[];
     },
     enabled: !!user,
   });
@@ -93,7 +93,7 @@ export function NotificationBell({ className = "" }: { className?: string }) {
       const response = await apiRequest('/api/notifications/unread-count', {
         method: 'GET',
       });
-      return response as { count: number };
+      return await response.json() as { count: number };
     },
     enabled: !!user,
   });
