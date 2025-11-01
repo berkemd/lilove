@@ -6,7 +6,8 @@ import { eq, lt } from 'drizzle-orm';
 
 // Configuration constants
 const STREAK_RESET_HOURS = 48; // Hours of inactivity before streak resets
-const STREAK_RESET_MS = STREAK_RESET_HOURS * 60 * 60 * 1000;
+const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
+const STREAK_RESET_MS = STREAK_RESET_HOURS * MILLISECONDS_PER_HOUR;
 
 export function initializeCronJobs() {
   console.log('✅ Initializing cron jobs...');

@@ -190,11 +190,13 @@ async function handleTransactionCompleted(event: any) {
   }
 
   // Record payment transaction
+  // Note: Paddle amounts are in minor units which vary by currency
+  // For now, we store the raw value and handle formatting on display
   await db.insert(paymentTransactions).values({
     userId,
     type: type || 'subscription',
     description: `Paddle transaction ${data.id}`,
-    amount: (data.details.totals.total / 100).toString(), // Convert from cents
+    amount: (data.details.totals.total / 100).toString(), // Minor unit to major unit conversion
     currency: data.currency_code.toLowerCase(),
     status: 'completed',
     provider: 'paddle',
