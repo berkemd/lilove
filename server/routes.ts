@@ -10,6 +10,7 @@ import express from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { aiMentor } from "./aiMentor";
+import { aiMentorEnhanced } from "./aiEnhanced";
 import { paymentService } from "./payments";
 import { socialService } from "./social";
 import { analyticsService } from "./analytics";
@@ -4100,6 +4101,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error getting conversation history:", error);
       res.status(500).json({ message: "Failed to get conversation history" });
+    }
+  });
+
+  // ===== ENHANCED AI ROUTES =====
+  // New optimized AI routes using free APIs and intelligent caching
+  
+  // POST /api/ai/enhanced-chat - Enhanced AI chat with free APIs and fallbacks
+  app.post('/api/ai/enhanced-chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { message, type = 'chat' } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      const result = await aiMentorEnhanced.chat(userId, message, type);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error in enhanced AI chat:", error);
+      res.status(500).json({ 
+        response: "I'm here to help you grow! What would you like to work on?",
+        source: 'fallback',
+        cached: false
+      });
+    }
+  });
+  
+  // GET /api/ai/insights - Get AI-powered personalized insights
+  app.get('/api/ai/insights', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const insights = await aiMentorEnhanced.getInsights(userId);
+      res.json({ insights, timestamp: new Date().toISOString() });
+    } catch (error: any) {
+      console.error("Error getting AI insights:", error);
+      res.status(500).json({ 
+        insights: [
+          "💪 Focus on consistency over intensity.",
+          "🎯 Small daily actions lead to big results.",
+          "✨ You're capable of more than you think!"
+        ]
+      });
+    }
+  });
+  
+  // GET /api/ai/motivational-quote - Get a random motivational quote
+  app.get('/api/ai/motivational-quote', isAuthenticated, async (req: any, res) => {
+    try {
+      const quote = aiMentorEnhanced.getQuote();
+      res.json({ quote, timestamp: new Date().toISOString() });
+    } catch (error: any) {
+      console.error("Error getting motivational quote:", error);
+      res.status(500).json({ 
+        quote: "The secret of getting ahead is getting started. - Mark Twain"
+      });
+    }
+  });
+  
+  // GET /api/ai/smart-suggestions - Get AI-powered suggestions based on context
+  app.get('/api/ai/smart-suggestions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category } = req.query;
+      const suggestions = await aiMentorEnhanced.getSuggestions(userId, category as string);
+      res.json({ suggestions, category, timestamp: new Date().toISOString() });
+    } catch (error: any) {
+      console.error("Error getting smart suggestions:", error);
+      res.status(500).json({ 
+        suggestions: [
+          "Set one small, achievable goal for today",
+          "Take 10 minutes for self-reflection",
+          "Celebrate a recent win, no matter how small"
+        ]
+      });
+    }
+  });
+  
+  // POST /api/ai/motivation - Get AI-powered motivation
+  app.post('/api/ai/motivation', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = await aiMentorEnhanced.chat(
+        userId, 
+        "Give me motivation to keep going", 
+        'motivation'
+      );
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error getting AI motivation:", error);
+      res.status(500).json({ 
+        response: "You're doing amazing! Every step forward, no matter how small, is progress. Keep believing in yourself! 💪✨",
+        source: 'fallback',
+        cached: false
+      });
     }
   });
 

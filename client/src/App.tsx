@@ -18,6 +18,8 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { pushNotifications } from "@/lib/pushNotifications";
 import { initAnalytics, identifyUser } from "@/lib/analytics";
 import { StructuredData } from "@/components/StructuredData";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { initializePWA } from "@/lib/pwa";
 import Dashboard from "@/pages/Dashboard";
 import Goals from "@/pages/Goals";
 import Tasks from "@/pages/Tasks";
@@ -54,6 +56,11 @@ function AuthenticatedApp() {
   // Initialize analytics on app load
   useEffect(() => {
     initAnalytics();
+    
+    // Initialize PWA features
+    initializePWA().catch(error => {
+      console.error('Failed to initialize PWA:', error);
+    });
   }, []);
 
   // Identify user when authenticated
@@ -216,6 +223,7 @@ export default function App() {
         <AuthProvider>
           <NotificationProvider>
             <StructuredData />
+            <OfflineIndicator />
             <AuthenticatedApp />
             <Toaster />
           </NotificationProvider>

@@ -101,20 +101,21 @@ export default function DailyChallenges() {
   // Fetch user's streak info
   const { data: streakInfo } = useQuery({
     queryKey: ['/api/gamification/profile'],
-    select: (data) => ({
-      currentStreak: data.currentStreak || 0,
-      longestStreak: data.longestStreak || 0,
+    select: (data: any) => ({
+      currentStreak: data?.currentStreak || 0,
+      longestStreak: data?.longestStreak || 0,
     }),
   });
 
   // Claim daily login reward
   const claimLoginMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/gamification/daily-login', {
+      const response = await apiRequest('/api/gamification/daily-login', {
         method: 'POST',
       });
+      return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/gamification/profile'] });
       if (data.rewardClaimed) {
         toast({
@@ -128,12 +129,13 @@ export default function DailyChallenges() {
   // Update challenge progress
   const updateProgressMutation = useMutation({
     mutationFn: async ({ challengeId, increment }: { challengeId: string; increment: number }) => {
-      return apiRequest(`/api/gamification/challenges/${challengeId}/progress`, {
+      const response = await apiRequest(`/api/gamification/challenges/${challengeId}/progress`, {
         method: 'POST',
         body: JSON.stringify({ increment }),
       });
+      return await response.json();
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (data: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/gamification/challenges/daily'] });
       if (data.completed && !data.claimedReward) {
         toast({
@@ -145,11 +147,12 @@ export default function DailyChallenges() {
   });
 
   // Spin the wheel
-  const spinWheelMutation = useMutation({
+  const spinWheelMutation = useMutation<SpinWheelReward, Error, void>({
     mutationFn: async () => {
-      return apiRequest('/api/gamification/spin-wheel', {
+      const response = await apiRequest('/api/gamification/spin-wheel', {
         method: 'POST',
       });
+      return await response.json();
     },
     onSuccess: (reward: SpinWheelReward) => {
       // Calculate spin animation
