@@ -7,6 +7,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 
+// Plan type constants
+const PLAN_TYPES = {
+  FREE: 'free',
+  PRO: 'pro',
+  TEAM: 'team',
+  ENTERPRISE: 'enterprise'
+} as const;
+
 interface Plan {
   id: string;
   name: string;
@@ -157,12 +165,12 @@ export default function Pricing() {
                 className="w-full"
                 size="lg"
                 onClick={() => handleSubscribe(plan.id)}
-                disabled={loading === plan.id || plan.name === 'free'}
+                disabled={loading === plan.id || plan.name === PLAN_TYPES.FREE}
                 variant={plan.popular ? 'default' : 'outline'}
               >
                 {loading === plan.id
                   ? 'Processing...'
-                  : plan.name === 'free'
+                  : plan.name === PLAN_TYPES.FREE
                   ? 'Current Plan'
                   : 'Subscribe Now'}
               </Button>
