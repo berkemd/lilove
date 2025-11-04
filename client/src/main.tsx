@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { pushNotifications } from "./lib/pushNotifications";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Initialize push notifications service worker
 if ('serviceWorker' in navigator) {
@@ -15,4 +16,8 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);

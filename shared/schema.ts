@@ -1646,6 +1646,11 @@ export const userSubscriptions = pgTable("user_subscriptions", {
   stripeCustomerId: varchar("stripe_customer_id"),
   stripePaymentMethodId: varchar("stripe_payment_method_id"),
   
+  // Paddle Data (Web payments)
+  paddleSubscriptionId: varchar("paddle_subscription_id").unique(),
+  paddleCustomerId: varchar("paddle_customer_id"),
+  paddleTransactionId: varchar("paddle_transaction_id"),
+  
   // PayGate.to Data
   paygateTransactionId: varchar("paygate_transaction_id").unique(),
   paygateIpnToken: varchar("paygate_ipn_token"),
@@ -1656,8 +1661,9 @@ export const userSubscriptions = pgTable("user_subscriptions", {
   appleProductId: varchar("apple_product_id"),
   
   // Subscription Status
-  status: varchar("status").notNull(), // active, cancelled, past_due, trialing, expired
+  status: varchar("status").notNull(), // active, cancelled, past_due, trialing, expired, canceling
   billingCycle: varchar("billing_cycle").notNull(), // monthly, yearly
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
   
   // Dates
   startedAt: timestamp("started_at").notNull(),
@@ -1675,6 +1681,8 @@ export const userSubscriptions = pgTable("user_subscriptions", {
 }, (table) => ({
   userIdx: index("user_subscriptions_user_idx").on(table.userId),
   stripeSubIdx: index("user_subscriptions_stripe_sub_idx").on(table.stripeSubscriptionId),
+  paddleSubIdx: index("user_subscriptions_paddle_sub_idx").on(table.paddleSubscriptionId),
+  appleSubIdx: index("user_subscriptions_apple_sub_idx").on(table.appleOriginalTransactionId),
   statusIdx: index("user_subscriptions_status_idx").on(table.status),
 }));
 

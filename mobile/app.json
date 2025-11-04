@@ -24,6 +24,17 @@
         "NSPhotoLibraryUsageDescription": "Fotoğraf seçmek için galeri erişimi gerekir."
       }
     },
+    "android": {
+      "package": "org.lilove.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#9333EA"
+      },
+      "permissions": [
+        "android.permission.INTERNET"
+      ]
+    },
     "extra": {
       "router": {
         "origin": false
@@ -31,10 +42,20 @@
       "eas": {
         "projectId": "ab7bb029-eeb4-4407-a810-a9b27462f0ae"
       },
-      "apiUrl": "https://lilove.org"
+      "apiUrl": "https://lilove.org",
+      "revenueCatApiKey": {
+        "ios": "appl_YOUR_IOS_API_KEY_HERE",
+        "android": "goog_YOUR_ANDROID_API_KEY_HERE"
+      }
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "react-native-purchases",
+        {
+          "apiKey": "appl_YOUR_IOS_API_KEY_HERE"
+        }
+      ]
     ]
   }
 }

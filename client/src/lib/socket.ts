@@ -87,6 +87,7 @@ export interface NotificationEvent {
   message: string;
   data?: any;
   createdAt: string;
+  read?: boolean;
 }
 
 export interface TeamChatMessage {

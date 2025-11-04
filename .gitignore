@@ -10,6 +10,8 @@ attached_assets/*.txt
 attached_assets/*.png
 attached_assets/*.jpg
 attached_assets/*.jpeg
+# Allow app store icons
+!attached_assets/app-store/*.png
 .cache
 .next
 .turbo
@@ -25,3 +27,10 @@ package-lock.json
 .git/objects
 .git/logs
 .git/refs/remotes
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md
+.env
+.env.local
+.env.*.local
