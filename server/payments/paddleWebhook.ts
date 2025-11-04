@@ -1,5 +1,5 @@
 import { Paddle, EventName } from '@paddle/paddle-node-sdk';
-import { db } from '../storage';
+import { db } from '../db';
 import { users, paymentTransactions } from '@shared/schema';
 import { eq, sql } from 'drizzle-orm';
 import { PADDLE_WEBHOOK_SECRET, PADDLE_ENVIRONMENT } from './paddle';
