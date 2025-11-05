@@ -1,0 +1,29 @@
+run = "npm run start"
+entrypoint = "server/index.ts"
+modules = ["nodejs-20"]
+
+hidden = [".config", "tsconfig.json", "tsconfig.node.json", "vite.config.ts", ".gitignore"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "npm run start"]
+deploymentTarget = "autoscale"
+ignorePorts = false
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5000
+externalPort = 3000
+
+[[ports]]
+localPort = 5000
+externalPort = 443
+
+[env]
+NODE_ENV = "production"
+PORT = "5000"
