@@ -1,0 +1,48 @@
+runtime: nodejs20
+env: standard
+instance_class: F2
+
+automatic_scaling:
+  min_instances: 0
+  max_instances: 10
+  target_cpu_utilization: 0.75
+
+env_variables:
+  NODE_ENV: "production"
+
+handlers:
+  # API routes to backend
+  - url: /api/.*
+    script: auto
+    secure: always
+    
+  - url: /healthz
+    script: auto
+    secure: always
+  
+  # Static files
+  - url: /assets/.*
+    static_dir: dist/public/assets
+    secure: always
+    expiration: "1y"
+    
+  - url: /.*\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|otf)$
+    static_files: dist/public/\1
+    upload: dist/public/.*\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|otf)$
+    secure: always
+    expiration: "1y"
+  
+  # SPA fallback
+  - url: /.*
+    static_files: dist/public/index.html
+    upload: dist/public/index.html
+    secure: always
+    
+skip_files:
+  - ^(.*/)?#.*#$
+  - ^(.*/)?.*~$
+  - ^(.*/)?.*\.py[co]$
+  - ^(.*/)?.*/RCS/.*$
+  - ^(.*/)?\..*$
+  - ^(.*/)?node_modules/.*$
+  - ^(.*/)?tests?/.*$
