@@ -27,8 +27,8 @@ test_endpoint() {
     
     echo -n "Testing $endpoint... "
     
-    # Get content type
-    content_type=$(curl -s -I "$BASE_URL$endpoint" 2>/dev/null | grep -i "content-type" | head -1 | cut -d' ' -f2- | tr -d '\r')
+    # Get content type with timeout
+    content_type=$(curl -s -I --max-time 10 "$BASE_URL$endpoint" 2>/dev/null | grep -i "content-type" | head -1 | cut -d' ' -f2- | tr -d '\r')
     
     if [[ $content_type == *"$expected_type"* ]]; then
         echo -e "${GREEN}✓ PASS${NC} - Content-Type: $content_type"

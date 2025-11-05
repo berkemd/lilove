@@ -26,9 +26,9 @@ handlers:
     secure: always
     expiration: "1y"
     
-  - url: /.*\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|otf)$
+  - url: /(.*\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|otf))$
     static_files: dist/public/\1
-    upload: dist/public/.*\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|otf)$
+    upload: dist/public/(.*\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|otf))$
     secure: always
     expiration: "1y"
   

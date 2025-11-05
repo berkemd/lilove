@@ -277,5 +277,5 @@ If issues occur after deployment:
 
 For additional help:
 - Check deployment logs in your platform's console
-- Review the PRODUCTION_DEPLOYMENT_ISSUE.md file
+- Review the `PRODUCTION_DEPLOYMENT_ISSUE.md` file (if available)
 - Contact the development team if issues persist
