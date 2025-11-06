@@ -1,9 +1,9 @@
 import { Router } from 'express';
+import { handlePaddleWebhook } from '../payments/paddleWebhook';
 
 const router = Router();
 
-router.post("/webhook", (req, res) => {
-  res.json({ received: true });
-});
+// Paddle webhook endpoint
+router.post('/webhook', handlePaddleWebhook);
 
 export default router;

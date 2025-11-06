@@ -1,17 +1,51 @@
+// PostHog Analytics Client
+import { PostHog } from 'posthog-node';
+
+let posthogClient: PostHog | null = null;
+
 export function initPostHog() {
-  console.log("✅ PostHog initialized (stub)");
+  if (!posthogClient && process.env.POSTHOG_API_KEY) {
+    posthogClient = new PostHog(
+      process.env.POSTHOG_API_KEY,
+      {
+        host: process.env.POSTHOG_HOST || 'https://app.posthog.com'
+      }
+    );
+    console.log('✅ PostHog analytics initialized');
+  }
 }
 
-export function getPostHogClient() {
-  return {
-    capture: (event: any) => console.log("PostHog event:", event),
-    identify: (options: { distinctId: string; properties?: any } | string, props?: any) => {
-      if (typeof options === 'string') {
-        console.log("PostHog identify:", options, props);
-      } else {
-        console.log("PostHog identify:", options.distinctId, options.properties);
-      }
-    },
-    isFeatureEnabled: async (flag: string, userId?: string) => false
-  };
+export function getPostHogClient(): PostHog | null {
+  if (!posthogClient) {
+    initPostHog();
+  }
+  return posthogClient;
+}
+
+export async function trackEvent(
+  userId: string,
+  event: string,
+  properties?: Record<string, any>
+) {
+  const client = getPostHogClient();
+  if (client) {
+    client.capture({
+      distinctId: userId,
+      event,
+      properties
+    });
+  }
+}
+
+export async function identifyUser(
+  userId: string,
+  properties?: Record<string, any>
+) {
+  const client = getPostHogClient();
+  if (client) {
+    client.identify({
+      distinctId: userId,
+      properties
+    });
+  }
 }

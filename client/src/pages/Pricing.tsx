@@ -1,104 +1,188 @@
-import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Check } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Check } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useLocation } from 'wouter';
+import { useToast } from '@/hooks/use-toast';
+
+// Plan type constants
+const PLAN_TYPES = {
+  FREE: 'free',
+  PRO: 'pro',
+  TEAM: 'team',
+  ENTERPRISE: 'enterprise'
+} as const;
+
+interface Plan {
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  monthlyPrice: string;
+  yearlyPrice: string;
+  features: string[];
+  popular?: boolean;
+}
 
 export default function Pricing() {
-  const plans = [
-    {
-      name: "Free",
-      price: "$0",
-      period: "forever",
-      description: "Perfect for getting started",
-      features: [
-        "Up to 5 active goals",
-        "Basic task management",
-        "7-day streak tracking",
-        "Community access",
-        "Mobile app access"
-      ],
-      cta: "Get Started",
-      popular: false
-    },
-    {
-      name: "Premium",
-      price: "$9.99",
-      period: "per month",
-      description: "For serious achievers",
-      features: [
-        "Unlimited goals and tasks",
-        "AI coaching sessions",
-        "Advanced analytics",
-        "Priority support",
-        "Team collaboration",
-        "Achievement badges",
-        "Streak freeze (2x/month)",
-        "Ad-free experience"
-      ],
-      cta: "Start Free Trial",
-      popular: true
-    },
-    {
-      name: "Pro",
-      price: "$19.99",
-      period: "per month",
-      description: "Maximum performance",
-      features: [
-        "Everything in Premium",
-        "Unlimited AI coaching",
-        "Custom integrations",
-        "White-label options",
-        "API access",
-        "Dedicated support",
-        "Advanced reporting",
-        "Team management tools"
-      ],
-      cta: "Contact Sales",
-      popular: false
+  const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isYearly, setIsYearly] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const fetchPlans = async () => {
+    try {
+      const response = await fetch('/api/pricing');
+      if (response.ok) {
+        const data = await response.json();
+        setPlans(data.plans || []);
+      }
+    } catch (error) {
+      console.error('Error fetching plans:', error);
     }
-  ];
+  };
+
+  const handleSubscribe = async (planId: string) => {
+    if (!user) {
+      setLocation('/auth');
+      return;
+    }
+
+    setLoading(planId);
+    try {
+      const response = await fetch('/api/payments/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          planId,
+          billingCycle: isYearly ? 'yearly' : 'monthly',
+          currency: 'usd',
+          provider: 'paddle',
+          email: user.email
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.checkoutUrl) {
+        // Redirect to payment processor
+        window.location.href = data.checkoutUrl;
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: data.message || 'Failed to create checkout session'
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'An error occurred. Please try again.'
+      });
+    } finally {
+      setLoading(null);
+    }
+  };
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-16">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold mb-4">Choose Your Plan</h1>
-        <p className="text-xl text-muted-foreground">
-          Start free, upgrade as you grow
+        <h1 className="text-4xl font-bold mb-4">Choose Your Growth Plan</h1>
+        <p className="text-xl text-muted-foreground mb-8">
+          Unlock your full potential with premium features
         </p>
+
+        {/* Billing Toggle */}
+        <div className="inline-flex items-center gap-4 p-1 bg-muted rounded-lg">
+          <button
+            onClick={() => setIsYearly(false)}
+            className={`px-6 py-2 rounded-md transition-colors ${
+              !isYearly ? 'bg-background shadow-sm' : 'hover:bg-background/50'
+            }`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setIsYearly(true)}
+            className={`px-6 py-2 rounded-md transition-colors ${
+              isYearly ? 'bg-background shadow-sm' : 'hover:bg-background/50'
+            }`}
+          >
+            Yearly
+            <Badge className="ml-2" variant="secondary">Save 20%</Badge>
+          </button>
+        </div>
       </div>
 
+      {/* Pricing Cards */}
       <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
         {plans.map((plan) => (
-          <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
+          <Card
+            key={plan.id}
+            className={`relative ${
+              plan.popular ? 'border-primary shadow-lg scale-105' : ''
+            }`}
+          >
+            {plan.popular && (
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
+                Most Popular
+              </Badge>
+            )}
             <CardHeader>
-              {plan.popular && (
-                <Badge className="w-fit mb-2">Most Popular</Badge>
-              )}
-              <CardTitle className="text-2xl">{plan.name}</CardTitle>
+              <CardTitle className="text-2xl">{plan.displayName}</CardTitle>
               <CardDescription>{plan.description}</CardDescription>
-              <div className="mt-4">
-                <span className="text-4xl font-bold">{plan.price}</span>
-                <span className="text-muted-foreground">/{plan.period}</span>
-              </div>
             </CardHeader>
             <CardContent>
+              <div className="mb-6">
+                <span className="text-4xl font-bold">
+                  ${isYearly ? plan.yearlyPrice : plan.monthlyPrice}
+                </span>
+                <span className="text-muted-foreground">
+                  /{isYearly ? 'year' : 'month'}
+                </span>
+              </div>
               <ul className="space-y-3">
-                {plan.features.map((feature, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-                    <span>{feature}</span>
+                {(plan.features || []).map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                    <span className="text-sm">{feature}</span>
                   </li>
                 ))}
               </ul>
             </CardContent>
             <CardFooter>
-              <Button asChild className="w-full" variant={plan.popular ? "default" : "outline"}>
-                <Link href="/auth">{plan.cta}</Link>
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => handleSubscribe(plan.id)}
+                disabled={loading === plan.id || plan.name === PLAN_TYPES.FREE}
+                variant={plan.popular ? 'default' : 'outline'}
+              >
+                {loading === plan.id
+                  ? 'Processing...'
+                  : plan.name === PLAN_TYPES.FREE
+                  ? 'Current Plan'
+                  : 'Subscribe Now'}
               </Button>
             </CardFooter>
           </Card>
         ))}
+      </div>
+
+      {/* FAQ or Additional Info */}
+      <div className="mt-16 text-center text-sm text-muted-foreground">
+        <p>All plans include a 14-day money-back guarantee</p>
+        <p className="mt-2">Need help? Contact us at support@lilove.org</p>
       </div>
     </div>
   );
