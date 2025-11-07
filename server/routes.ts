@@ -564,6 +564,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Complete onboarding - Create avatar and mark onboarding complete
+  app.post('/api/user/complete-onboarding', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { displayName, primaryGoal, motivation, avatarPreset } = req.body;
+      
+      // Update user with display name
+      await storage.upsertUser({
+        id: userId,
+        displayName: displayName || 'User',
+        onboardingCompleted: true
+      });
+
+      // Create user profile with initial goal
+      await storage.updateUserProfile(userId, {
+        goalCategories: primaryGoal ? [primaryGoal] : [],
+        dailyTimeCommitment: 30, // Default 30 minutes
+        preferredCoachingStyle: 'balanced'
+      });
+
+      // Get or create avatar and customize based on preset
+      const avatar = await storage.getOrCreateAvatar(userId);
+      
+      const avatarDefaults: Record<string, any> = {
+        warrior: { outfit: 'knight', hairStyle: 'short', skinTone: 'medium' },
+        sage: { outfit: 'wizard', hairStyle: 'long', skinTone: 'light' },
+        explorer: { outfit: 'sporty', hairStyle: 'curly', skinTone: 'tan' },
+        innovator: { outfit: 'casual', hairStyle: 'spiky', skinTone: 'medium' }
+      };
+
+      const preset = avatarDefaults[avatarPreset] || avatarDefaults.warrior;
+      
+      // Update avatar with preset settings
+      await storage.updateAvatar(userId, {
+        skinTone: preset.skinTone || 'light',
+        hairStyle: preset.hairStyle || 'short',
+        hairColor: 'brown',
+        faceType: 'happy',
+        outfit: preset.outfit || 'casual',
+        accessory: 'none'
+      });
+
+      // Award welcome bonus (1000 coins already set in user default)
+      // Award welcome XP
+      await gamificationService.awardXP(userId, 100, 'onboarding_complete');
+
+      res.json({ 
+        message: "Onboarding completed successfully",
+        welcomeBonus: 1000
+      });
+    } catch (error: any) {
+      console.error("Error completing onboarding:", error);
+      res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
   // Get user stats (for profile page)
   app.get('/api/user/stats', isAuthenticated, async (req: any, res) => {
     try {
@@ -7539,14 +7595,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       const avatar = await storage.getOrCreateAvatar(userId);
-      res.json(avatar);
+      const user = await storage.getUserById(userId);
+      res.json({ 
+        avatar,
+        coins: user?.coinBalance || 0
+      });
     } catch (error: any) {
       console.error("Error fetching avatar:", error);
       res.status(500).json({ message: "Failed to fetch avatar" });
     }
   });
   
+  // Support both PATCH and PUT for avatar updates
   app.patch('/api/avatar', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const updates = req.body;
+      await storage.updateAvatar(userId, updates);
+      const updatedAvatar = await storage.getOrCreateAvatar(userId);
+      res.json(updatedAvatar);
+    } catch (error: any) {
+      console.error("Error updating avatar:", error);
+      res.status(500).json({ message: "Failed to update avatar" });
+    }
+  });
+
+  app.put('/api/avatar', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const updates = req.body;
