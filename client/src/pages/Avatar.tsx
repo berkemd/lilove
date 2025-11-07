@@ -159,13 +159,16 @@ export default function Avatar() {
   };
 
   const purchaseItem = (itemCost: number, updateFn: () => void) => {
-    if (coins >= itemCost) {
-      setCoins(coins - itemCost);
+    // Note: For free items and cosmetic changes, just apply the update
+    // For paid items, this would need backend integration
+    if (itemCost === 0 || coins >= itemCost) {
       updateFn();
       if (itemCost > 0) {
+        // In a real implementation, this would be handled by backend
+        // For now, just show the UI feedback
         toast({
-          title: '🎉 Purchase Successful!',
-          description: `Spent ${itemCost} coins`
+          title: '🎉 Item Selected!',
+          description: `This is a preview. Save to apply changes.`
         });
       }
     } else {
