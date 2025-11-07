@@ -188,9 +188,10 @@ export default function Onboarding() {
                     <img src={logoUrl} alt="LiLove" className="h-16 w-16" />
                   ) : (
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                      {steps[currentStep].icon && (
-                        <steps[currentStep].icon className="h-8 w-8 text-white" />
-                      )}
+                      {(() => {
+                        const StepIcon = steps[currentStep].icon;
+                        return StepIcon ? <StepIcon className="h-8 w-8 text-white" /> : null;
+                      })()}
                     </div>
                   )}
                 </div>
