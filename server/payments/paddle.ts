@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 
 // Initialize Paddle SDK
 const paddle = new Paddle(process.env.PADDLE_API_KEY || '', {
-  environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
+  environment: (process.env.NODE_ENV === 'production' ? 'production' : 'sandbox') as any
 });
 
 export async function createPaddleCheckout(
@@ -35,7 +35,7 @@ export async function createPaddleCheckout(
     }
 
     // Create a checkout session
-    const checkout = await paddle.checkouts.create({
+    const checkout = await (paddle as any).checkouts.create({
       items: [
         {
           priceId,

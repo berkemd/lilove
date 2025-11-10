@@ -16,7 +16,7 @@ const APPLE_KEY_ID = process.env.APPLE_KEY_ID || process.env.APPSTORE_KEY_ID || 
 const APPLE_ISSUER_ID = process.env.APPLE_ISSUER_ID || process.env.APPSTORE_ISSUER_ID || '';
 const APPLE_BUNDLE_ID = process.env.APPLE_BUNDLE_ID || 'org.lilove.app';
 const APPLE_PRIVATE_KEY = process.env.APPLE_PRIVATE_KEY_PEM || process.env.appstore_private_key || '';
-const APPLE_ENVIRONMENT = process.env.NODE_ENV === 'production' ? Environment.Production : Environment.Sandbox;
+const APPLE_ENVIRONMENT = process.env.NODE_ENV === 'production' ? Environment.PRODUCTION : Environment.SANDBOX;
 
 // Initialize Apple App Store Server API client
 let appleClient: AppStoreServerAPIClient | null = null;
