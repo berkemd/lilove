@@ -650,29 +650,30 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(tasks.goalId, options.goalId));
     }
     
-    // Build base query
-    let query = db.select().from(tasks).where(and(...conditions));
-    
-    // Add sorting
+    // Build complete query in one go
     const sortOrder = options?.sortOrder === 'asc' ? asc : desc;
+    let orderByClause: any;
+    
     if (options?.sortBy === 'title') {
-      query = query.orderBy(sortOrder(tasks.title));
+      orderByClause = sortOrder(tasks.title);
     } else if (options?.sortBy === 'priority') {
       // Custom sort for priority: urgent, high, medium, low
-      query = query.orderBy(
-        sql`CASE 
-          WHEN ${tasks.priority} = 'urgent' THEN 1
-          WHEN ${tasks.priority} = 'high' THEN 2 
-          WHEN ${tasks.priority} = 'medium' THEN 3
-          WHEN ${tasks.priority} = 'low' THEN 4
-          ELSE 5 END ${options.sortOrder === 'desc' ? sql`DESC` : sql`ASC`}`
-      );
+      orderByClause = sql`CASE 
+        WHEN ${tasks.priority} = 'urgent' THEN 1
+        WHEN ${tasks.priority} = 'high' THEN 2 
+        WHEN ${tasks.priority} = 'medium' THEN 3
+        WHEN ${tasks.priority} = 'low' THEN 4
+        ELSE 5 END ${options.sortOrder === 'desc' ? sql`DESC` : sql`ASC`}`;
     } else if (options?.sortBy === 'dueDate') {
-      query = query.orderBy(sortOrder(tasks.dueDate));
+      orderByClause = sortOrder(tasks.dueDate);
     } else {
       // Default sort by created date
-      query = query.orderBy(desc(tasks.createdAt));
+      orderByClause = desc(tasks.createdAt);
     }
+    
+    let query = db.select().from(tasks)
+      .where(and(...conditions))
+      .orderBy(orderByClause);
     
     // Add pagination
     if (options?.limit) {
@@ -974,7 +975,7 @@ export class DatabaseStorage implements IStorage {
     await db.insert(performanceEvents).values({
       ...event,
       timestamp: new Date(),
-    });
+    } as any);
   }
   
   async getUserPerformanceEvents(userId: string, limit: number = 50): Promise<PerformanceEvent[]> {
@@ -1354,7 +1355,20 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getPublicTeams(limit: number = 20, search?: string): Promise<any[]> {
-    let query = db.select({
+    // Build where conditions
+    let whereConditions = eq(teams.isPublic, true);
+    
+    if (search) {
+      whereConditions = and(
+        eq(teams.isPublic, true),
+        or(
+          sql`lower(${teams.name}) like lower(${'%' + search + '%'})`,
+          sql`lower(${teams.description}) like lower(${'%' + search + '%'})`
+        )
+      ) as any;
+    }
+
+    const results = await db.select({
       id: teams.id,
       name: teams.name,
       description: teams.description,
@@ -1372,22 +1386,8 @@ export class DatabaseStorage implements IStorage {
       memberCount: count(teamMembers.id).mapWith(Number)
     }).from(teams)
       .leftJoin(teamMembers, eq(teams.id, teamMembers.teamId))
-      .where(eq(teams.isPublic, true))
-      .groupBy(teams.id);
-
-    if (search) {
-      query = query.where(
-        and(
-          eq(teams.isPublic, true),
-          or(
-            sql`lower(${teams.name}) like lower(${'%' + search + '%'})`,
-            sql`lower(${teams.description}) like lower(${'%' + search + '%'})`
-          )
-        )
-      );
-    }
-
-    const results = await query
+      .where(whereConditions)
+      .groupBy(teams.id)
       .orderBy(desc(teams.totalXp))
       .limit(limit);
 
@@ -1818,7 +1818,7 @@ export class DatabaseStorage implements IStorage {
       try {
         const Stripe = (await import('stripe')).default;
         const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-          apiVersion: '2023-10-16',
+          apiVersion: '2025-08-27.basil' as any,
         });
         await stripe.subscriptions.cancel(user.stripeSubscriptionId);
       } catch (error) {
@@ -1827,17 +1827,20 @@ export class DatabaseStorage implements IStorage {
     }
     
     // 2. Delete user-generated content (order matters for foreign keys)
+    // Get user's goal IDs first
+    const userGoalIds = db.select({ id: goals.id }).from(goals).where(eq(goals.userId, userId));
+    
     await db.delete(goalSkills).where(
-      inArray(goalSkills.goalId, db.select({ id: goals.id }).from(goals).where(eq(goals.userId, userId)))
+      inArray(goalSkills.goalId, userGoalIds)
     );
     await db.delete(taskSkills).where(
-      inArray(taskSkills.taskId, db.select({ id: tasks.id }).from(tasks).where(eq(tasks.userId, userId)))
+      inArray(taskSkills.taskId, db.select({ id: tasks.id }).from(tasks).where(inArray(tasks.goalId, userGoalIds)))
     );
     await db.delete(taskKnowledgeLinks).where(
-      inArray(taskKnowledgeLinks.taskId, db.select({ id: tasks.id }).from(tasks).where(eq(tasks.userId, userId)))
+      inArray(taskKnowledgeLinks.taskId, db.select({ id: tasks.id }).from(tasks).where(inArray(tasks.goalId, userGoalIds)))
     );
     
-    await db.delete(tasks).where(eq(tasks.userId, userId));
+    await db.delete(tasks).where(inArray(tasks.goalId, userGoalIds));
     await db.delete(taskPlans).where(eq(taskPlans.userId, userId));
     await db.delete(goals).where(eq(goals.userId, userId));
     await db.delete(habits).where(eq(habits.userId, userId));
@@ -2694,18 +2697,18 @@ export class DatabaseStorage implements IStorage {
       .where(eq(leagueParticipants.seasonId, seasonId))
       .orderBy(desc(leagueParticipants.weeklyXp));
     
-    const promotionCount = currentLeague.promotionThreshold;
-    const relegationCount = currentLeague.relegationThreshold;
+    const promotionCount = currentLeague.promotionThreshold || 0;
+    const relegationCount = currentLeague.relegationThreshold || 0;
     
     for (let i = 0; i < participants.length; i++) {
       const rank = i + 1;
       
-      if (rank <= promotionCount && currentLeague.level < 6) {
+      if (promotionCount > 0 && rank <= promotionCount && currentLeague.level < 6) {
         await db
           .update(leagueParticipants)
           .set({ promoted: true })
           .where(eq(leagueParticipants.id, participants[i].id));
-      } else if (rank > participants.length - relegationCount && currentLeague.level > 1) {
+      } else if (relegationCount > 0 && rank > participants.length - relegationCount && currentLeague.level > 1) {
         await db
           .update(leagueParticipants)
           .set({ relegated: true })
@@ -2832,10 +2835,12 @@ export class DatabaseStorage implements IStorage {
     // Record coin transaction
     await db.insert(coinTransactions).values({
       userId,
-      delta: coinAmount,
-      reason: 'iOS In-App Purchase',
-      source: 'iap',
+      type: 'purchase',
+      amount: coinAmount,
+      balance: newBalance,
       balanceAfter: newBalance,
+      description: 'iOS In-App Purchase',
+      source: 'iap',
     });
     
     // Log security event
@@ -2963,13 +2968,17 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getAllQuests(filters?: { difficulty?: string; minLevel?: number }): Promise<Quest[]> {
-    let query = db.select().from(quests).where(eq(quests.isActive, true));
+    let conditions = [eq(quests.isActive, true)];
     
     if (filters?.difficulty) {
-      query = query.where(eq(quests.difficulty, filters.difficulty)) as any;
+      conditions.push(eq(quests.difficulty, filters.difficulty));
     }
     
-    return await query;
+    if (filters?.minLevel !== undefined) {
+      conditions.push(sql`${quests.minLevel} <= ${filters.minLevel}`);
+    }
+    
+    return await db.select().from(quests).where(and(...conditions));
   }
   
   async getQuestById(questId: string): Promise<Quest | null> {
@@ -3061,7 +3070,8 @@ export class DatabaseStorage implements IStorage {
       userId: userQuest.userId,
       type: 'earn',
       amount: quest.coinReward || 0,
-      balance: user.coinBalance,
+      balance: user.coinBalance || 0,
+      balanceAfter: user.coinBalance || 0,
       source: 'quest_reward',
       sourceId: quest.id,
       description: `Quest completed: ${quest.title}`,
@@ -3070,9 +3080,10 @@ export class DatabaseStorage implements IStorage {
     await this.addXPTransaction({
       userId: userQuest.userId,
       amount: quest.xpReward || 0,
+      delta: quest.xpReward || 0,
       source: 'quest_reward',
       sourceId: quest.id,
-      description: `Quest completed: ${quest.title}`,
+      reason: `Quest completed: ${quest.title}`,
     });
     
     if (quest.itemRewards && quest.itemRewards.length > 0) {
