@@ -4,6 +4,32 @@ import { friendConnections, socialFeedPosts, users } from '@shared/schema';
 import { eq, and, or, desc } from 'drizzle-orm';
 
 export class SocialService {
+  private io: any = null;
+
+  initializeSocialSocket(socketIO: any) {
+    this.io = socketIO;
+    console.log('✅ Socket.IO connected to SocialService');
+    
+    // Setup socket event handlers
+    this.io.on('connection', (socket: any) => {
+      console.log('👤 User connected to social socket:', socket.id);
+      
+      // Join user's personal room
+      socket.on('join', (userId: string) => {
+        socket.join(`user:${userId}`);
+      });
+      
+      // Handle social events
+      socket.on('like_post', async (data: any) => {
+        this.io.to(`user:${data.postOwnerId}`).emit('post_liked', data);
+      });
+      
+      socket.on('disconnect', () => {
+        console.log('👤 User disconnected from social socket:', socket.id);
+      });
+    });
+  }
+
   async sendFriendRequest(fromUserId: string, toUserId: string) {
     // Check if connection already exists
     const existing = await db.select()

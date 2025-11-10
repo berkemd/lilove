@@ -1,3 +1,7 @@
+import * as dotenv from 'dotenv';
+// Load environment variables first
+dotenv.config();
+
 import express from "express";
 import { createServer, type Server } from "http";
 import { registerRoutes } from "./routes";

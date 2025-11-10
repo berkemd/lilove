@@ -4,6 +4,13 @@ import { notifications, users } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
 export class NotificationService {
+  private io: any = null;
+
+  setSocketIO(socketIO: any) {
+    this.io = socketIO;
+    console.log('✅ Socket.IO connected to NotificationService');
+  }
+
   async sendNotification(
     userId: string,
     title: string,
@@ -20,6 +27,11 @@ export class NotificationService {
       actionUrl,
       read: false
     }).returning();
+
+    // Send real-time notification via Socket.IO if available
+    if (this.io) {
+      this.io.to(`user:${userId}`).emit('notification', notification[0]);
+    }
 
     // In a real implementation, this would also send push notifications
     // using services like Firebase Cloud Messaging or OneSignal
