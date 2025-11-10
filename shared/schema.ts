@@ -118,13 +118,19 @@ export const users = pgTable("users", {
   paddleCustomerId: varchar("paddle_customer_id"),
   paymentProvider: varchar("payment_provider").default("stripe"), // stripe or paddle
   
+  // Apple Integration
+  appleSubscriptionId: varchar("apple_subscription_id"),
+  
   // Subscription Status
   subscriptionTier: varchar("subscription_tier").default("free"), // free, pro, team, enterprise
   subscriptionStatus: varchar("subscription_status").default("active"), // active, cancelled, past_due, trialing
   subscriptionCurrentPeriodEnd: timestamp("subscription_current_period_end"),
+  subscriptionPlanId: varchar("subscription_plan_id"),
+  subscriptionEndsAt: timestamp("subscription_ends_at"),
   
   // Coins Balance - New users get 1000 welcome bonus coins
   coinBalance: integer("coin_balance").default(1000),
+  coins: integer("coins").default(1000), // Alias for coinBalance for backward compatibility
   
   // Voice AI Preferences
   voicePreferences: json("voice_preferences").$type<{
@@ -855,6 +861,7 @@ export const xpTransactions = pgTable("xp_transactions", {
   source: varchar("source").notNull(), // task, goal, achievement, daily_login, streak, challenge, spin
   sourceId: varchar("source_id"), // Reference to the source item
   delta: integer("delta").notNull(), // +/- XP amount
+  amount: integer("amount"), // Alias for delta for backward compatibility
   reason: text("reason").notNull(),
   multiplier: decimal("multiplier").default("1.0"), // Premium multiplier
   
@@ -1661,9 +1668,12 @@ export const userSubscriptions = pgTable("user_subscriptions", {
   appleProductId: varchar("apple_product_id"),
   
   // Subscription Status
-  status: varchar("status").notNull(), // active, cancelled, past_due, trialing, expired, canceling
+  status: varchar("status").notNull(), // active, cancelled, past_due, trialing, expired, canceling, canceled
   billingCycle: varchar("billing_cycle").notNull(), // monthly, yearly
   cancelAtPeriodEnd: boolean("cancel_at_period_end").default(false),
+  
+  // Validation response from provider
+  validationResponse: json("validation_response").$type<any>(),
   
   // Dates
   startedAt: timestamp("started_at").notNull(),
@@ -1716,10 +1726,12 @@ export const paymentTransactions = pgTable("payment_transactions", {
   
   // Provider
   provider: varchar("provider"), // stripe, apple, paygate, paddle
+  providerTransactionId: varchar("provider_transaction_id"), // Generic provider transaction ID
   
   // Status
-  status: varchar("status").notNull(), // pending, processing, succeeded, failed, refunded
+  status: varchar("status").notNull(), // pending, processing, succeeded, failed, refunded, completed
   failureReason: text("failure_reason"),
+  subscriptionPlanId: varchar("subscription_plan_id"), // Reference to plan
   
   // References
   subscriptionId: varchar("subscription_id").references(() => userSubscriptions.id),
@@ -1759,14 +1771,16 @@ export const coinTransactions = pgTable("coin_transactions", {
   userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
   
   // Transaction Info
-  type: varchar("type").notNull(), // purchase, spend, earn, refund, adjustment
+  type: varchar("type").notNull(), // purchase, spend, earn, refund, adjustment, purchased
   amount: integer("amount").notNull(), // positive for credit, negative for debit
   balance: integer("balance").notNull(), // balance after transaction
+  balanceAfter: integer("balance_after"), // Alias for balance for backward compatibility
   
   // Source/Reason
   source: varchar("source").notNull(), // purchase, daily_login, goal_complete, streak_bonus, etc
   sourceId: varchar("source_id"), // reference to purchase, goal, etc
   description: text("description").notNull(),
+  reason: text("reason"), // Additional reason field
   
   // Payment Reference (for purchases)
   paymentTransactionId: varchar("payment_transaction_id").references(() => paymentTransactions.id),
