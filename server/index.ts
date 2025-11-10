@@ -75,6 +75,8 @@ const corsOptions: cors.CorsOptions = {
       'https://www.lilove.org',
       /^https:\/\/.*\.replit\.dev$/,  // All Replit preview domains
       /^https:\/\/.*\.repl\.co$/,      // Replit domains
+      /^https:\/\/.*\.novita\.ai$/,    // Novita sandbox domains
+      /^https:\/\/.*\.sandbox\.novita\.ai$/,  // Novita sandbox subdomains
     ];
     
     // Add localhost in development
