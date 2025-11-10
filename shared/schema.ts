@@ -132,6 +132,11 @@ export const users = pgTable("users", {
   coinBalance: integer("coin_balance").default(1000),
   coins: integer("coins").default(1000), // Alias for coinBalance for backward compatibility
   
+  // Gamification fields
+  xp: integer("xp").default(0),
+  level: integer("level").default(1),
+  loginStreak: integer("login_streak").default(0),
+  
   // Voice AI Preferences
   voicePreferences: json("voice_preferences").$type<{
     model?: string; // alloy, echo, fable, onyx, nova, shimmer
@@ -729,6 +734,11 @@ export const knowledgeUsageLogs = pgTable("knowledge_usage_logs", {
 export const mentorConversations = pgTable("mentor_conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  sessionId: varchar("session_id").references(() => mentorSessions.id, { onDelete: 'cascade' }),
+  
+  // Individual message fields (for backward compatibility)
+  role: varchar("role"), // user, assistant, system
+  content: text("content"),
   
   // Conversation Context
   title: text("title"),
@@ -761,6 +771,7 @@ export const mentorConversations = pgTable("mentor_conversations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   userIdx: index("mentor_conversations_user_idx").on(table.userId),
+  sessionIdx: index("mentor_conversations_session_idx").on(table.sessionId),
   activeIdx: index("mentor_conversations_active_idx").on(table.isActive),
   lastActiveIdx: index("mentor_conversations_last_active_idx").on(table.lastActiveAt),
 }));
@@ -772,6 +783,8 @@ export const mentorSessions = pgTable("mentor_sessions", {
   
   // Session Info
   sessionType: varchar("session_type").notNull(), // guidance, motivation, debugging, planning
+  topic: text("topic"), // Session topic/title
+  status: varchar("status").default("active"), // active, completed, archived
   context: json("context").$type<any>(),
   
   // AI Response
@@ -784,6 +797,7 @@ export const mentorSessions = pgTable("mentor_sessions", {
   userRating: integer("user_rating"), // 1-5
   followupNeeded: boolean("followup_needed").default(false),
   
+  createdAt: timestamp("created_at").defaultNow(),
   timestamp: timestamp("timestamp").defaultNow(),
 }, (table) => ({
   userIdx: index("mentor_sessions_user_idx").on(table.userId),
@@ -1427,6 +1441,7 @@ export const notifications = pgTable("notifications", {
   
   // Status
   isRead: boolean("is_read").default(false),
+  read: boolean("read").default(false), // Alias for isRead for backward compatibility
   isArchived: boolean("is_archived").default(false),
   isEmail: boolean("is_email").default(false), // Was this also sent as email
   isPush: boolean("is_push").default(false), // Was this sent as push notification
@@ -1612,6 +1627,8 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   yearlyPrice: decimal("yearly_price"), // discounted yearly price
   stripePriceIdMonthly: varchar("stripe_price_id_monthly"),
   stripePriceIdYearly: varchar("stripe_price_id_yearly"),
+  paddleMonthlyPriceId: varchar("paddle_monthly_price_id"),
+  paddleYearlyPriceId: varchar("paddle_yearly_price_id"),
   
   // Features & Limits
   maxGoals: integer("max_goals").notNull(), // -1 for unlimited
