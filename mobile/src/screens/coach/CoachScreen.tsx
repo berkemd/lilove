@@ -102,9 +102,17 @@ export default function CoachScreen() {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: "I'm having trouble connecting right now. Please check your connection and try again.",
+        // SEBEBI UYDURMA. Demo turunda sunucuya hic gidilmiyor; "baglanti
+        // sorunu" demek kullaniciya da, App Review'a da yanlis bilgi verir.
+        content:
+          err?.code === 'DEMO_MODE'
+            ? err.message
+            : "I'm having trouble connecting right now. Please check your connection and try again.",
         timestamp: new Date(),
-        suggestions: ['Try again', 'Check my goals', 'View my progress'],
+        suggestions:
+          err?.code === 'DEMO_MODE'
+            ? ['Check my goals', 'View my progress']
+            : ['Try again', 'Check my goals', 'View my progress'],
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {

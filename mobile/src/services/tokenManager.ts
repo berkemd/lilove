@@ -9,7 +9,10 @@ let tokenListeners: Array<(token: string | null) => void> = [];
 export const tokenManager = {
   async getToken(): Promise<string | null> {
     try {
-      // Always read from SecureStore to avoid any caching issues across modules
+      // BELLEK ONCE. Bu oturumda zaten bir jeton belirlendiyse, onu
+      // diskten teyit etmeye calismak yalniz yeni bir dusme noktasi
+      // ekler. Disk kalicilik icindir, dogruluk icin degil.
+      if (cachedToken) return cachedToken;
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
       console.log('[TokenManager] getToken - token exists:', !!token, 'length:', token?.length || 0);
       if (token) {
@@ -29,8 +32,12 @@ export const tokenManager = {
       console.log('[TokenManager] Token saved, length:', token.length);
       tokenListeners.forEach(listener => listener(token));
     } catch (error) {
-      console.error('[TokenManager] Error saving token:', error);
-      throw error;
+      // YAZAMAMAK OTURUMU BITIRMEZ. Jeton bellekte duruyor; uygulama
+      // calisir, yalniz bir sonraki aciliste yeniden giris istenir.
+      // Burada `throw` etmek, anahtar zinciri kullanilamayan her
+      // cihazda uygulamayi tumden kilitliyordu.
+      console.warn('[TokenManager] jeton diske yazilamadi; oturum bellekte surduruluyor', error);
+      tokenListeners.forEach(listener => listener(token));
     }
   },
 

@@ -85,6 +85,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         });
       } else {
+        // DEMO OTURUMU FIREBASE'E AIT DEGIL.
+        // Firebase "kullanici yok" dedigi anda burasi state'i sifirliyor
+        // ve jetonu siliyordu; dinleyici gec cozulunce hesapsiz tur
+        // acilir acilmaz kapaniyordu. Demo, Firebase'in bilgisi disinda.
+        if (get().isDemo) return;
         if (unsubscribeProfile) {
           unsubscribeProfile();
           unsubscribeProfile = null;

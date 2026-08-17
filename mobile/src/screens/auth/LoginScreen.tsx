@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { tokenManager } from '../../services/tokenManager';
-import { DEMO_TOKEN, demoSifirla } from '../../lib/demoData';
+import { DEMO_TOKEN, demoSifirla, demoProfil } from '../../lib/demoData';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import appleAuth from '../../services/appleAuth';
 import { useGoogleAuth, getIdTokenFromResponse } from '../../services/googleAuth';
@@ -83,6 +83,9 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   const demoBaslat = async () => {
+    // SESSIZ BASARISIZLIK YOK. Jeton yazilamazsa ekran oldugu gibi
+    // kalir ve kullanici (ve App Review) "dugme bozuk" gorur.
+    try {
     demoSifirla();
     await tokenManager.setToken(DEMO_TOKEN);
     useAuthStore.setState({
@@ -91,14 +94,13 @@ export default function LoginScreen({ navigation }: any) {
       isLoading: false,
       error: null,
       user: null,
-      userProfile: {
-        id: 'demo-user',
-        email: 'demo@lilove.app',
-        displayName: 'Demo',
-        coinBalance: 1250,
-        subscriptionTier: 'free',
-      } as any,
+      // TEK KAYNAK: demo profili demoData'da yasiyor. Burada ikinci
+      // bir kopya tutmak, istatistiklerin sessizce ayrisma yoluydu.
+      userProfile: demoProfil(),
     });
+    } catch (e: any) {
+      Alert.alert('Could not start the tour', String(e?.message ?? e));
+    }
   };
 
   const handleLogin = async () => {
