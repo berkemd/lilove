@@ -16,7 +16,9 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "org.lilove.app",
-      buildNumber: "125",
+      // ASC-de zaten b124, b125 ve b127 var (ucu de suresi dolmus).
+      // Yeni ikili bunlardan BUYUK olmali.
+      buildNumber: "128",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSLocationWhenInUseUsageDescription: "Konum bilginizi yakındaki kullanıcıları göstermek için kullanırız.",
