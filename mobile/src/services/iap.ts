@@ -1,5 +1,5 @@
 // =====================================================================
-//  IAP — Apple'ın kendi StoreKit'i, aracısız  (expo-iap 5.x)
+//  IAP — Apple'ın kendi StoreKit'i, aracısız  (expo-iap 2.8.5)
 //
 //  NEDEN RevenueCat DEĞİL
 //    Sunucuda zaten Apple'ın resmî `@apple/app-store-server-library`si
@@ -15,10 +15,12 @@
 //    belirsizleşir.
 //
 //  API ÖLÇÜLDÜ, TAHMİN EDİLMEDİ
-//    expo-iap 5.x'te `getProducts`/`getSubscriptions`/`requestSubscription`
-//    YOK. Paketin kendi `build/index.d.ts` dosyasından okundu:
-//        fetchProducts({ skus, type: 'in-app' | 'subs' | 'all' })
-//        requestPurchase({ request: { apple: { sku } }, type })
+//    Sürüm 2.8.5'te KİLİTLİ ve sebebi ölçüldü: 3.2.0'dan itibaren
+//    paketin yerel kodu `Constant(` (tekil) kullanıyor ve o fabrika
+//    yalnız expo-modules-core 2.4+/SDK 53'te var. Bu proje SDK 52.
+//    API paketin kendi `build/index.d.ts`inden okundu:
+//        requestProducts({ skus, type: 'inapp' | 'subs' })
+//        requestPurchase({ request: { ios: { sku } }, type })
 //        finishTransaction({ purchase, isConsumable })
 //    ve en önemlisi: `requestPurchase` OLAY TABANLI. Sonucu dönüş
 //    değerinden okumak yanlış; sonuç `purchaseUpdatedListener`a düşer.
@@ -35,7 +37,7 @@
 import {
   initConnection,
   endConnection,
-  fetchProducts,
+  requestProducts,
   requestPurchase,
   finishTransaction,
   getAvailablePurchases,
@@ -194,12 +196,12 @@ function sirala(urunler: StoreProduct[], sira: readonly string[]): StoreProduct[
 }
 
 export async function loadCoinProducts(): Promise<StoreProduct[]> {
-  const p = await ısrarla(() => fetchProducts({ skus: [...COIN_IDS], type: 'in-app' }));
+  const p = await ısrarla(() => requestProducts({ skus: [...COIN_IDS], type: 'inapp' }));
   return sirala(p.map(esle), COIN_IDS);
 }
 
 export async function loadSubscriptionProducts(): Promise<StoreProduct[]> {
-  const p = await ısrarla(() => fetchProducts({ skus: [...SUBSCRIPTION_IDS], type: 'subs' }));
+  const p = await ısrarla(() => requestProducts({ skus: [...SUBSCRIPTION_IDS], type: 'subs' }));
   return sirala(p.map(esle), SUBSCRIPTION_IDS);
 }
 
@@ -213,7 +215,7 @@ export async function loadSubscriptionProducts(): Promise<StoreProduct[]> {
  * sonsuza kadar dönmesi kabul edilemez; işlem askıda kalır ve bir
  * sonraki açılışta dinleyici onu tamamlar.
  */
-function satinAl(productId: string, tur: 'in-app' | 'subs'): Promise<void> {
+function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
   return new Promise<void>((coz, reddet) => {
     const zamanlayici = setTimeout(() => {
       bekleyenler.delete(productId);
@@ -223,14 +225,14 @@ function satinAl(productId: string, tur: 'in-app' | 'subs'): Promise<void> {
     bekleyenler.set(productId, { coz, reddet, zamanlayici });
 
     requestPurchase({
-      request: { apple: { sku: productId } },
+      request: { ios: { sku: productId } },
       type: tur,
     }).catch((e: any) => bekleyeniBitir(productId, e));
   });
 }
 
 export function buyCoins(productId: string): Promise<void> {
-  return satinAl(productId, 'in-app');
+  return satinAl(productId, 'inapp');
 }
 
 export function buySubscription(productId: string): Promise<void> {
