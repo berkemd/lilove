@@ -1,72 +1,41 @@
-# OSX
-.DS_Store
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# Xcode
-build/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata
-*.xccheckout
-*.moved-aside
-DerivedData
-*.hmap
-*.ipa
-*.xcuserstate
-project.xcworkspace
-
-# Android/IntelliJ
-build/
-.idea
-.gradle
-local.properties
-*.iml
-*.hprof
-.cxx/
-*.keystore
-!debug.keystore
-
-# node.js
+# dependencies
 node_modules/
-npm-debug.log
-yarn-error.log
-
-# Bundle artifacts
-*.jsbundle
 
 # Expo
 .expo/
 dist/
 web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
 # Metro
 .metro-health-check*
 
-# Environment
-.env
-.env.local
-.env.production
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
 
-# Temporary files
-*.swp
-*.swo
-*~
+# macOS
 .DS_Store
+*.pem
 
-# Testing
-coverage/
+# local env files
+.env*.local
 
-# Fastlane
-fastlane/report.xml
-fastlane/Preview.html
-fastlane/screenshots/**/*.png
-fastlane/test_output
-fastlane/*.log
+# typescript
+*.tsbuildinfo
 
-# App Store Connect secrets
-.env.local
+# generated native folders
+/ios
+/android

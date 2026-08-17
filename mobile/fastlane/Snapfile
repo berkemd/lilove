@@ -1,0 +1,31 @@
+# Snapfile for automated screenshot generation
+
+devices([
+  "iPhone 15 Pro Max",
+  "iPhone 15 Pro",
+  "iPhone SE (3rd generation)",
+  "iPad Pro (12.9-inch) (6th generation)"
+])
+
+languages([
+  "en-US",
+  "tr"
+])
+
+# UI test scheme (must be created in Xcode)
+scheme("LiLoveUITests")
+
+# Output directory
+output_directory("./fastlane/screenshots")
+
+# Clean previous screenshots
+clear_previous_screenshots(true)
+
+# Override status bar for clean screenshots
+override_status_bar(true)
+
+# Run tests concurrently for faster execution
+concurrent_simulators(true)
+
+# Number of retries
+number_of_retries(2)

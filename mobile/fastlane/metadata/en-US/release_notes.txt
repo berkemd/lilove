@@ -1,18 +1,3 @@
-Welcome to LiLove! 🎉
-
-This is the first release of LiLove - your personal development companion.
-
-Features:
-• Set and track meaningful goals
-• Build healthy habits with streak tracking
-• Get AI-powered coaching and advice
-• Join teams and participate in challenges
-• Earn achievements and customize your avatar
-• Track progress with beautiful analytics
-
-We're excited to help you on your growth journey!
-
-For support or feedback, reach us at support@lilove.org
 Version 1.0.0 - Hello, World!
 
 • Introducing LiLove - Your AI Life Coach

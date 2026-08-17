@@ -1,147 +1,3 @@
-# Fastfile for LiLove iOS App Store Automation
-# This file automates the App Store submission process
-
-default_platform(:ios)
-
-platform :ios do
-  desc "Setup App Store Connect API Key"
-  lane :setup_asc_key do
-    # App Store Connect API Key configuration
-    # Key ID should be set in environment variable ASC_KEY_ID
-    # Issuer ID should be set in environment variable ASC_ISSUER_ID
-    # Key content should be set in environment variable ASC_PRIVATE_KEY
-    
-    unless ENV["ASC_KEY_ID"]
-      UI.user_error!("ASC_KEY_ID environment variable must be set. Do not hardcode API Key IDs.")
-    end
-    
-    app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_PRIVATE_KEY"],
-      duration: 1200, # 20 minutes
-      in_house: false
-    )
-  end
-
-  desc "Download metadata from App Store Connect"
-  lane :download_metadata do
-    setup_asc_key
-    
-    deliver_download_metadata(
-      username: "brkekahraman@icloud.com",
-      app_identifier: "org.lilove.app",
-      platform: "ios"
-    )
-  end
-
-  desc "Upload metadata to App Store Connect"
-  lane :upload_metadata do
-    setup_asc_key
-    
-    upload_to_app_store(
-      username: "brkekahraman@icloud.com",
-      app_identifier: "org.lilove.app",
-      skip_binary_upload: true,
-      skip_screenshots: false,
-      skip_metadata: false,
-      force: true,
-      submit_for_review: false,
-      automatic_release: false,
-      precheck_include_in_app_purchases: false
-    )
-  end
-
-  desc "Upload screenshots only"
-  lane :upload_screenshots do
-    setup_asc_key
-    
-    upload_to_app_store(
-      username: "brkekahraman@icloud.com",
-      app_identifier: "org.lilove.app",
-      skip_binary_upload: true,
-      skip_screenshots: false,
-      skip_metadata: true,
-      force: true
-    )
-  end
-
-  desc "Submit build for App Store review"
-  lane :submit_review do |options|
-    setup_asc_key
-    
-    build_number = options[:build_number]
-    if build_number.nil?
-      UI.user_error!("You must provide a build_number when submitting for review.")
-    end
-    
-    deliver(
-      username: "brkekahraman@icloud.com",
-      app_identifier: "org.lilove.app",
-      app_version: "1.0.0",
-      build_number: build_number,
-      skip_binary_upload: true,
-      skip_screenshots: true,
-      skip_metadata: false,
-      submit_for_review: true,
-      automatic_release: true,
-      force: true,
-      submission_information: {
-        add_id_info_uses_idfa: false,
-        export_compliance_uses_encryption: false,
-        content_rights_contains_third_party_content: false
-      }
-    )
-  end
-
-  desc "Complete App Store submission flow"
-  lane :release do |options|
-    setup_asc_key
-    
-    build_number = options[:build_number]
-    if build_number.nil?
-      UI.user_error!("You must provide a build_number when running the release lane.")
-    end
-    
-    # Upload metadata and screenshots
-    upload_to_app_store(
-      username: "brkekahraman@icloud.com",
-      app_identifier: "org.lilove.app",
-      skip_binary_upload: true,
-      force: true
-    )
-    
-    # Submit for review
-    submit_review(build_number: build_number)
-    
-    UI.success("🎉 App successfully submitted to App Store for review!")
-    UI.important("Monitor status at: https://appstoreconnect.apple.com/apps/6670815109")
-  end
-
-  desc "Build with EAS and submit to TestFlight"
-  lane :beta do
-    # This lane assumes EAS CLI is already installed and configured
-    # Run: eas build --platform ios --profile production --non-interactive
-    
-    Dir.chdir('..') { sh("eas", "build", "--platform", "ios", "--profile", "production", "--non-interactive") }
-    
-    # The build will automatically be uploaded to TestFlight via EAS
-    UI.success("🎉 Build submitted to TestFlight!")
-  end
-
-  desc "Update app metadata (descriptions, keywords, etc.)"
-  lane :update_metadata do
-    setup_asc_key
-    
-    upload_to_app_store(
-      username: "brkekahraman@icloud.com",
-      app_identifier: "org.lilove.app",
-      skip_binary_upload: true,
-      skip_screenshots: true,
-      force: true
-    )
-  end
-end
 # Fastfile for LiLove iOS Deployment
 default_platform(:ios)
 
@@ -244,14 +100,342 @@ platform :ios do
     puts "✅ App submitted for review!"
   end
   
-  desc "Setup RevenueCat products"
-  lane :setup_iap do
-    # This would normally create IAP products via App Store Connect API
-    # For now, providing the product IDs that need to be created manually
+  desc "Create IAP products via Spaceship API"
+  lane :create_iap_products do
+    require 'spaceship'
+    
+    app_identifier = "org.lilove.app"
+    
+    # Define products to create with proper Spaceship format
+    products = [
+      {
+        product_id: "org.lilove.app.sub.pro.monthly",
+        reference_name: "Premium Monthly Subscription",
+        price_tier: 10, # $9.99
+        duration: "1m",
+        trial_duration: "1w",
+        versions: {
+          "en-US" => {
+            name: "Premium Monthly",
+            description: "Access all premium features with monthly subscription. Cancel anytime."
+          },
+          "tr" => {
+            name: "Premium Aylık",
+            description: "Tüm premium özelliklere aylık abonelikle erişin. İstediğiniz zaman iptal edin."
+          }
+        }
+      },
+      {
+        product_id: "org.lilove.app.sub.pro.yearly",
+        reference_name: "Premium Yearly Subscription",
+        price_tier: 50, # $99.99 (tier 50 is approximately $99.99)
+        duration: "1y",
+        trial_duration: "1w",
+        versions: {
+          "en-US" => {
+            name: "Premium Yearly",
+            description: "Best value! Get 12 months for the price of 10. All premium features included."
+          },
+          "tr" => {
+            name: "Premium Yıllık",
+            description: "En iyi değer! 10 ayın fiyatına 12 ay. Tüm premium özellikler dahil."
+          }
+        }
+      },
+      {
+        product_id: "org.lilove.app.sub.team.monthly",
+        reference_name: "Team Monthly Subscription",
+        price_tier: 20, # $19.99
+        duration: "1m",
+        trial_duration: "1w",
+        versions: {
+          "en-US" => {
+            name: "Team Monthly",
+            description: "Collaborate with your team. Includes all premium features plus team management."
+          },
+          "tr" => {
+            name: "Takım Aylık",
+            description: "Ekibinizle işbirliği yapın. Tüm premium özellikler artı takım yönetimi dahil."
+          }
+        }
+      },
+      {
+        product_id: "org.lilove.app.sub.team.yearly",
+        reference_name: "Team Yearly Subscription",
+        price_tier: 70, # $199.99 (tier 70 is approximately $199.99)
+        duration: "1y",
+        trial_duration: "1w",
+        versions: {
+          "en-US" => {
+            name: "Team Yearly",
+            description: "Best value for teams! Annual billing with full team collaboration features."
+          },
+          "tr" => {
+            name: "Takım Yıllık",
+            description: "Ekipler için en iyi değer! Yıllık faturalama ile tam ekip işbirliği özellikleri."
+          }
+        }
+      }
+    ]
+    
+    puts "\n" + "="*80
+    puts "🚀 LiLove IAP Product Creation via Spaceship API"
+    puts "="*80 + "\n"
+    
+    begin
+      # Step 1: Authentication
+      puts "🔐 Step 1: Authenticating with App Store Connect..."
+      
+      # Check for environment variables
+      apple_id = ENV["FASTLANE_APPLE_ID"] || ENV["APPLE_ID"]
+      
+      if apple_id.nil? || apple_id.empty?
+        raise "❌ AUTHENTICATION REQUIRED: Set FASTLANE_APPLE_ID or APPLE_ID environment variable\n" +
+              "   Example: export FASTLANE_APPLE_ID='your@email.com'\n" +
+              "   Note: Spaceship::Tunes requires username/password authentication, not API tokens"
+      end
+      
+      # Authenticate with Spaceship::Tunes (requires username/password)
+      Spaceship::Tunes.login(apple_id)
+      Spaceship::Tunes.select_team
+      puts "✅ Authenticated as: #{apple_id}\n"
+      
+      # Step 2: Find the app
+      puts "📱 Step 2: Finding app '#{app_identifier}'..."
+      app = Spaceship::Tunes::Application.find(app_identifier)
+      
+      if app.nil?
+        raise "❌ APP NOT FOUND: '#{app_identifier}' not found in App Store Connect\n" +
+              "   Please create the app in App Store Connect first"
+      end
+      
+      puts "✅ Found app: #{app.name} (#{app.bundle_id})\n"
+      
+      # Step 3: Check/Get subscription group (family_id)
+      puts "📦 Step 3: Checking subscription group..."
+      
+      # Get existing IAPs to find subscription group
+      existing_iaps = app.in_app_purchases.all
+      subscription_family_id = nil
+      
+      # Look for existing subscription to get family_id
+      existing_sub = existing_iaps.find { |iap| iap.product_type == "recurring" }
+      if existing_sub && existing_sub.subscription_family_id
+        subscription_family_id = existing_sub.subscription_family_id
+        puts "✅ Found existing subscription group: #{subscription_family_id}\n"
+      else
+        # Provide instructions to create subscription group manually
+        raise "❌ SUBSCRIPTION GROUP REQUIRED\n\n" +
+              "   A subscription group must exist before creating subscriptions.\n" +
+              "   Please create one manually in App Store Connect:\n\n" +
+              "   1. Go to: App Store Connect → My Apps → LiLove → Features → In-App Purchases\n" +
+              "   2. Click 'Manage' under 'Subscriptions'\n" +
+              "   3. Click '+' to create a new subscription group\n" +
+              "   4. Name it 'LiLove Premium' (Reference Name: lilove_premium_group)\n" +
+              "   5. Save the subscription group\n" +
+              "   6. Run this lane again\n\n" +
+              "   Note: You can also create one subscription manually to establish the group,\n" +
+              "   then this script can add the remaining products to the same group."
+      end
+      
+      # Step 4: Check for existing products (idempotency)
+      puts "🔍 Step 4: Checking for existing products..."
+      existing_product_ids = existing_iaps.map(&:product_id)
+      
+      products_to_create = products.reject do |product|
+        if existing_product_ids.include?(product[:product_id])
+          puts "⏭️  Skipping #{product[:product_id]} (already exists)"
+          true
+        else
+          false
+        end
+      end
+      
+      if products_to_create.empty?
+        puts "\n✅ All products already exist! No action needed.\n"
+        
+        puts "\n📋 Existing Products:"
+        products.each do |product|
+          puts "   ✓ #{product[:product_id]} - #{product[:reference_name]}"
+        end
+        
+        next
+      end
+      
+      puts "📝 #{products_to_create.length} product(s) to create\n"
+      
+      # Step 5: Create products
+      puts "🏗️  Step 5: Creating IAP products...\n"
+      
+      created_products = []
+      failed_products = []
+      
+      products_to_create.each_with_index do |product, index|
+        puts "#{index + 1}/#{products_to_create.length}: Creating #{product[:reference_name]}..."
+        puts "   Product ID: #{product[:product_id]}"
+        puts "   Price Tier: #{product[:price_tier]} (approx $#{product[:price_tier] == 10 ? '9.99' : product[:price_tier] == 20 ? '19.99' : product[:price_tier] == 50 ? '99.99' : '199.99'})"
+        puts "   Duration: #{product[:duration]}"
+        
+        begin
+          # Create the IAP product
+          new_iap = app.in_app_purchases.create!(
+            type: Spaceship::Tunes::IAPType::RECURRING,
+            reference_name: product[:reference_name],
+            product_id: product[:product_id],
+            
+            # Subscription details
+            family_id: subscription_family_id,
+            subscription_duration: product[:duration],
+            subscription_free_trial: product[:trial_duration],
+            
+            # Localized metadata
+            versions: product[:versions],
+            
+            # Availability
+            cleared_for_sale: false, # Set to false initially for review
+            
+            # Pricing - worldwide pricing
+            pricing_intervals: [
+              {
+                country: "WW",
+                begin_date: nil,
+                end_date: nil,
+                tier: product[:price_tier]
+              }
+            ],
+            
+            # Review information (optional)
+            review_notes: "Use demo account: demo@lilove.org / DemoLiLove2025! to test premium features"
+          )
+          
+          if new_iap && new_iap.product_id == product[:product_id]
+            created_products << product[:product_id]
+            puts "   ✅ SUCCESS: Product created in App Store Connect"
+          else
+            failed_products << {product: product[:product_id], error: "Unknown error - product not confirmed"}
+            puts "   ⚠️  WARNING: Creation uncertain - please verify in App Store Connect"
+          end
+          
+        rescue => e
+          failed_products << {product: product[:product_id], error: e.message}
+          puts "   ❌ FAILED: #{e.message}"
+        end
+        
+        puts ""
+        sleep(1) # Rate limiting
+      end
+      
+      # Step 6: Summary
+      puts "="*80
+      puts "📊 CREATION SUMMARY"
+      puts "="*80
+      
+      if created_products.any?
+        puts "\n✅ Successfully Created (#{created_products.length}):"
+        created_products.each do |product_id|
+          puts "   ✓ #{product_id}"
+        end
+      end
+      
+      if failed_products.any?
+        puts "\n❌ Failed (#{failed_products.length}):"
+        failed_products.each do |failure|
+          puts "   ✗ #{failure[:product]} - #{failure[:error]}"
+        end
+      end
+      
+      # Next steps
+      puts "\n🎯 NEXT STEPS:"
+      puts "1. ✅ Verify products in App Store Connect → My Apps → LiLove → In-App Purchases"
+      puts "2. 📝 Complete product metadata (descriptions, screenshots if needed)"
+      puts "3. 🔄 Set products to 'Ready for Sale' (cleared_for_sale: true)"
+      puts "4. 🔗 Sync products to RevenueCat Dashboard"
+      puts "5. 🧪 Test purchases in Sandbox environment"
+      puts "6. 📱 Update mobile app with product IDs"
+      
+      puts "\n" + "="*80 + "\n"
+      
+      # Exit with error if any failed
+      if failed_products.any?
+        UI.user_error!("❌ Some products failed to create. See summary above.")
+      end
+      
+    rescue => e
+      # Comprehensive error handling
+      puts "\n" + "="*80
+      puts "❌ IAP CREATION FAILED"
+      puts "="*80
+      
+      puts "\nError: #{e.message}"
+      puts "\nBacktrace:" if ENV["DEBUG"]
+      puts e.backtrace.join("\n") if ENV["DEBUG"]
+      
+      puts "\n📋 MANUAL FALLBACK INSTRUCTIONS:"
+      puts "="*80
+      
+      puts "\n1. Go to App Store Connect: https://appstoreconnect.apple.com"
+      puts "2. Navigate to: My Apps → LiLove → Features → In-App Purchases"
+      puts "3. Create Subscription Group (if not exists):"
+      puts "   - Click 'Manage' under Subscriptions"
+      puts "   - Click '+' to create new group"
+      puts "   - Name: 'LiLove Premium'"
+      puts "   - Reference Name: 'lilove_premium_group'"
+      
+      puts "\n4. Create each subscription product:\n"
+      
+      products.each_with_index do |product, index|
+        puts "\n   #{index + 1}. #{product[:reference_name]}"
+        puts "   " + "-"*60
+        puts "   Product ID:       #{product[:product_id]}"
+        puts "   Type:             Auto-Renewable Subscription"
+        puts "   Duration:         #{product[:duration] == '1m' ? '1 Month' : '1 Year'}"
+        puts "   Price:            Tier #{product[:price_tier]} (~$#{product[:price_tier] == 10 ? '9.99' : product[:price_tier] == 20 ? '19.99' : product[:price_tier] == 50 ? '99.99' : '199.99'})"
+        puts "   Free Trial:       #{product[:trial_duration] == '1w' ? '1 Week' : 'None'}"
+        puts "   Group:            lilove_premium_group"
+        puts "   "
+        puts "   Display Name (en): #{product[:versions]['en-US'][:name]}"
+        puts "   Description (en):  #{product[:versions]['en-US'][:description]}"
+      end
+      
+      puts "\n5. After creating products:"
+      puts "   - Submit each product for review"
+      puts "   - Sync product IDs with RevenueCat"
+      puts "   - Update mobile app configuration"
+      puts "   - Test in Sandbox environment"
+      
+      puts "\n📚 HELPFUL RESOURCES:"
+      puts "- App Store Connect Guide: https://developer.apple.com/app-store-connect/"
+      puts "- In-App Purchase Setup: https://developer.apple.com/in-app-purchase/"
+      puts "- RevenueCat Integration: https://docs.revenuecat.com/docs/ios"
+      
+      puts "\n" + "="*80 + "\n"
+      
+      UI.user_error!("Failed to create IAP products: #{e.message}")
+    end
+  end
+  
+  desc "List IAP product requirements (for manual creation)"
+  lane :list_iap_products do
     puts "📱 Create these In-App Purchases in App Store Connect:"
-    puts "1. lilove_premium_monthly - $9.99"
-    puts "2. lilove_premium_yearly - $99.99"
-    puts "3. lilove_team_monthly - $19.99"
-    puts "4. lilove_team_yearly - $199.99"
+    puts ""
+    puts "1. Premium Monthly"
+    puts "   Product ID: org.lilove.app.sub.pro.monthly"
+    puts "   Price: $9.99"
+    puts "   Type: Auto-Renewable Subscription"
+    puts ""
+    puts "2. Premium Yearly"
+    puts "   Product ID: org.lilove.app.sub.pro.yearly"
+    puts "   Price: $99.99"
+    puts "   Type: Auto-Renewable Subscription"
+    puts ""
+    puts "3. Team Monthly"
+    puts "   Product ID: org.lilove.app.sub.team.monthly"
+    puts "   Price: $19.99"
+    puts "   Type: Auto-Renewable Subscription"
+    puts ""
+    puts "4. Team Yearly"
+    puts "   Product ID: org.lilove.app.sub.team.yearly"
+    puts "   Price: $199.99"
+    puts "   Type: Auto-Renewable Subscription"
   end
 end
