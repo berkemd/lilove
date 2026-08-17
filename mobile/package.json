@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "build:ios": "eas build --platform ios --profile production",
     "build:ios:dev": "eas build --platform ios --profile development",
-    "submit:ios": "eas submit --platform ios"
+    "submit:ios": "eas submit --platform ios",
+    "postinstall": "node ci-eas-shim.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
