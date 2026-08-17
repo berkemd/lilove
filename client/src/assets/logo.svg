@@ -1,0 +1,28 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="heartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B6B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8B5CF6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Heart shape with growth arrow -->
+  <g transform="translate(64, 64)">
+    <!-- Main heart shape -->
+    <path d="M0,10 C0,-15 -30,-15 -30,10 C-30,35 0,55 0,55 C0,55 30,35 30,10 C30,-15 0,-15 0,10 Z" 
+          fill="url(#heartGradient)" 
+          stroke="none"/>
+    
+    <!-- Growth arrow integrated into heart -->
+    <path d="M0,20 L0,-10 M-8,-2 L0,-10 L8,-2" 
+          stroke="rgba(255,255,255,0.9)" 
+          stroke-width="4" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          fill="none"/>
+          
+    <!-- Small sparkle for growth energy -->
+    <circle cx="15" cy="-5" r="2" fill="rgba(255,255,255,0.8)"/>
+    <circle cx="-18" cy="5" r="1.5" fill="rgba(255,255,255,0.6)"/>
+  </g>
+</svg>

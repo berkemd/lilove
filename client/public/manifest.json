@@ -1,0 +1,36 @@
+{
+  "name": "LiLove - Love Your Growth, Live Your Peak",
+  "short_name": "LiLove",
+  "description": "AI-powered personal growth & emotional wellness platform. Your loving companion for meaningful transformation.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#FF4D8F",
+  "categories": ["lifestyle", "health", "productivity"],
+  "lang": "en",
+  "scope": "/",
+  "id": "/",
+  "icons": [
+    {
+      "src": "/badge-72x72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

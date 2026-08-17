@@ -1,0 +1,49 @@
+# EAS Build Ignore File
+# This ensures only necessary files are uploaded to EAS
+
+# Build artifacts
+.expo/
+dist/
+web-build/
+ios/
+android/
+
+# Development files
+*.log
+build.log
+build_output.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# Shell scripts
+*.sh
+
+# Documentation
+*.md
+!README.md
+
+# Native build artifacts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# macOS
+.DS_Store
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Fastlane
+fastlane/
+
+# Cache
+.cache/
+.metro-health-check*

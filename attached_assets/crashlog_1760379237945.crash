@@ -1,0 +1,177 @@
+Incident Identifier: E58CF1DB-EA26-4CB1-A4A6-5F03960EB375
+Distributor ID:      com.apple.TestFlight
+Hardware Model:      iPhone16,2
+Process:             LiLove [40233]
+Path:                /private/var/containers/Bundle/Application/D10F193D-08BA-4A1C-94CE-EA2F0878991F/LiLove.app/LiLove
+Identifier:          org.lilove.app
+Version:             1.0.0 (22)
+AppStoreTools:       17A323
+AppVariant:          1:iPhone16,2:26
+Beta:                YES
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           org.lilove.app [10310]
+
+Date/Time:           2025-10-13 21:11:20.5436 +0300
+Launch Time:         2025-10-13 21:11:20.3197 +0300
+OS Version:          iPhone OS 26.0 (23A340)
+Release Type:        User
+Baseband Version:    3.02.03
+Report Version:      104
+
+Exception Type:  EXC_CRASH (SIGABRT)
+Exception Codes: 0x0000000000000000, 0x0000000000000000
+Termination Reason: SIGNAL 6 Abort trap: 6
+Terminating Process: LiLove [40233]
+
+Triggered by Thread:  4
+
+Last Exception Backtrace:
+0   CoreFoundation                	0x19394a8c8 __exceptionPreprocess + 164 (NSException.m:249)
+1   libobjc.A.dylib               	0x1908c17c4 objc_exception_throw + 88 (objc-exception.mm:356)
+2   LiLove                        	0x102c9bb8c RCTFatal + 568 (RCTAssert.m:147)
+3   LiLove                        	0x102d09190 -[RCTExceptionsManager reportFatal:stack:exceptionId:extraDataAsJSON:] + 488 (RCTExceptionsManager.mm:82)
+4   LiLove                        	0x102d099b8 -[RCTExceptionsManager reportException:] + 1316 (RCTExceptionsManager.mm:154)
+5   CoreFoundation                	0x1938c7864 __invoking___ + 148 (:-1)
+6   CoreFoundation                	0x1938c76ec -[NSInvocation invoke] + 424 (NSForwarding.m:3411)
+7   CoreFoundation                	0x1939d7df0 -[NSInvocation invokeWithTarget:] + 64 (NSForwarding.m:3508)
+8   LiLove                        	0x102ccd554 -[RCTModuleMethod invokeWithBridge:module:arguments:] + 380 (RCTModuleMethod.mm:584)
+9   LiLove                        	0x102ccf6c4 facebook::react::invokeInner(RCTBridge*, RCTModuleData*, unsigned int, folly::dynamic const&, int, (anonymous namespace)::SchedulingContext) + 452 (RCTNativeModule.mm:196)
+10  LiLove                        	0x102ccf318 facebook::react::RCTNativeModule::invoke(unsigned int, folly::dynamic&&, int)::$_0::operator()() const + 72 (RCTNativeModule.mm:113)
+11  LiLove                        	0x102ccf318 invocation function for block in facebook::react::RCTNativeModule::invoke(unsigned int, folly::dynamic&&, int) + 116 (RCTNativeModule.mm:104)
+12  libdispatch.dylib             	0x1cb259adc _dispatch_call_block_and_release + 32 (init.c:1575)
+13  libdispatch.dylib             	0x1cb2737ec _dispatch_client_callout + 16 (client_callout.mm:85)
+14  libdispatch.dylib             	0x1cb262468 _dispatch_lane_serial_drain + 740 (queue.c:3991)
+15  libdispatch.dylib             	0x1cb262f44 _dispatch_lane_invoke + 388 (queue.c:4082)
+16  libdispatch.dylib             	0x1cb26d3ec _dispatch_root_queue_drain_deferred_wlh + 292 (queue.c:7265)
+17  libdispatch.dylib             	0x1cb26cce4 _dispatch_workloop_worker_thread + 692 (queue.c:6859)
+18  libsystem_pthread.dylib       	0x1ee6d33b8 _pthread_wqthread + 292 (pthread.c:2696)
+19  libsystem_pthread.dylib       	0x1ee6d28c0 start_wqthread + 8 (:-1)
+
+Thread 0:
+0   libsystem_kernel.dylib        	0x000000023ba45cd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x000000023ba492f8 mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x000000023ba49214 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x000000023ba4905c mach_msg + 24 (mach_msg.c:323)
+4   CoreFoundation                	0x00000001938c8a08 __CFRunLoopServiceMachPort + 160 (CFRunLoop.c:2650)
+5   CoreFoundation                	0x000000019389ea20 __CFRunLoopRun + 1188 (CFRunLoop.c:3035)
+6   CoreFoundation                	0x000000019389dc44 _CFRunLoopRunSpecificWithOptions + 532 (CFRunLoop.c:3462)
+7   GraphicsServices              	0x0000000232c92498 GSEventRunModal + 120 (GSEvent.c:2049)
+8   UIKitCore                     	0x0000000199218ddc -[UIApplication _run] + 792 (UIApplication.m:3899)
+9   UIKitCore                     	0x00000001991bdb0c UIApplicationMain + 336 (UIApplication.m:5574)
+10  LiLove                        	0x0000000102b4c49c main + 80 (main.m:7)
+11  dyld                          	0x0000000190916e28 start + 7116 (dyldMain.cpp:1477)
+
+Thread 1:
+
+Thread 2:
+
+Thread 3:
+
+Thread 4 Crashed:
+0   libsystem_kernel.dylib        	0x000000023ba500cc __pthread_kill + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001ee6d9810 pthread_kill + 268 (pthread.c:1721)
+2   libsystem_c.dylib             	0x000000019eefcf1c abort + 124 (abort.c:122)
+3   libc++abi.dylib               	0x00000001909c3808 __abort_message + 132 (abort_message.cpp:66)
+4   libc++abi.dylib               	0x00000001909b2484 demangling_terminate_handler() + 304 (cxa_default_handlers.cpp:76)
+5   libobjc.A.dylib               	0x00000001908c3f28 _objc_terminate() + 156 (objc-exception.mm:496)
+6   libc++abi.dylib               	0x00000001909c2bdc std::__terminate(void (*)()) + 16 (cxa_handlers.cpp:59)
+7   libc++abi.dylib               	0x00000001909c65c8 __cxa_rethrow + 188 (cxa_exception.cpp:658)
+8   libobjc.A.dylib               	0x00000001908d0508 objc_exception_rethrow + 44 (objc-exception.mm:399)
+9   LiLove                        	0x0000000102ccf908 facebook::react::invokeInner(RCTBridge*, RCTModuleData*, unsigned int, folly::dynamic const&, int, (anonymous namespace)::SchedulingContext) + 1032 (RCTNativeModule.mm:232)
+10  LiLove                        	0x0000000102ccf318 facebook::react::RCTNativeModule::invoke(unsigned int, folly::dynamic&&, int)::$_0::operator()() const + 72 (RCTNativeModule.mm:113)
+11  LiLove                        	0x0000000102ccf318 invocation function for block in facebook::react::RCTNativeModule::invoke(unsigned int, folly::dynamic&&, int) + 116 (RCTNativeModule.mm:104)
+12  libdispatch.dylib             	0x00000001cb259adc _dispatch_call_block_and_release + 32 (init.c:1575)
+13  libdispatch.dylib             	0x00000001cb2737ec _dispatch_client_callout + 16 (client_callout.mm:85)
+14  libdispatch.dylib             	0x00000001cb262468 _dispatch_lane_serial_drain + 740 (queue.c:3991)
+15  libdispatch.dylib             	0x00000001cb262f44 _dispatch_lane_invoke + 388 (queue.c:4082)
+16  libdispatch.dylib             	0x00000001cb26d3ec _dispatch_root_queue_drain_deferred_wlh + 292 (queue.c:7265)
+17  libdispatch.dylib             	0x00000001cb26cce4 _dispatch_workloop_worker_thread + 692 (queue.c:6859)
+18  libsystem_pthread.dylib       	0x00000001ee6d33b8 _pthread_wqthread + 292 (pthread.c:2696)
+19  libsystem_pthread.dylib       	0x00000001ee6d28c0 start_wqthread + 8 (:-1)
+
+Thread 5:
+
+Thread 6:
+
+Thread 7 name:
+Thread 7:
+0   libsystem_kernel.dylib        	0x000000023ba45cd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x000000023ba492f8 mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x000000023ba49214 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x000000023ba4905c mach_msg + 24 (mach_msg.c:323)
+4   CoreFoundation                	0x00000001938c8a08 __CFRunLoopServiceMachPort + 160 (CFRunLoop.c:2650)
+5   CoreFoundation                	0x000000019389ea20 __CFRunLoopRun + 1188 (CFRunLoop.c:3035)
+6   CoreFoundation                	0x000000019389dc44 _CFRunLoopRunSpecificWithOptions + 532 (CFRunLoop.c:3462)
+7   Foundation                    	0x00000001918e4734 -[NSRunLoop(NSRunLoop) runMode:beforeDate:] + 212 (NSRunLoop.m:375)
+8   Foundation                    	0x00000001918e490c -[NSRunLoop(NSRunLoop) runUntilDate:] + 64 (NSRunLoop.m:422)
+9   UIKitCore                     	0x00000001991e9fe8 -[UIEventFetcher threadMain] + 408 (UIEventFetcher.m:1333)
+10  Foundation                    	0x0000000190fb6d3c __NSThread__start__ + 732 (NSThread.m:997)
+11  libsystem_pthread.dylib       	0x00000001ee6d644c _pthread_start + 136 (pthread.c:931)
+12  libsystem_pthread.dylib       	0x00000001ee6d28cc thread_start + 8 (:-1)
+
+Thread 8:
+
+Thread 9:
+
+Thread 10 name:
+Thread 10:
+0   libsystem_kernel.dylib        	0x000000023ba45cd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x000000023ba492f8 mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x000000023ba49214 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x000000023ba4905c mach_msg + 24 (mach_msg.c:323)
+4   CoreFoundation                	0x00000001938c8a08 __CFRunLoopServiceMachPort + 160 (CFRunLoop.c:2650)
+5   CoreFoundation                	0x000000019389ea20 __CFRunLoopRun + 1188 (CFRunLoop.c:3035)
+6   CoreFoundation                	0x000000019389dc44 _CFRunLoopRunSpecificWithOptions + 532 (CFRunLoop.c:3462)
+7   LiLove                        	0x0000000102caee38 +[RCTCxxBridge runRunLoop] + 212 (RCTCxxBridge.mm:350)
+8   Foundation                    	0x0000000190fb6d3c __NSThread__start__ + 732 (NSThread.m:997)
+9   libsystem_pthread.dylib       	0x00000001ee6d644c _pthread_start + 136 (pthread.c:931)
+10  libsystem_pthread.dylib       	0x00000001ee6d28cc thread_start + 8 (:-1)
+
+Thread 11 name:
+Thread 11:
+0   libsystem_kernel.dylib        	0x000000023ba4b5d4 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001ee6d4b58 _pthread_cond_wait + 984 (pthread_cond.c:862)
+2   libc++.1.dylib                	0x00000001a276f6fc std::__1::condition_variable::wait(std::__1::unique_lock<std::__1::mutex>&) + 32 (condition_variable.cpp:30)
+3   hermes                        	0x0000000103a2cdf8 void std::__1::condition_variable::wait<hermes::vm::HadesGC::Executor::worker()::'lambda'()>(std::__1::unique_lock<std::__1::mutex>&, hermes::vm::HadesGC::Executor::worker()::'lambda'()) + 28 (__mutex_base:400)
+4   hermes                        	0x0000000103a2cdf8 hermes::vm::HadesGC::Executor::worker() + 116 (HadesGC.cpp:1062)
+5   hermes                        	0x0000000103a2cd60 hermes::vm::HadesGC::Executor::Executor()::'lambda'()::operator()() const + 4 (HadesGC.cpp:1033)
+6   hermes                        	0x0000000103a2cd60 decltype(std::declval<hermes::vm::HadesGC::Executor::Executor()::'lambda'()>()()) std::__1::__invoke[abi:v160006]<hermes::vm::HadesGC::Executor::Executor()::'lambda'()>(hermes::vm::HadesGC::Executo... + 4 (invoke.h:394)
+7   hermes                        	0x0000000103a2cd60 void std::__1::__thread_execute[abi:v160006]<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, hermes::vm::HadesGC::Executor::Executor()::'lambda... + 4 (thread:288)
+8   hermes                        	0x0000000103a2cd60 void* std::__1::__thread_proxy[abi:v160006]<std::__1::tuple<std::__1::unique_ptr<std::__1::__thread_struct, std::__1::default_delete<std::__1::__thread_struct>>, hermes::vm::HadesGC::Executor::Exec... + 44 (thread:299)
+9   libsystem_pthread.dylib       	0x00000001ee6d644c _pthread_start + 136 (pthread.c:931)
+10  libsystem_pthread.dylib       	0x00000001ee6d28cc thread_start + 8 (:-1)
+
+
+Thread 4 crashed with ARM Thread State (64-bit):
+    x0: 0x0000000000000000   x1: 0x0000000000000000   x2: 0x0000000000000000   x3: 0x0000000000000000
+    x4: 0x00000001909c7f43   x5: 0x000000016d4e26d0   x6: 0x000000000000006e   x7: 0xfffff0003ffff800
+    x8: 0x3097b8789e1c6c46   x9: 0x3097b879f3525c46  x10: 0x0000000000000051  x11: 0x000000000000000b
+   x12: 0x000000000000000b  x13: 0x0000000193d4994e  x14: 0x0000000103e2c8f8  x15: 0x000000014c810000
+   x16: 0x0000000000000148  x17: 0x000000016d4e3000  x18: 0x0000000000000000  x19: 0x0000000000000006
+   x20: 0x0000000000002103  x21: 0x000000016d4e30e0  x22: 0x434c4e47432b2b00  x23: 0x000000014c057990
+   x24: 0x0000000000000001  x25: 0x000000014c057ae0  x26: 0x000000014cc304c1  x27: 0x000000014c05b280
+   x28: 0x000000014cc30c71   fp: 0x000000016d4e2640   lr: 0x00000001ee6d9810
+    sp: 0x000000016d4e2620   pc: 0x000000023ba500cc cpsr: 0x40001000
+   esr: 0x56000080 (Syscall)
+
+
+Binary Images:
+        0x102b48000 -         0x103047fff LiLove arm64  <aa7c69db6bfe31f5b237147160f13524> /var/containers/Bundle/Application/D10F193D-08BA-4A1C-94CE-EA2F0878991F/LiLove.app/LiLove
+        0x1031f4000 -         0x1031fffff libobjc-trampolines.dylib arm64e  <3f2a8bfdcd6c3784b0ce8813d842bbbd> /private/preboot/Cryptexes/OS/usr/lib/libobjc-trampolines.dylib
+        0x103960000 -         0x103b5bfff hermes arm64  <a7f8ae9cd80334578ea5be3293d01b81> /private/var/containers/Bundle/Application/D10F193D-08BA-4A1C-94CE-EA2F0878991F/LiLove.app/Frameworks/hermes.framework/hermes
+        0x190890000 -         0x1908e1adf libobjc.A.dylib arm64e  <677d64df97cd3525a709c4c0ad1a0c69> /usr/lib/libobjc.A.dylib
+        0x190912000 -         0x1909b0ac7 dyld arm64e  <211a824b618c3dafa790499fcac0d702> /usr/lib/dyld
+        0x1909b1000 -         0x1909cb6c7 libc++abi.dylib arm64e  <7fae731b4b7e390daf762a34206a40cf> /usr/lib/libc++abi.dylib
+        0x190f55000 -         0x191d8527f Foundation arm64e  <457af377cacc3719993b6187ae01baeb> /System/Library/Frameworks/Foundation.framework/Foundation
+        0x193881000 -         0x193e0bc3f CoreFoundation arm64e  <973e47e588f03367b9d446d5cb999b75> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+        0x19916f000 -         0x19b51673f UIKitCore arm64e  <bc9ca8b48df731d5bef2f56e5e96cc7a> /System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore
+        0x19ee85000 -         0x19ef0556f libsystem_c.dylib arm64e  <45ef0c602b4d33cf85a2551531a2e3d8> /usr/lib/system/libsystem_c.dylib
+        0x1a274d000 -         0x1a27dfde3 libc++.1.dylib arm64e  <b701271d755c3fb18ca9bb280ea03a3e> /usr/lib/libc++.1.dylib
+        0x1cb258000 -         0x1cb29e25f libdispatch.dylib arm64e  <d34ac6a910dc35359944e3efc5994788> /usr/lib/system/libdispatch.dylib
+        0x1ee6d2000 -         0x1ee6de44f libsystem_pthread.dylib arm64e  <187bdc447ab83bc29973debc0798eaa4> /usr/lib/system/libsystem_pthread.dylib
+        0x232c91000 -         0x232c997ff GraphicsServices arm64e  <4eb73f50cdf2316194c00f3e7002b67c> /System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices
+        0x23ba45000 -         0x23ba7fcfb libsystem_kernel.dylib arm64e  <866e2bbbd9cb3d05a76b54b08642504a> /usr/lib/system/libsystem_kernel.dylib
+
+EOF

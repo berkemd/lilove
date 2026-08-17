@@ -1,0 +1,16 @@
+name: Deploy iOS to Production
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    name: Build and submit iOS
+    steps:
+      - eas/checkout:
+          path: mobile
+      
+      - eas/build:
+          platform: ios
+          profile: production
+          auto_submit: true
+          wait: false
+          working_directory: mobile

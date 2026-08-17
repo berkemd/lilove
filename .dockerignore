@@ -1,0 +1,67 @@
+# Git and cache
+.git
+.cache
+.upm
+.history
+
+# Dependencies (will be installed fresh)
+node_modules
+
+# Build artifacts
+dist
+build
+.next
+.turbo
+.expo
+*.tsbuildinfo
+
+# Mobile apps (not needed for web deployment)
+mobile
+mobile-app-config
+mobile-expo
+fastlane
+ios
+
+# Testing
+e2e
+playwright-report
+test-results
+*.spec.ts
+*.test.ts
+
+# Documentation
+docs
+*.md
+README.md
+LICENSE
+
+# IDE and editor files
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env.local
+.env.*.local
+
+# Assets (not needed for production)
+attached_assets
+*.tar.gz
+*.tar
+*.zip
+
+# CI/CD
+.github
+scripts
+
+# Coverage
+coverage

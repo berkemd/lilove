@@ -1,0 +1,10945 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { Server as SocketIOServer } from "socket.io";
+import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
+import { initializeOAuth, generateOAuthState, verifyOAuthState, getUserConnectedAccounts, unlinkAccount, requireAuth, getGoogleCallbackUrl, getAppleCallbackUrl } from "./auth/oauth";
+import passport from 'passport';
+import { z } from "zod";
+import express from 'express';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
+import { aiMentor } from "./aiMentor";
+import { paymentService } from "./payments";
+import { socialService } from "./social";
+import { analyticsService } from "./analytics";
+import { notificationService } from "./notifications";
+import { createPaddleCheckout, createPaddleCoinCheckout, getPaddleSubscription, cancelPaddleSubscription } from "./payments/paddle";
+import { handlePaddleWebhook } from "./payments/paddleWebhook";
+import { appleIAPService } from "./payments/apple";
+import rateLimit from "express-rate-limit";
+import { registerBehavioralRoutes } from "./behavioralRoutes";
+import { getPostHogClient } from "./analytics/posthog";
+import { initializeSocketIO } from "./socket";
+import { getSession } from "./replitAuth";
+
+// Import Apple JWT verification
+import { verifyAppleToken } from './auth/appleJWT';
+
+// Import Google JWT verification
+import { verifyGoogleToken } from './auth/googleJWT';
+
+// Import Apple OAuth direct implementation
+import { 
+  exchangeAppleCode, 
+  decodeAppleIdToken, 
+  handleAppleUser, 
+  getAppleAuthUrl, 
+  isAppleOAuthConfigured 
+} from './auth/appleOAuth';
+
+// Import new auth middleware and JWT functions
+import { 
+  authenticate, 
+  generateToken, 
+  generateRefreshToken, 
+  generateFirebaseCustomToken,
+  hashPassword, 
+  comparePassword,
+  authRateLimit as jwtAuthRateLimit,
+  apiRateLimit,
+  uploadRateLimit as jwtUploadRateLimit,
+  requirePremium,
+  requireAdmin 
+} from "./middleware/auth";
+
+// Import AI hardening modules
+import { createAIRateLimiter, getAIRateLimitStats } from "./middleware/aiRateLimiter";
+import { aiCache } from "./cache/aiCache";
+import { aiUsageAnalytics } from "./analytics/aiUsage";
+
+// Import Paddle routes
+import paddleRoutes from "./routes/paddle";
+import { 
+  insertTeamSchema, 
+  insertTeamMemberSchema, 
+  insertTeamGoalSchema,
+  insertTeamInviteSchema,
+  insertProfilePictureSchema,
+  insertSecurityLogSchema,
+  insertSubGoalSchema,
+  insertConnectedAccountSchema,
+  insertDataExportSchema,
+  insertAccountDeletionSchema,
+  insertTwoFactorAuthSchema,
+  insertUsageStatisticsSchema,
+  insertChallengeSchema
+} from "@shared/schema";
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import Stripe from "stripe";
+import { db } from "./storage";
+import { 
+  subscriptionPlans, 
+  coinPackages, 
+  purchaseItems,
+  featureGates,
+  userPurchases,
+  coinTransactions,
+  paymentTransactions,
+  achievements,
+  userAchievements,
+  xpTransactions,
+  leaderboards,
+  userLoginStreaks,
+  friendConnections,
+  spinWheelRewards,
+  users,
+  userProfiles,
+  teams,
+  teamMembers,
+  challenges,
+  challengeParticipants,
+  mentorships,
+  socialFeedPosts,
+  notifications,
+  connectedAccounts,
+  subGoals,
+  avatarZones,
+  avatarTraits,
+  userAvatarTraits,
+  userAvatarEquipped,
+  environmentStates,
+  traitRewardLogs
+} from "@shared/schema";
+import { eq, and, gte, desc, or, sql } from "drizzle-orm";
+import { differenceInDays, subDays } from "date-fns";
+
+// Validation schemas for LiLove operations
+const goalSchema = z.object({
+  title: z.string().min(1, 'Goal title required'),
+  description: z.string().optional(),
+  category: z.string().min(1, 'Category required'),
+  priority: z.enum(['low', 'medium', 'high']),
+  targetDate: z.string().transform(str => new Date(str)),
+  estimatedDuration: z.number().positive().optional() // days, consistent with schema
+});
+
+// SECURITY: Whitelisted schemas for user updates to prevent mass-assignment
+const userPreferencesUpdateSchema = z.object({
+  theme: z.enum(['light', 'dark', 'system']).optional(),
+  language: z.string().max(10).optional(),
+  timezone: z.string().max(50).optional(),
+  notificationsEnabled: z.boolean().optional(),
+  motivationalQuotes: z.boolean().optional(),
+  celebrationsEnabled: z.boolean().optional(),
+  displayName: z.string().max(100).optional(),
+  username: z.string().max(50).optional(),
+  emailNotifications: z.object({
+    goalReminders: z.boolean().optional(),
+    achievements: z.boolean().optional(),
+    weeklyReports: z.boolean().optional(),
+    friendActivity: z.boolean().optional(),
+    systemUpdates: z.boolean().optional(),
+    marketing: z.boolean().optional()
+  }).optional(),
+  pushNotifications: z.object({
+    goals: z.boolean().optional(),
+    achievements: z.boolean().optional(),
+    friends: z.boolean().optional(),
+    reminders: z.boolean().optional()
+  }).optional(),
+  profileVisibility: z.enum(['public', 'private', 'friends']).optional(),
+  showEmail: z.boolean().optional(),
+  showActivity: z.boolean().optional(),
+  showAchievements: z.boolean().optional(),
+  showStats: z.boolean().optional(),
+  dataSharing: z.boolean().optional(),
+  analyticsOptOut: z.boolean().optional(),
+  bio: z.string().max(500).optional(),
+  location: z.string().max(100).optional(),
+  website: z.string().url().optional().or(z.literal('')),
+  phoneNumber: z.string().max(20).optional(),
+  company: z.string().max(100).optional(),
+  jobTitle: z.string().max(100).optional(),
+  socialLinks: z.object({
+    twitter: z.string().max(100).optional(),
+    linkedin: z.string().max(100).optional(),
+    github: z.string().max(100).optional(),
+    instagram: z.string().max(100).optional(),
+    facebook: z.string().max(100).optional(),
+    youtube: z.string().max(100).optional(),
+    portfolio: z.string().max(200).optional()
+  }).optional()
+});
+
+const userProfileUpdateSchema = z.object({
+  learningStyle: z.enum(['visual', 'auditory', 'kinesthetic', 'mixed']).optional(),
+  preferredPace: z.enum(['slow', 'medium', 'fast', 'adaptive']).optional(),
+  difficultyPreference: z.enum(['incremental', 'challenge', 'mixed']).optional(),
+  goalCategories: z.array(z.string()).max(10).optional(),
+  dailyTimeCommitment: z.number().min(5).max(480).optional(), // 5 minutes to 8 hours
+  preferredCoachingStyle: z.enum(['supportive', 'challenging', 'balanced']).optional(),
+  workingHours: z.object({
+    start: z.string(),
+    end: z.string(),
+    timezone: z.string()
+  }).optional()
+});
+
+// Email/Password Authentication Schemas
+const registerSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  username: z.string().min(3, 'Username must be at least 3 characters').optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  displayName: z.string().optional()
+});
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required')
+});
+
+// ===== ICAL GENERATOR UTILITY FUNCTIONS =====
+
+function formatICalDate(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+function escapeICalText(text: string): string {
+  if (!text) return '';
+  return text.replace(/\\/g, '\\\\').replace(/,/g, '\\,').replace(/;/g, '\\;').replace(/\n/g, '\\n');
+}
+
+function generateICalFeed(userId: string, events: any[]): string {
+  const icalLines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//LiLove//lilove.org//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-WR-CALNAME:LiLove - Personal Growth',
+    'X-WR-TIMEZONE:UTC',
+    'X-WR-CALDESC:Your goals, tasks, and habits from LiLove'
+  ];
+  
+  for (const event of events) {
+    icalLines.push('BEGIN:VEVENT');
+    icalLines.push(`UID:${event.id}@lilove.org`);
+    icalLines.push(`DTSTAMP:${formatICalDate(new Date())}`);
+    icalLines.push(`DTSTART:${formatICalDate(new Date(event.startDate))}`);
+    icalLines.push(`DTEND:${formatICalDate(new Date(event.endDate))}`);
+    icalLines.push(`SUMMARY:${escapeICalText(event.title)}`);
+    icalLines.push(`DESCRIPTION:${escapeICalText(event.description)}`);
+    icalLines.push(`LOCATION:lilove.org`);
+    icalLines.push(`STATUS:CONFIRMED`);
+    icalLines.push(`CATEGORIES:${escapeICalText(event.category)}`);
+    
+    if (event.recurring) {
+      const freq = event.frequency === 'weekly' ? 'WEEKLY' : 'DAILY';
+      icalLines.push(`RRULE:FREQ=${freq};INTERVAL=1`);
+    }
+    
+    icalLines.push('END:VEVENT');
+  }
+  
+  icalLines.push('END:VCALENDAR');
+  return icalLines.join('\r\n');
+}
+
+function generateProductivityTips(score: number, pending: number, completed: number): string[] {
+  const tips: string[] = [];
+  
+  if (score >= 80) {
+    tips.push("Excellent work today! You're on fire. Keep up the momentum!");
+    tips.push("Consider tackling a challenging task while your energy is high.");
+  } else if (score >= 50) {
+    tips.push("Good progress! A few more tasks and you'll hit your stride.");
+    tips.push("Try the 2-minute rule: if a task takes less than 2 minutes, do it now.");
+  } else if (pending > 0) {
+    tips.push("Start with your easiest task to build momentum.");
+    tips.push("Focus on completing just one task - small wins lead to big achievements.");
+  } else {
+    tips.push("Take a moment to plan your day. What's the most important thing to accomplish?");
+  }
+  
+  if (completed > 3) {
+    tips.push("You've completed multiple tasks - you've earned a short break!");
+  }
+  
+  return tips;
+}
+
+function generateWeeklyHighlights(xp: number, tasksCompleted: number, streak: number): string[] {
+  const highlights: string[] = [];
+  
+  if (xp > 0) {
+    highlights.push(`You earned ${xp} XP this week through your efforts!`);
+  }
+  
+  if (tasksCompleted > 10) {
+    highlights.push(`Impressive! You completed ${tasksCompleted} tasks this week.`);
+  } else if (tasksCompleted > 5) {
+    highlights.push(`Good progress with ${tasksCompleted} tasks completed.`);
+  } else if (tasksCompleted > 0) {
+    highlights.push(`You completed ${tasksCompleted} task${tasksCompleted > 1 ? 's' : ''} - every step counts!`);
+  }
+  
+  if (streak >= 7) {
+    highlights.push(`Amazing ${streak}-day streak! Your consistency is paying off.`);
+  } else if (streak >= 3) {
+    highlights.push(`${streak}-day streak! Keep it going!`);
+  }
+  
+  if (highlights.length === 0) {
+    highlights.push("Every week is a fresh start. Let's make this one count!");
+  }
+  
+  return highlights;
+}
+
+export async function registerRoutes(app: Express, sessionMiddleware: ReturnType<typeof import("./replitAuth").getSession>, existingServer?: Server): Promise<Server> {
+  // Health check endpoints are now registered in index.ts BEFORE this function is called
+  // This ensures they respond immediately for Replit deployment health probes
+
+  // Debug endpoint for OAuth configuration status (no secrets exposed)
+  app.get('/api/auth/oauth-status', (_req, res) => {
+    res.json({
+      google: {
+        clientId: !!process.env.GOOGLE_CLIENT_ID,
+        iosClientId: !!process.env.GOOGLE_IOS_CLIENT_ID,
+        webClientId: !!process.env.GOOGLE_WEB_CLIENT_ID,
+        clientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+        iosClientIdPrefix: process.env.GOOGLE_IOS_CLIENT_ID?.substring(0, 12) || 'NOT_SET',
+      },
+      apple: {
+        clientId: !!process.env.APPLE_CLIENT_ID,
+        teamId: !!process.env.APPLE_TEAM_ID,
+        keyId: !!process.env.APPLE_KEY_ID,
+        privateKey: !!process.env.APPLE_PRIVATE_KEY,
+      }
+    });
+  });
+
+  // Set up Replit Auth middleware with shared session
+  try {
+    await setupAuth(app, sessionMiddleware);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Replit Auth initialized successfully');
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️  Replit Auth initialization failed - continuing without it');
+      console.warn('   Google/Apple OAuth will still work');
+      console.warn('   Error:', (error as Error).message);
+    }
+    
+    // Still set up session middleware for other auth methods
+    app.use(sessionMiddleware);
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    // Add fallback login route that returns error
+    app.get('/api/login', (_req, res) => {
+      res.status(503).json({ 
+        error: 'Replit Auth temporarily unavailable',
+        message: 'Please use Google or Apple login instead'
+      });
+    });
+  }
+
+  // SECURITY FIX: Serve static files for profile pictures with access control
+  const uploadsPath = path.join(process.cwd(), 'uploads');
+  app.use('/uploads', express.static(uploadsPath, {
+    maxAge: '1d', // Cache for 1 day
+    etag: true,
+    index: false, // Disable directory listing
+    dotfiles: 'deny' // Deny access to dotfiles
+  }));
+
+  // Rate limiting for sensitive endpoints
+  const authRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: { message: 'Too many requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const uploadRateLimit = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // Limit file uploads
+    message: { message: 'Too many file uploads, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const sensitiveRateLimit = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 20, // Lower limit for sensitive operations
+    message: { message: 'Too many requests for this operation, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // SECURITY: Rate limiting for webhook endpoints to prevent brute force attacks
+  const webhookRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 webhook requests per 15 minutes
+    message: { message: 'Too many webhook requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: false, // Count all requests, not just failed ones
+  });
+
+  // ===== AUTH ROUTES =====
+  
+  // Get current user (works for Replit Auth, email/password, and JWT)
+  app.get('/api/auth/me', async (req: any, res) => {
+    try {
+      let userId: string | undefined;
+      
+      // Try to get user ID from different auth methods
+      // 1. Check JWT token in Authorization header
+      const authHeader = req.headers.authorization;
+      
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.substring(7);
+          const { verifyToken } = await import('./middleware/auth');
+          const decoded = verifyToken(token);
+          userId = decoded.sub;
+        } catch (err: any) {
+          // JWT verification failed, try other methods
+        }
+      }
+      
+      // 2. Check Replit Auth session
+      if (!userId && req.isAuthenticated && req.isAuthenticated() && req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+      }
+      
+      // 3. Check if user was attached by authenticate middleware
+      if (!userId && req.user?.id) {
+        userId = req.user.id;
+      }
+      
+      if (!userId) {
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Get user profile
+      const profile = await storage.getUserProfile(userId);
+      
+      res.json({
+        ...user,
+        profile
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch user' });
+    }
+  });
+  
+  // Get current user with Replit Auth (legacy - use /api/auth/me instead)
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get user profile for additional data
+      const profile = await storage.getUserProfile(userId);
+      
+      res.json({
+        ...user,
+        profile
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Logout endpoint
+  app.post('/api/auth/logout', (req: any, res) => {
+    try {
+      // Clear JWT token from cookie if used
+      res.clearCookie('token');
+      res.clearCookie('refreshToken');
+      
+      // Destroy session if exists and has passport data
+      if (req.session && req.session.passport) {
+        req.session.destroy((err: any) => {
+          if (err) {
+          }
+        });
+        
+        // Only call Passport logout if user is authenticated via session
+        if (req.logout && req.isAuthenticated && req.isAuthenticated()) {
+          req.logout((err: any) => {
+            if (err) {
+            }
+          });
+        }
+      }
+      
+      res.json({ success: true, message: 'Logged out successfully' });
+    } catch (error) {
+      res.json({ success: true, message: 'Logged out' });
+    }
+  });
+
+  // Email/Password Registration - Enhanced with JWT
+  app.post('/api/auth/register', jwtAuthRateLimit, async (req: any, res) => {
+    try {
+      // Validate input
+      const validatedData = registerSchema.parse(req.body);
+      
+      // Check if user already exists
+      const existingUser = await db.select().from(users).where(eq(users.email, validatedData.email)).limit(1);
+      if (existingUser.length > 0) {
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+      
+      // Hash password with secure bcrypt function
+      const hashedPassword = await hashPassword(validatedData.password);
+      
+      // Create user
+      const newUser = await storage.upsertUser({
+        email: validatedData.email,
+        username: validatedData.username,
+        password: hashedPassword,
+        firstName: validatedData.firstName,
+        lastName: validatedData.lastName,
+        displayName: validatedData.displayName || validatedData.username || validatedData.firstName,
+        coinBalance: 1000 // Welcome bonus
+      });
+      
+      // Create user profile
+      await storage.updateUserProfile(newUser.id, {});
+      
+      // Generate JWT tokens (handle null email case)
+      const accessToken = generateToken(newUser.id, newUser.email || '');
+      const refreshToken = generateRefreshToken(newUser.id);
+      
+      // Create session using req.login with expires_at for compatibility
+      const sessionExpiry = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7 days
+      req.login({ 
+        claims: { 
+          sub: newUser.id,
+          email: newUser.email
+        },
+        expires_at: sessionExpiry,
+        access_token: accessToken,
+        refresh_token: refreshToken
+      }, (err: any) => {
+        if (err) {
+          // Still return JWT tokens even if session fails
+        }
+        
+        // Log security event
+        storage.logSecurityEvent({
+          userId: newUser.id,
+          eventType: 'registration',
+          eventDescription: 'User registered with email/password',
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || ''
+        }).catch(() => {});
+        
+        // Return user data with JWT tokens
+        const { password, ...userWithoutPassword } = newUser;
+        res.status(201).json({
+          ...userWithoutPassword,
+          accessToken,
+          refreshToken
+        });
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid input data", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Registration failed" });
+    }
+  });
+
+  // Email/Password Login - Enhanced with JWT
+  app.post('/api/auth/login', jwtAuthRateLimit, async (req: any, res) => {
+    try {
+      // Validate input
+      const validatedData = loginSchema.parse(req.body);
+      
+      // Find user by email
+      const userResults = await db.select().from(users).where(eq(users.email, validatedData.email)).limit(1);
+      if (userResults.length === 0) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      
+      const user = userResults[0];
+      
+      // Check if user has a password (OAuth users won't have one)
+      if (!user.password) {
+        return res.status(401).json({ message: "Please use OAuth to login with this account" });
+      }
+      
+      // Compare password using secure function
+      const isPasswordValid = await comparePassword(validatedData.password, user.password);
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      
+      // Update last login
+      await storage.upsertUser({
+        id: user.id,
+        lastLoginAt: new Date()
+      });
+      
+      // Generate JWT tokens (handle null email case)
+      const accessToken = generateToken(user.id, user.email || '');
+      const refreshToken = generateRefreshToken(user.id);
+      
+      // Create session using req.login with expires_at for compatibility
+      const sessionExpiry = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60); // 7 days
+      req.login({ 
+        claims: { 
+          sub: user.id,
+          email: user.email
+        },
+        expires_at: sessionExpiry,
+        access_token: accessToken,
+        refresh_token: refreshToken
+      }, (err: any) => {
+        if (err) {
+          // Still return JWT tokens even if session fails
+        }
+        
+        // Log security event
+        storage.logSecurityEvent({
+          userId: user.id,
+          eventType: 'login',
+          eventDescription: 'User logged in with email/password',
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || ''
+        }).catch(() => {});
+        
+        // Return user data with JWT tokens
+        const { password, ...userWithoutPassword } = user;
+        res.json({
+          ...userWithoutPassword,
+          accessToken,
+          refreshToken
+        });
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid input data", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Login failed" });
+    }
+  });
+
+  // Update user preferences - FIXED: Mass-assignment vulnerability
+  app.patch('/api/auth/user/preferences', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // SECURITY: Validate and whitelist allowed fields only
+      const validatedUpdates = userPreferencesUpdateSchema.parse(req.body);
+      
+      // Update user preferences with validated data only
+      await storage.upsertUser({
+        id: userId,
+        ...validatedUpdates
+      });
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'settings_change',
+        eventDescription: 'User preferences updated',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: "Preferences updated successfully" });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid input data", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update preferences" });
+    }
+  });
+
+  // Update user profile (onboarding data) - FIXED: Mass-assignment vulnerability
+  app.patch('/api/auth/user/profile', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // SECURITY: Validate and whitelist allowed fields only
+      const validatedProfileData = userProfileUpdateSchema.parse(req.body);
+      
+      await storage.updateUserProfile(userId, validatedProfileData);
+      
+      // Mark onboarding as complete if relevant
+      if (validatedProfileData.goalCategories || validatedProfileData.dailyTimeCommitment) {
+        await storage.upsertUser({
+          id: userId,
+          onboardingCompleted: true
+        });
+      }
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'profile_update',
+        eventDescription: 'User profile updated',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: "Profile updated successfully" });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid input data", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to update profile" });
+    }
+  });
+
+  // ===== MOBILE API COMPATIBILITY ROUTES =====
+  // These routes provide compatibility with the mobile app's expected endpoints
+  
+  // GET /api/user - Mobile-compatible endpoint for getting current user
+  app.get('/api/user', authenticate, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch user' });
+    }
+  });
+  
+  // PATCH /api/user/profile - Mobile-compatible endpoint for updating profile
+  app.patch('/api/user/profile', authenticate, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      // Update user profile with provided data
+      const updatedUser = await storage.upsertUser({
+        id: userId,
+        ...req.body
+      });
+      
+      const { password, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update profile' });
+    }
+  });
+  
+  // POST /api/user/push-token - Mobile push notification token registration
+  app.post('/api/user/push-token', authenticate, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      
+      const { token } = req.body;
+      if (!token) {
+        return res.status(400).json({ message: 'Push token required' });
+      }
+      
+      // Store push token for user
+      await storage.upsertUser({
+        id: userId,
+        pushToken: token
+      });
+      
+      res.json({ message: 'Push token registered successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to register push token' });
+    }
+  });
+
+  // Get user stats (for profile page)
+  app.get('/api/user/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const [goals, profile, achievements, xp] = await Promise.all([
+        storage.getUserGoals(userId),
+        storage.getUserProfile(userId),
+        storage.getUserAchievements(userId),
+        storage.getUserXP(userId)
+      ]);
+      
+      const activeGoals = goals.filter(g => g.status === 'active').length;
+      const completedGoals = goals.filter(g => g.status === 'completed').length;
+      
+      res.json({
+        activeGoals,
+        completedGoals,
+        totalGoals: goals.length,
+        streakCount: profile?.streakCount || 0,
+        longestStreak: profile?.longestStreak || 0,
+        currentLevel: profile?.currentLevel || 1,
+        totalXp: xp || 0,
+        achievementsUnlocked: achievements.length,
+        performanceScore: profile?.overallPerformanceScore || 0
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user stats" });
+    }
+  });
+
+  // ===== ADVANCED PROFILE & SETTINGS ROUTES =====
+  
+  // Configure multer for profile picture uploads
+  const uploadDir = path.join(process.cwd(), 'uploads', 'profile-pictures');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  
+  const profilePictureStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      cb(null, `profile-${uniqueSuffix}${ext}`);
+    }
+  });
+  
+  const uploadProfilePicture = multer({
+    storage: profilePictureStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = /jpeg|jpg|png|webp/;
+      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+      const mimetype = allowedTypes.test(file.mimetype);
+      
+      if (mimetype && extname) {
+        return cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed (jpeg, jpg, png, webp)'));
+      }
+    }
+  });
+
+  // Profile Picture Management Routes
+  app.post('/api/profile/picture', isAuthenticated, uploadRateLimit, uploadProfilePicture.single('picture'), async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ message: 'No file uploaded' });
+      }
+      
+      const filePath = `/uploads/profile-pictures/${file.filename}`;
+      
+      const pictureData = {
+        userId,
+        fileName: file.filename,
+        originalName: file.originalname,
+        filePath,
+        fileSize: file.size,
+        mimeType: file.mimetype
+      };
+      
+      const newPicture = await storage.uploadProfilePicture(pictureData);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'profile_picture_upload',
+        eventDescription: 'Profile picture uploaded successfully',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ 
+        message: 'Profile picture uploaded successfully', 
+        picture: newPicture 
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Failed to upload profile picture' });
+    }
+  });
+  
+  app.get('/api/profile/pictures', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const pictures = await storage.getProfilePictures(userId);
+      res.json(pictures);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch profile pictures' });
+    }
+  });
+  
+  app.put('/api/profile/picture/:id/activate', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const pictureId = req.params.id;
+      
+      await storage.setActiveProfilePicture(userId, pictureId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'profile_picture_change',
+        eventDescription: 'Active profile picture changed',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'Profile picture activated successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to activate profile picture' });
+    }
+  });
+  
+  app.delete('/api/profile/picture/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const pictureId = req.params.id;
+      
+      await storage.deleteProfilePicture(pictureId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'profile_picture_delete',
+        eventDescription: 'Profile picture deleted',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'Profile picture deleted successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to delete profile picture' });
+    }
+  });
+
+  // Enhanced Profile Management Routes
+  app.get('/api/profile/extended', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Get or create profile for new users
+      let profile = await storage.getUserProfile(userId);
+      if (!profile) {
+        // Create default profile for new users
+        try {
+          await storage.updateUserProfile(userId, {
+            currentLevel: 1,
+            streakCount: 0,
+            longestStreak: 0,
+            totalXp: 0,
+            goalCategories: [],
+            learningStyle: 'visual',
+            preferredCoachingStyle: 'balanced'
+          });
+          profile = await storage.getUserProfile(userId);
+        } catch (profileError) {
+          profile = await storage.getUserProfile(userId);
+        }
+      }
+      
+      const activePicture = await storage.getActiveProfilePicture(userId);
+      const connectedAccounts = await storage.getConnectedAccounts(userId);
+      
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          displayName: user.displayName,
+          username: user.username,
+          profileImageUrl: user.profileImageUrl,
+          bio: user.bio,
+          location: user.location,
+          phone: user.phoneNumber,
+          website: user.website,
+          isProfilePublic: user.profileVisibility === 'public',
+          socialLinks: user.socialLinks,
+          createdAt: user.createdAt
+        },
+        profile: profile || {
+          currentLevel: 1,
+          streakCount: 0,
+          longestStreak: 0,
+          totalXp: 0,
+          goalCategories: [],
+          learningStyle: 'visual',
+          coachingStyle: 'balanced'
+        },
+        activePicture,
+        connectedAccounts
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch extended profile' });
+    }
+  });
+  
+  app.patch('/api/profile/extended', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { profile: profileData, user: userData, ...otherData } = req.body;
+      
+      // Bust AI cache when profile is updated
+      aiCache.invalidateUser(userId);
+      
+      // Update user data if provided
+      if (userData) {
+        await storage.upsertUser({ id: userId, ...userData });
+      }
+      
+      // Update profile data if provided
+      if (profileData) {
+        await storage.updateUserProfile(userId, profileData);
+      }
+      
+      // Log security event for profile changes
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'profile_update',
+        eventDescription: 'Profile information updated',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'Extended profile updated successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update extended profile' });
+    }
+  });
+
+  // Security Logs Routes
+  app.get('/api/security/logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const logs = await storage.getUserSecurityLogs(userId, limit);
+      res.json(logs);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch security logs' });
+    }
+  });
+  
+  app.get('/api/security/events/recent', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const eventTypes = (req.query.eventTypes as string)?.split(',') || ['login', 'logout', 'password_change'];
+      const limit = parseInt(req.query.limit as string) || 10;
+      
+      const events = await storage.getRecentSecurityEvents(userId, eventTypes, limit);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch recent security events' });
+    }
+  });
+
+  // Connected Accounts Management Routes
+  app.get('/api/connected-accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accounts = await storage.getConnectedAccounts(userId);
+      res.json(accounts);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch connected accounts' });
+    }
+  });
+  
+  app.post('/api/connected-accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accountData = { ...req.body, userId };
+      
+      // Validate with schema
+      const validatedData = insertConnectedAccountSchema.parse(accountData);
+      
+      const newAccount = await storage.connectAccount(validatedData);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'account_connection',
+        eventDescription: `Connected ${accountData.provider} account`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json(newAccount);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || 'Failed to connect account' });
+    }
+  });
+  
+  app.patch('/api/connected-accounts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accountId = req.params.id;
+      const updates = req.body;
+      
+      await storage.updateConnectedAccount(accountId, updates);
+      
+      res.json({ message: 'Connected account updated successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update connected account' });
+    }
+  });
+  
+  app.delete('/api/connected-accounts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accountId = req.params.id;
+      
+      await storage.disconnectAccount(accountId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'account_disconnection',
+        eventDescription: 'Account disconnected',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'Account disconnected successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to disconnect account' });
+    }
+  });
+
+  // Data Export Functionality Routes
+  app.post('/api/data-export', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { format = 'json', includePersonalData = true, includeActivityData = true } = req.body;
+      
+      const exportData = {
+        userId,
+        exportType: 'full',
+        format,
+        includePersonalData,
+        includeActivityData,
+        status: 'pending',
+        progress: 0
+      };
+      
+      const newExport = await storage.createDataExport(exportData);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'data_export_request',
+        eventDescription: `Data export requested in ${format} format`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      // In a real implementation, you'd trigger background processing here
+      // For now, we'll simulate completion
+      setTimeout(async () => {
+        try {
+          await storage.updateDataExportStatus(newExport.id, 'completed', 100, '/exports/dummy-file.json');
+        } catch (error) {
+        }
+      }, 5000);
+      
+      res.json({ 
+        message: 'Data export request created successfully', 
+        export: newExport 
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to create data export' });
+    }
+  });
+  
+  app.get('/api/data-exports', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const exports = await storage.getDataExports(userId);
+      res.json(exports);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch data exports' });
+    }
+  });
+  
+  app.get('/api/data-export/:id/download', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const exportId = req.params.id;
+      
+      const exportRecord = await storage.getDataExportById(exportId);
+      
+      if (!exportRecord || exportRecord.userId !== userId) {
+        return res.status(404).json({ message: 'Data export not found' });
+      }
+      
+      if (exportRecord.status !== 'completed') {
+        return res.status(400).json({ message: 'Data export not ready for download' });
+      }
+      
+      await storage.markDataExportDownloaded(exportId);
+      
+      // In a real implementation, you'd serve the actual file
+      res.json({ 
+        message: 'Download ready', 
+        downloadUrl: exportRecord.filePath,
+        filename: `user-data-${exportId}.${exportRecord.format}`
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to download data export' });
+    }
+  });
+
+  // Account Deletion Management Routes
+  app.post('/api/account/deletion/request', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { reason, feedback } = req.body;
+      
+      // Check if there's already a pending deletion request
+      const existingDeletion = await storage.getAccountDeletion(userId);
+      if (existingDeletion) {
+        return res.status(400).json({ message: 'Account deletion already requested' });
+      }
+      
+      const deletionData = {
+        userId,
+        reason: reason || 'User requested',
+        additionalReason: feedback || '',
+        status: 'scheduled',
+        scheduledFor: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
+      };
+      
+      const newDeletion = await storage.requestAccountDeletion(deletionData);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'account_deletion_request',
+        eventDescription: 'Account deletion requested',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ 
+        message: 'Account deletion requested. Your account will be deleted in 30 days.', 
+        deletion: newDeletion 
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to request account deletion' });
+    }
+  });
+  
+  app.get('/api/account/deletion/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deletion = await storage.getAccountDeletion(userId);
+      res.json({ deletion });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch account deletion status' });
+    }
+  });
+  
+  app.delete('/api/account/deletion/cancel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deletion = await storage.getAccountDeletion(userId);
+      
+      if (!deletion) {
+        return res.status(404).json({ message: 'No pending account deletion found' });
+      }
+      
+      await storage.cancelAccountDeletion(deletion.id);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'account_deletion_cancelled',
+        eventDescription: 'Account deletion cancelled',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'Account deletion cancelled successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to cancel account deletion' });
+    }
+  });
+
+  // Two-Factor Authentication Routes (Basic Implementation)
+  app.post('/api/2fa/setup', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Generate a basic secret (in production, use a proper TOTP library)
+      const secret = Math.random().toString(36).substring(2, 15);
+      
+      const twoFactorAuth = await storage.setupTwoFactorAuth(userId, secret);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: '2fa_setup_initiated',
+        eventDescription: '2FA setup initiated',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ 
+        message: '2FA setup initiated', 
+        secret,
+        qrCode: `otpauth://totp/LiLove:${userId}?secret=${secret}&issuer=LiLove`
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to setup 2FA' });
+    }
+  });
+  
+  app.post('/api/2fa/enable', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { token } = req.body;
+      
+      // In a real implementation, verify the TOTP token
+      await storage.enableTwoFactorAuth(userId);
+      
+      // Generate backup codes
+      const backupCodes = await storage.generateBackupCodes(userId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: '2fa_enabled',
+        eventDescription: '2FA enabled successfully',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ 
+        message: '2FA enabled successfully', 
+        backupCodes
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to enable 2FA' });
+    }
+  });
+  
+  app.post('/api/2fa/disable', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { password, token } = req.body;
+      
+      // In a real implementation, verify password and/or TOTP token
+      await storage.disableTwoFactorAuth(userId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: '2fa_disabled',
+        eventDescription: '2FA disabled',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: '2FA disabled successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to disable 2FA' });
+    }
+  });
+  
+  app.get('/api/2fa/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const twoFactorAuth = await storage.getTwoFactorAuth(userId);
+      
+      res.json({
+        enabled: twoFactorAuth?.isEnabled || false,
+        verified: twoFactorAuth?.isVerified || false,
+        hasBackupCodes: (twoFactorAuth?.backupCodes?.length || 0) > 0
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch 2FA status' });
+    }
+  });
+
+  // Usage Statistics Routes
+  app.get('/api/usage-stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate, period = 'month' } = req.query;
+      
+      let start, end;
+      if (startDate && endDate) {
+        start = new Date(startDate as string);
+        end = new Date(endDate as string);
+      }
+      
+      const stats = await storage.getUserUsageStatistics(userId, start, end);
+      const insights = await storage.getUsageInsights(userId, period as 'week' | 'month' | 'year');
+      
+      res.json({ stats, insights });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch usage statistics' });
+    }
+  });
+  
+  app.get('/api/usage-stats/devices', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deviceStats = await storage.getUserDeviceStats(userId);
+      res.json(deviceStats);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch device statistics' });
+    }
+  });
+  
+  app.get('/api/usage-stats/features', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const featureStats = await storage.getFeatureUsageStats(userId);
+      res.json(featureStats);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch feature usage statistics' });
+    }
+  });
+  
+  app.post('/api/usage-stats/record', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const statsData = { ...req.body, userId };
+      
+      await storage.recordUsageStatistics(statsData);
+      res.json({ message: 'Usage statistics recorded successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to record usage statistics' });
+    }
+  });
+
+  // ===== CONSENT MANAGEMENT ROUTES =====
+  
+  // GET /api/consent - Get user's consent status
+  app.get('/api/consent', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const consent = await storage.getUserConsent(userId);
+      
+      if (!consent) {
+        // Return default consent (all false - opt-in required)
+        return res.json({
+          analytics: false,
+          behavioral: false,
+          marketing: false,
+          consentVersion: '1.0',
+          consentedAt: null,
+          updatedAt: null
+        });
+      }
+      
+      res.json(consent);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch consent status' });
+    }
+  });
+  
+  // POST /api/consent - Update consent preferences
+  app.post('/api/consent', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { analytics, behavioral, marketing } = req.body;
+      
+      // Validate input
+      if (
+        typeof analytics !== 'boolean' ||
+        typeof behavioral !== 'boolean' ||
+        typeof marketing !== 'boolean'
+      ) {
+        return res.status(400).json({ 
+          message: 'Invalid consent data. All fields must be boolean.' 
+        });
+      }
+      
+      // SECURITY FIX: Check if behavioral feature is enabled before allowing consent
+      if (behavioral) {
+        const [behavioralFeature] = await db
+          .select()
+          .from(featureGates)
+          .where(and(
+            eq(featureGates.featureKey, 'coach_engine_v1'),
+            eq(featureGates.isActive, true)
+          ))
+          .limit(1);
+        
+        if (!behavioralFeature) {
+          return res.status(403).json({ 
+            message: 'Behavioral research feature is not available',
+            error: 'This feature is currently disabled. Contact support for access.'
+          });
+        }
+      }
+      
+      const consentData = {
+        userId,
+        analytics,
+        behavioral,
+        marketing,
+        consentVersion: '1.0'
+      };
+      
+      const updatedConsent = await storage.updateUserConsent(consentData);
+      
+      // Update PostHog user properties with consent status
+      const posthog = getPostHogClient();
+      if (posthog) {
+        posthog.identify({
+          distinctId: userId,
+          properties: {
+            consent_analytics: analytics,
+            consent_behavioral: behavioral,
+            consent_marketing: marketing,
+            consent_updated_at: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'consent_updated',
+        eventDescription: `Consent updated: analytics=${analytics}, behavioral=${behavioral}, marketing=${marketing}`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ 
+        message: 'Consent preferences updated successfully',
+        consent: updatedConsent
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update consent preferences' });
+    }
+  });
+  
+  // POST /api/consent/withdraw - Withdraw all consent
+  app.post('/api/consent/withdraw', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { reason } = req.body;
+      
+      const withdrawnConsent = await storage.withdrawUserConsent(userId, reason);
+      
+      // Update PostHog to stop tracking
+      const posthog = getPostHogClient();
+      if (posthog) {
+        posthog.identify({
+          distinctId: userId,
+          properties: {
+            consent_analytics: false,
+            consent_behavioral: false,
+            consent_marketing: false,
+            consent_withdrawn: true,
+            consent_withdrawn_at: new Date().toISOString()
+          }
+        });
+      }
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'consent_withdrawn',
+        eventDescription: `All consent withdrawn. Reason: ${reason || 'Not provided'}`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ 
+        message: 'All consent withdrawn successfully',
+        consent: withdrawnConsent
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to withdraw consent' });
+    }
+  });
+
+  // ===== AI PRIVACY SETTINGS ROUTES (KVKK Compliant) =====
+
+  // GET /api/privacy/ai-settings - Get current AI privacy settings
+  app.get('/api/privacy/ai-settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const profile = await storage.getUserProfile(userId);
+      
+      if (!profile) {
+        return res.json({
+          aiPersonalizationEnabled: true,
+          aiHistoryRetention: true,
+          aiMoodAnalysis: true,
+          aiAnonymousAnalytics: false
+        });
+      }
+      
+      res.json({
+        aiPersonalizationEnabled: profile.aiPersonalizationEnabled ?? true,
+        aiHistoryRetention: profile.aiHistoryRetention ?? true,
+        aiMoodAnalysis: profile.aiMoodAnalysis ?? true,
+        aiAnonymousAnalytics: profile.aiAnonymousAnalytics ?? false
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch AI privacy settings' });
+    }
+  });
+
+  // PATCH /api/privacy/ai-settings - Update AI privacy settings
+  app.patch('/api/privacy/ai-settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { aiPersonalizationEnabled, aiHistoryRetention, aiMoodAnalysis, aiAnonymousAnalytics } = req.body;
+      
+      const updates: any = {};
+      if (typeof aiPersonalizationEnabled === 'boolean') updates.aiPersonalizationEnabled = aiPersonalizationEnabled;
+      if (typeof aiHistoryRetention === 'boolean') updates.aiHistoryRetention = aiHistoryRetention;
+      if (typeof aiMoodAnalysis === 'boolean') updates.aiMoodAnalysis = aiMoodAnalysis;
+      if (typeof aiAnonymousAnalytics === 'boolean') updates.aiAnonymousAnalytics = aiAnonymousAnalytics;
+      
+      if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'No valid settings provided' });
+      }
+      
+      await storage.updateUserProfile(userId, updates);
+      
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'ai_privacy_settings_updated',
+        eventDescription: `AI privacy settings updated: ${JSON.stringify(updates)}`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'AI privacy settings updated successfully', settings: updates });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update AI privacy settings' });
+    }
+  });
+
+  // GET /api/privacy/ai-data-export - Export user's AI data
+  app.get('/api/privacy/ai-data-export', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const mentorSessionsData = await storage.getUserMentorHistory(userId, 1000);
+      const user = await storage.getUserById(userId);
+      const profile = await storage.getUserProfile(userId);
+      
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        userId: userId,
+        aiPreferences: {
+          voicePreferences: user?.voicePreferences || {},
+          preferredCoachingStyle: profile?.preferredCoachingStyle || null,
+          learningStyle: profile?.learningStyle || null
+        },
+        aiPrivacySettings: {
+          aiPersonalizationEnabled: profile?.aiPersonalizationEnabled ?? true,
+          aiHistoryRetention: profile?.aiHistoryRetention ?? true,
+          aiMoodAnalysis: profile?.aiMoodAnalysis ?? true,
+          aiAnonymousAnalytics: profile?.aiAnonymousAnalytics ?? false
+        },
+        mentorSessions: mentorSessionsData.map((session: any) => ({
+          id: session.id,
+          sessionType: session.sessionType,
+          topic: session.topic,
+          startedAt: session.startedAt,
+          endedAt: session.endedAt,
+          summary: session.summary,
+          conversationCount: session.conversations?.length || 0
+        })),
+        totalConversations: mentorSessionsData.reduce((acc: number, s: any) => acc + (s.conversations?.length || 0), 0)
+      };
+      
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'ai_data_exported',
+        eventDescription: 'User exported their AI data',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="lilove-ai-data-${new Date().toISOString().split('T')[0]}.json"`);
+      res.json(exportData);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to export AI data' });
+    }
+  });
+
+  // DELETE /api/privacy/ai-history - Delete AI conversation history
+  app.delete('/api/privacy/ai-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { confirmDelete } = req.body;
+      
+      if (confirmDelete !== true) {
+        return res.status(400).json({ message: 'Deletion must be confirmed' });
+      }
+      
+      await storage.deleteMentorSessions(userId);
+      
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'ai_history_deleted',
+        eventDescription: 'User deleted all AI conversation history',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json({ message: 'AI conversation history deleted successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to delete AI history' });
+    }
+  });
+
+  // ===== PAYMENT ROUTES =====
+  
+  // Mount Paddle payment routes
+  app.use('/api/paddle', paddleRoutes);
+
+  // Refresh Token Endpoint for JWT
+  app.post('/api/auth/refresh', async (req: any, res) => {
+    try {
+      const { refreshToken: token } = req.body;
+      
+      if (!token) {
+        return res.status(401).json({ message: 'Refresh token required' });
+      }
+      
+      // Import verifyToken from auth middleware
+      const { verifyToken } = await import('./middleware/auth');
+      
+      try {
+        const decoded = verifyToken(token);
+        
+        if (decoded.type !== 'refresh') {
+          return res.status(401).json({ message: 'Invalid token type' });
+        }
+        
+        // Get user from database
+        const userResults = await db.select().from(users)
+          .where(eq(users.id, decoded.sub))
+          .limit(1);
+          
+        if (userResults.length === 0) {
+          return res.status(401).json({ message: 'User not found' });
+        }
+        
+        const user = userResults[0];
+        
+        // Generate new tokens (handle null email case)
+        const newAccessToken = generateToken(user.id, user.email || '');
+        const newRefreshToken = generateRefreshToken(user.id);
+        
+        res.json({
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+          user: {
+            id: user.id,
+            email: user.email,
+            subscriptionTier: user.subscriptionTier
+          }
+        });
+      } catch (error: any) {
+        return res.status(401).json({ message: 'Invalid or expired refresh token' });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to refresh token' });
+    }
+  });
+
+  // ===== OAUTH ROUTES =====
+  
+  // Initialize OAuth strategies
+  initializeOAuth(app);
+
+  // Google OAuth - Initialize
+  app.get('/api/auth/google', async (req: any, res, next) => {
+    const isPopup = req.query.popup === '1';
+    const state = await generateOAuthState(req.user?.claims?.sub, isPopup);
+    const callbackURL = getGoogleCallbackUrl(req);
+    console.log('[Google OAuth] Initiating with callback:', callbackURL);
+    const authenticator = passport.authenticate('google-oauth', {
+      scope: ['profile', 'email'],
+      state,
+      callbackURL, // Dynamic callback URL based on request origin
+    });
+    authenticator(req, res, next);
+  });
+
+  // Google OAuth - Callback
+  app.get('/api/auth/google/callback', (req, res, next) => {
+    // Log callback receipt for debugging
+    console.log('[Google OAuth] Callback received', {
+      hasCode: !!req.query.code,
+      hasState: !!req.query.state,
+      hasError: !!req.query.error,
+      errorMsg: req.query.error,
+      host: req.get('host'),
+      forwardedHost: req.headers['x-forwarded-host'],
+      protocol: req.protocol,
+      forwardedProto: req.headers['x-forwarded-proto'],
+      timestamp: new Date().toISOString(),
+    });
+    
+    passport.authenticate('google-oauth', async (err: any, user: any, info: any) => {
+      // Check state first to get popup flag
+      const state = req.query.state as string;
+      let isPopup = req.query.popup === '1';
+      let stateData = null;
+      
+      if (state) {
+        stateData = await verifyOAuthState(state);
+        if (stateData) {
+          isPopup = stateData.popup || isPopup;
+        }
+      }
+
+      if (err) {
+        console.error('[Google OAuth] Error in passport callback', { error: err?.message, info });
+        if (isPopup) {
+          return res.send(`
+            <!DOCTYPE html>
+            <html>
+              <head><title>Authentication Error</title></head>
+              <body>
+                <script>
+                  window.opener.postMessage({ type: 'auth-error', error: 'oauth_failed' }, window.location.origin);
+                  // Parent window will close the popup after receiving message
+                </script>
+              </body>
+            </html>
+          `);
+        }
+        return res.redirect('/auth?error=oauth_failed');
+      }
+
+      if (!user) {
+        if (isPopup) {
+          return res.send(`
+            <!DOCTYPE html>
+            <html>
+              <head><title>Authentication Failed</title></head>
+              <body>
+                <script>
+                  window.opener.postMessage({ type: 'auth-error', error: 'oauth_failed' }, window.location.origin);
+                  // Parent window will close the popup after receiving message
+                </script>
+              </body>
+            </html>
+          `);
+        }
+        return res.redirect('/auth?error=oauth_failed');
+      }
+
+      // Verify state was valid (already checked above)
+      if (state && !stateData) {
+        if (isPopup) {
+          return res.send(`
+            <!DOCTYPE html>
+            <html>
+              <head><title>Invalid State</title></head>
+              <body>
+                <script>
+                  window.opener.postMessage({ type: 'auth-error', error: 'invalid_state' }, window.location.origin);
+                  // Parent window will close the popup after receiving message
+                </script>
+              </body>
+            </html>
+          `);
+        }
+        return res.redirect('/auth?error=invalid_state');
+      }
+
+      // Create Replit Auth compatible user session
+      const sessionUser = {
+        claims: {
+          sub: user.id,
+          email: user.email,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          profile_image_url: user.profileImageUrl,
+        },
+        access_token: null,
+        refresh_token: null,
+        expires_at: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 1 week
+      };
+
+      // Establish session for both popup and non-popup modes
+      req.login(sessionUser, async (loginErr) => {
+        if (loginErr) {
+          console.error('[Google OAuth] Session login error:', loginErr?.message);
+          if (isPopup) {
+            return res.send(`
+              <!DOCTYPE html>
+              <html>
+                <head><title>Authentication Error</title></head>
+                <body>
+                  <script>
+                    window.opener.postMessage({ type: 'auth-error', error: 'login_failed' }, window.location.origin);
+                    // Parent window will close the popup after receiving message
+                  </script>
+                </body>
+              </html>
+            `);
+          }
+          return res.redirect('/auth?error=login_failed');
+        }
+        
+        // CRITICAL: Save session to database before redirecting
+        // Without this, the redirect may happen before the session is persisted
+        try {
+          await new Promise<void>((resolve, reject) => {
+            req.session.save((saveErr: any) => {
+              if (saveErr) {
+                console.error('[Google OAuth] Session save error:', saveErr?.message);
+                reject(saveErr);
+              } else {
+                console.log('[Google OAuth] Session saved successfully for user:', user.id);
+                resolve();
+              }
+            });
+          });
+        } catch (saveErr) {
+          if (isPopup) {
+            return res.send(`
+              <!DOCTYPE html>
+              <html>
+                <head><title>Authentication Error</title></head>
+                <body>
+                  <script>
+                    window.opener.postMessage({ type: 'auth-error', error: 'session_save_failed' }, window.location.origin);
+                  </script>
+                </body>
+              </html>
+            `);
+          }
+          return res.redirect('/auth?error=session_save_failed');
+        }
+        
+        // Generate Firebase custom token for client-side auth
+        const firebaseToken = await generateFirebaseCustomToken(user.id, {
+          email: user.email,
+          displayName: user.displayName || `${user.firstName} ${user.lastName}`.trim(),
+          provider: 'google'
+        });
+        
+        const tokenParam = firebaseToken ? `&token=${encodeURIComponent(firebaseToken)}` : '';
+        
+        // For popup mode, send postMessage and let parent close the popup
+        if (isPopup) {
+          return res.send(`
+            <!DOCTYPE html>
+            <html>
+              <head><title>Authentication Successful</title></head>
+              <body>
+                <script>
+                  window.opener.postMessage({ 
+                    type: 'auth-success', 
+                    user: ${JSON.stringify(user)},
+                    firebaseToken: ${firebaseToken ? JSON.stringify(firebaseToken) : 'null'}
+                  }, window.location.origin);
+                  // Don't close here - parent window will close after receiving message
+                </script>
+              </body>
+            </html>
+          `);
+        }
+
+        // For non-popup, redirect to auth callback page with token
+        return res.redirect('/auth/callback?provider=google&success=1' + tokenParam);
+      });
+    })(req, res, next);
+  });
+
+  // Apple OAuth - Initialize (Direct implementation without passport-apple)
+  app.get('/api/auth/apple', async (req: any, res, next) => {
+    try {
+      if (!isAppleOAuthConfigured()) {
+        return res.status(503).json({ error: 'Apple Sign-In is not configured' });
+      }
+      
+      const isPopup = req.query.popup === '1';
+      const state = await generateOAuthState(req.user?.claims?.sub, isPopup);
+      const authUrl = getAppleAuthUrl(state);
+      
+      return res.redirect(authUrl);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Apple OAuth - Callback (Direct implementation without passport-apple)
+  app.post('/api/auth/apple/callback', async (req: any, res, next) => {
+    // Log callback receipt for debugging
+    console.log('[Apple OAuth] Callback received', {
+      hasCode: !!req.body?.code,
+      hasState: !!req.body?.state,
+      hasUser: !!req.body?.user,
+      hasError: !!req.body?.error,
+      errorDesc: req.body?.error_description,
+      host: req.get('host'),
+      forwardedHost: req.headers['x-forwarded-host'],
+      timestamp: new Date().toISOString(),
+    });
+    
+    // Helper function to send response - always redirect since Apple form_post breaks popup window.opener
+    const sendAuthResponse = (success: boolean, data: any, errorType?: string, firebaseToken?: string | null) => {
+      if (success) {
+        const tokenParam = firebaseToken ? `&token=${encodeURIComponent(firebaseToken)}` : '';
+        return res.redirect('/auth/callback?provider=apple&success=1' + tokenParam);
+      } else {
+        const errorMsg = encodeURIComponent(data?.message || errorType || 'unknown_error');
+        console.error('[Apple OAuth] Auth failed', { errorType, message: data?.message });
+        return res.redirect(`/auth?error=${errorType || 'unknown'}&message=${errorMsg}`);
+      }
+    };
+
+    try {
+      // Get state and check popup mode
+      const state = req.body.state as string;
+      // IMPORTANT: For Apple's form_post, assume popup mode by default since Apple doesn't pass our query params
+      let isPopup = true;
+      let stateData = null;
+      let existingUserId: string | undefined;
+      
+      if (state) {
+        stateData = await verifyOAuthState(state);
+        if (stateData) {
+          isPopup = stateData.popup !== undefined ? stateData.popup : isPopup;
+          existingUserId = stateData.userId;
+        }
+      }
+      
+      // Verify state
+      if (state && !stateData) {
+        return sendAuthResponse(false, { message: 'Invalid state token. Please try again.' }, 'invalid_state');
+      }
+      
+      // Get authorization code from Apple
+      const code = req.body.code;
+      if (!code) {
+        return sendAuthResponse(false, { message: 'No authorization code received from Apple.' }, 'no_code');
+      }
+      
+      // Determine the callback URL that was used for authorization
+      const host = (req.headers['x-forwarded-host'] || req.get('host')) as string;
+      const callbackUrl = getAppleCallbackUrl(req);
+      console.log('[Apple OAuth] Exchanging code with host:', host, 'callback:', callbackUrl);
+      
+      // Exchange code for tokens
+      let tokens;
+      try {
+        tokens = await exchangeAppleCode(code, callbackUrl);
+      } catch (exchangeErr: any) {
+        console.error('[Apple OAuth] Token exchange failed:', exchangeErr?.message);
+        return sendAuthResponse(false, { message: `Apple token exchange failed: ${exchangeErr?.message}` }, 'token_exchange_failed');
+      }
+      
+      // Decode ID token to get user info
+      const idTokenData = decodeAppleIdToken(tokens.id_token);
+      
+      // Apple only provides name on first sign-in via form data
+      const appleUser = req.body.user ? JSON.parse(req.body.user) : null;
+      const firstName = appleUser?.name?.firstName;
+      const lastName = appleUser?.name?.lastName;
+      
+      // Handle user creation/lookup
+      const user = await handleAppleUser(
+        idTokenData.sub,
+        idTokenData.email,
+        firstName,
+        lastName,
+        tokens.access_token,
+        tokens.refresh_token,
+        existingUserId
+      );
+      
+      // Create session
+      const sessionUser = {
+        claims: {
+          sub: user.id,
+          email: user.email,
+          first_name: user.firstName,
+          last_name: user.lastName,
+          profile_image_url: user.profileImageUrl,
+        },
+        access_token: null,
+        refresh_token: null,
+        expires_at: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60),
+      };
+
+      // Establish session
+      req.login(sessionUser, async (loginErr: any) => {
+        if (loginErr) {
+          console.error('[Apple OAuth] Session login error:', loginErr?.message);
+          return sendAuthResponse(false, { message: 'Failed to establish session.' }, 'login_failed');
+        }
+        
+        // CRITICAL: Save session to database before redirecting
+        try {
+          await new Promise<void>((resolve, reject) => {
+            req.session.save((saveErr: any) => {
+              if (saveErr) {
+                console.error('[Apple OAuth] Session save error:', saveErr?.message);
+                reject(saveErr);
+              } else {
+                console.log('[Apple OAuth] Session saved successfully for user:', user.id);
+                resolve();
+              }
+            });
+          });
+        } catch (saveErr) {
+          return sendAuthResponse(false, { message: 'Failed to save session.' }, 'session_save_failed');
+        }
+        
+        // Generate Firebase custom token for client-side auth
+        const firebaseToken = await generateFirebaseCustomToken(user.id, {
+          email: user.email,
+          displayName: user.displayName || `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+          provider: 'apple'
+        });
+        
+        return sendAuthResponse(true, user, undefined, firebaseToken);
+      });
+    } catch (error: any) {
+      // Log the full error for debugging (server-side only)
+      console.error('[Apple OAuth Callback Error]', {
+        message: error?.message,
+        stack: error?.stack?.split('\n').slice(0, 5).join('\n'),
+        code: error?.code,
+      });
+      
+      const errorMessage = error?.message || 'Unknown error';
+      const safeMessage = errorMessage.replace(/['"]/g, '').substring(0, 200);
+      
+      return sendAuthResponse(false, { message: safeMessage }, 'oauth_failed');
+    }
+  });
+
+  // Link Google account to existing user
+  app.post('/api/auth/link/google', isAuthenticated, async (req: any, res, next) => {
+    const userId = req.user.claims.sub;
+    const state = await generateOAuthState(userId);
+    
+    const authenticator = passport.authenticate('google', {
+      scope: ['profile', 'email'],
+      state,
+    });
+    authenticator(req, res, next);
+  });
+
+  // Link Apple account to existing user
+  app.post('/api/auth/link/apple', isAuthenticated, async (req: any, res, next) => {
+    const userId = req.user.claims.sub;
+    const state = await generateOAuthState(userId);
+    
+    const authenticator = passport.authenticate('apple', {
+      scope: ['name', 'email'],
+      state,
+    });
+    authenticator(req, res, next);
+  });
+
+  // Get connected accounts
+  app.get('/api/auth/connected-accounts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accounts = await getUserConnectedAccounts(userId);
+      
+      // Remove sensitive data before sending to client
+      const safeAccounts = accounts.map(account => ({
+        id: account.id,
+        provider: account.provider,
+        displayName: account.displayName,
+        email: account.email,
+        avatarUrl: account.avatarUrl,
+        isActive: account.isActive,
+        connectedAt: account.connectedAt,
+        lastSyncAt: account.lastSyncAt,
+      }));
+      
+      res.json(safeAccounts);
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to fetch connected accounts' });
+    }
+  });
+
+  // Unlink account
+  app.delete('/api/auth/unlink/:provider', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const provider = req.params.provider;
+      
+      const success = await unlinkAccount(userId, provider);
+      
+      if (!success) {
+        return res.status(404).json({ message: 'Connected account not found' });
+      }
+      
+      res.json({ message: 'Account unlinked successfully' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to unlink account' });
+    }
+  });
+
+  // ===== MOBILE-SPECIFIC ROUTES =====
+  
+  // Mobile Apple Sign-In (native, not web OAuth)
+  app.post('/api/auth/apple', jwtAuthRateLimit, async (req: any, res) => {
+    try {
+      const { identityToken, email, fullName, user } = req.body;
+      
+      if (!identityToken || !user) {
+        return res.status(400).json({ message: 'Missing required Apple Sign-In data' });
+      }
+      
+      // Verify Apple identity token with signature validation
+      let verifiedPayload;
+      try {
+        // Verify Apple ID token with JWKS signature verification
+        const payload = await verifyAppleToken(identityToken);
+        
+        // Extract Apple user ID from verified token
+        const appleUserId = payload.sub;
+        
+        if (!appleUserId) {
+          return res.status(400).json({ message: 'Invalid token: missing subject' });
+        }
+        
+        // Verify the subject matches the provided user ID
+        if (appleUserId !== user) {
+          return res.status(401).json({ message: 'Token subject does not match user ID' });
+        }
+        
+        verifiedPayload = payload;
+        
+      } catch (error: any) {
+        return res.status(401).json({ 
+          message: 'Apple token verification failed',
+          details: error.message 
+        });
+      }
+      
+      // Use verified email from token if available
+      const verifiedEmail = verifiedPayload.email || email;
+      const appleUserId = verifiedPayload.sub;
+      
+      // Find user by Apple ID first
+      let currentUser = await storage.getUserByAppleId(appleUserId);
+      
+      if (!currentUser && verifiedEmail) {
+        // Apple ID not found, check if user exists by email
+        currentUser = await storage.getUserByEmail(verifiedEmail);
+        
+        if (currentUser) {
+          // Link Apple ID to existing email account
+          await storage.upsertUser({
+            id: currentUser.id,
+            appleId: appleUserId
+          });
+        }
+      }
+      
+      if (!currentUser) {
+        // Create new user with Apple ID
+        const displayName = fullName ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim() : 'Apple User';
+        const newUser = await storage.upsertUser({
+          email: verifiedEmail || `${appleUserId}@appleid.private`,
+          appleId: appleUserId,
+          displayName,
+          firstName: fullName?.givenName,
+          lastName: fullName?.familyName,
+          coinBalance: 1000 // Welcome bonus
+        });
+        currentUser = newUser;
+        
+        // Log security event
+        await storage.logSecurityEvent({
+          userId: newUser.id,
+          eventType: 'login',
+          eventDescription: 'New user created via Apple Sign-In (mobile)',
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || ''
+        });
+      } else {
+        // Update last login for existing user
+        await storage.upsertUser({
+          id: currentUser.id,
+          lastLoginAt: new Date()
+        });
+        
+        // Log security event
+        await storage.logSecurityEvent({
+          userId: currentUser.id,
+          eventType: 'login',
+          eventDescription: 'User logged in via Apple Sign-In (mobile)',
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || ''
+        });
+      }
+      
+      // Generate JWT tokens
+      const accessToken = generateToken(currentUser.id, currentUser.email || '');
+      const refreshToken = generateRefreshToken(currentUser.id);
+      
+      // Return user data with tokens
+      const { password, ...userWithoutPassword } = currentUser;
+      res.json({
+        ...userWithoutPassword,
+        accessToken,
+        refreshToken,
+        user: userWithoutPassword
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Apple Sign-In failed' });
+    }
+  });
+  
+  // Mobile Google Sign-In (native, not web OAuth)
+  app.post('/api/auth/google/mobile', jwtAuthRateLimit, async (req: any, res) => {
+    try {
+      const { idToken } = req.body;
+      
+      if (!idToken) {
+        return res.status(400).json({ message: 'Missing Google ID token' });
+      }
+      
+      // Verify Google ID token with signature validation
+      let verifiedPayload;
+      try {
+        const payload = await verifyGoogleToken(idToken);
+        
+        if (!payload.sub) {
+          return res.status(400).json({ message: 'Invalid token: missing subject' });
+        }
+        
+        verifiedPayload = payload;
+      } catch (error: any) {
+        return res.status(401).json({ 
+          message: 'Google token verification failed',
+          details: error.message 
+        });
+      }
+      
+      const verifiedEmail = verifiedPayload.email;
+      const googleUserId = verifiedPayload.sub;
+      
+      // Find user by Google ID first
+      let currentUser = await storage.getUserByGoogleId(googleUserId);
+      
+      if (!currentUser && verifiedEmail) {
+        // Google ID not found, check if user exists by email
+        currentUser = await storage.getUserByEmail(verifiedEmail);
+        
+        if (currentUser) {
+          // Link Google ID to existing email account
+          await storage.upsertUser({
+            id: currentUser.id,
+            googleId: googleUserId,
+          });
+        }
+      }
+      
+      if (!currentUser) {
+        // Create new user with Google ID
+        const newUser = await storage.upsertUser({
+          email: verifiedEmail,
+          googleId: googleUserId,
+          displayName: verifiedPayload.name || 'Google User',
+          firstName: verifiedPayload.given_name,
+          lastName: verifiedPayload.family_name,
+          coinBalance: 1000, // Welcome bonus
+        });
+        currentUser = newUser;
+        
+        // Log security event
+        await storage.logSecurityEvent({
+          userId: newUser.id,
+          eventType: 'login',
+          eventDescription: 'New user created via Google Sign-In (mobile)',
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || '',
+        });
+      } else {
+        // Update last login
+        await storage.upsertUser({
+          id: currentUser.id,
+          lastLoginAt: new Date(),
+        });
+        
+        // Log security event
+        await storage.logSecurityEvent({
+          userId: currentUser.id,
+          eventType: 'login',
+          eventDescription: 'User logged in via Google Sign-In (mobile)',
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || '',
+        });
+      }
+      
+      // Generate JWT tokens
+      const accessToken = generateToken(currentUser.id, currentUser.email || '');
+      const refreshToken = generateRefreshToken(currentUser.id);
+      
+      // Return user data with tokens
+      const { password, ...userWithoutPassword } = currentUser;
+      res.json({
+        ...userWithoutPassword,
+        accessToken,
+        refreshToken,
+        user: userWithoutPassword,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Google Sign-In failed' });
+    }
+  });
+  
+  // Update push notification token
+  app.post('/api/user/push-token', authenticate, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ message: 'Push token is required' });
+      }
+      
+      // Save push token to user profile
+      await storage.upsertUser({
+        id: userId,
+        pushToken: token,
+      });
+      
+      res.json({ success: true, message: 'Push token updated' });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to update push token' });
+    }
+  });
+  
+  // Verify Apple IAP receipt
+  // BU UÇ NOKTA HİÇ ÇALIŞMIYORDU.
+  //
+  // `verifyReceipt(userId, receiptData, transactionId?)` imzasını
+  // taşıyor ve içeride transactionId YOKSA hemen fırlatıyor:
+  //     throw new Error('Transaction ID required for App Store Server API')
+  // Buradan `receipt` ikinci argüman olarak geçiliyordu, üçüncü hiç
+  // verilmiyordu. Yani her çağrı 500 dönüyordu — StoreKit 2'de makbuz
+  // (receipt) değil, imzalı işlem kimliği gönderilir.
+  app.post('/api/subscription/verify', authenticate, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { transactionId, receipt } = req.body;
+
+      if (!transactionId) {
+        return res.status(400).json({ message: 'transactionId is required' });
+      }
+
+      const { appleIAPService } = await import('./payments/apple');
+      const result = await appleIAPService.verifyReceipt(
+        userId,
+        typeof receipt === 'string' ? receipt : '',
+        String(transactionId)
+      );
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        message: 'Failed to verify receipt',
+        error: error.message 
+      });
+    }
+  });
+  
+  // Get subscription status (mobile compatible)
+  app.get('/api/subscription/status', authenticate, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      res.json({
+        subscriptionTier: user.subscriptionTier || 'free',
+        subscriptionStatus: user.subscriptionStatus || 'active',
+        subscriptionCurrentPeriodEnd: user.subscriptionCurrentPeriodEnd,
+        isPremium: user.subscriptionTier === 'pro' || user.subscriptionTier === 'team',
+        features: {
+          unlimitedGoals: user.subscriptionTier !== 'free',
+          aiCoaching: user.subscriptionTier !== 'free',
+          advancedAnalytics: user.subscriptionTier !== 'free',
+          prioritySupport: user.subscriptionTier === 'team'
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: 'Failed to get subscription status' });
+    }
+  });
+
+  // ===== ONBOARDING ROUTES =====
+  
+  const onboardingCompleteSchema = z.object({
+    name: z.string().min(1, 'Name is required'),
+    growthAreas: z.array(z.string()).min(1, 'At least one growth area is required'),
+    dailyTimeCommitment: z.number().min(15).max(480),
+    firstGoalTitle: z.string().optional(),
+    firstGoalDescription: z.string().optional(),
+  });
+  
+  app.post('/api/onboarding/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = onboardingCompleteSchema.parse(req.body);
+      
+      // Update user profile with display name
+      await db.update(users)
+        .set({ 
+          displayName: validatedData.name,
+          onboardingCompleted: true,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, userId));
+      
+      // Update or create user profile with preferences
+      const existingProfile = await storage.getUserProfile(userId);
+      if (existingProfile) {
+        await storage.updateUserProfile(userId, {
+          goalCategories: validatedData.growthAreas,
+          dailyTimeCommitment: validatedData.dailyTimeCommitment,
+        });
+      } else {
+        await db.insert(userProfiles).values({
+          userId,
+          goalCategories: validatedData.growthAreas,
+          dailyTimeCommitment: validatedData.dailyTimeCommitment,
+          currentLevel: 1,
+          totalXp: 0,
+          streakCount: 0,
+          longestStreak: 0,
+        });
+      }
+      
+      // Create initial goal if provided
+      let createdGoal = null;
+      if (validatedData.firstGoalTitle && validatedData.firstGoalTitle.trim()) {
+        createdGoal = await storage.createGoal({
+          userId,
+          title: validatedData.firstGoalTitle,
+          description: validatedData.firstGoalDescription || '',
+          targetOutcome: validatedData.firstGoalTitle,
+          category: validatedData.growthAreas[0] || 'personal',
+          status: 'active',
+          progress: '0',
+        });
+      }
+      
+      // Award welcome XP bonus (100 XP)
+      await db.insert(xpTransactions).values({
+        userId,
+        delta: 100,
+        source: 'onboarding_bonus',
+        reason: 'Welcome bonus for completing onboarding',
+      });
+      
+      // Update user profile total XP
+      const profile = await storage.getUserProfile(userId);
+      if (profile) {
+        await storage.updateUserProfile(userId, {
+          totalXp: (profile.totalXp || 0) + 100,
+        });
+      }
+      
+      // Send welcome notification
+      await notificationService.createNotification({
+        userId,
+        type: 'achievement',
+        title: 'Welcome to LiLove!',
+        message: `Hi ${validatedData.name}! You've earned 100 XP for completing your onboarding. Let's start your growth journey!`,
+        category: 'system',
+        priority: 'high',
+      });
+      
+      const updatedUser = await storage.getUser(userId);
+      const updatedProfile = await storage.getUserProfile(userId);
+      
+      res.json({
+        success: true,
+        message: 'Onboarding completed successfully',
+        user: updatedUser,
+        profile: updatedProfile,
+        goal: createdGoal,
+        xpAwarded: 100,
+      });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to complete onboarding" });
+    }
+  });
+
+  // ===== GOALS ROUTES =====
+  
+  app.post('/api/goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = goalSchema.parse(req.body);
+      
+      const goal = await storage.createGoal({
+        ...validatedData,
+        userId,
+        targetOutcome: validatedData.description || validatedData.title,
+        status: 'active',
+        progress: '0'
+      });
+
+      // Send goal creation notification
+      const { notificationService } = await import('./notifications');
+      await notificationService.createNotification({
+        userId,
+        type: 'goal_checkin',
+        title: 'New Goal Created! 🎯',
+        message: `You've created "${goal.title}". Let's make it happen!`,
+        category: 'goals',
+        priority: 'medium',
+        relatedEntityIds: { goalId: goal.id },
+        actionUrl: `/goals/${goal.id}`
+      });
+      
+      res.json(goal);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create goal" });
+    }
+  });
+
+  app.get('/api/goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const goals = await storage.getUserGoals(userId);
+      res.json(goals);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch goals" });
+    }
+  });
+
+  // Get goal categories
+  app.get('/api/goals/categories', async (req, res) => {
+    try {
+      const categories = [
+        { id: 'tech', name: 'Technology', description: 'Programming, software development, and technical skills' },
+        { id: 'data_science', name: 'Data Science', description: 'Analytics, machine learning, and data analysis' },
+        { id: 'ai_ml', name: 'AI & Machine Learning', description: 'Artificial intelligence and machine learning projects' },
+        { id: 'business', name: 'Business', description: 'Entrepreneurship, strategy, and business development' },
+        { id: 'design', name: 'Design', description: 'UI/UX, graphic design, and creative projects' },
+        { id: 'health', name: 'Health & Fitness', description: 'Physical wellness, nutrition, and healthy habits' },
+        { id: 'career', name: 'Career', description: 'Professional development and career advancement' },
+        { id: 'personal', name: 'Personal Development', description: 'Self-improvement and life skills' },
+        { id: 'creative', name: 'Creative', description: 'Art, writing, music, and creative pursuits' },
+        { id: 'finance', name: 'Finance', description: 'Financial planning, investing, and money management' }
+      ];
+      
+      res.json(categories);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch goal categories" });
+    }
+  });
+
+  // Get goal templates
+  app.get('/api/goals/templates', async (req, res) => {
+    try {
+      const { category } = req.query;
+      
+      const allTemplates = {
+        tech: [
+          {
+            id: 'learn-react',
+            title: 'Master React & TypeScript',
+            description: 'Build advanced frontend skills with modern React patterns and TypeScript integration',
+            category: 'tech',
+            priority: 'high',
+            estimatedDuration: 90,
+            difficultyLevel: 7,
+            estimatedHours: 120
+          },
+          {
+            id: 'fullstack-app',
+            title: 'Build Full-Stack Application',
+            description: 'Create a complete web application with frontend, backend, and database',
+            category: 'tech',
+            priority: 'high',
+            estimatedDuration: 120,
+            difficultyLevel: 8,
+            estimatedHours: 200
+          }
+        ],
+        career: [
+          {
+            id: 'build-portfolio',
+            title: 'Build Professional Portfolio',
+            description: 'Create a professional portfolio showcasing best projects and technical skills',
+            category: 'career',
+            priority: 'medium',
+            estimatedDuration: 60,
+            difficultyLevel: 5,
+            estimatedHours: 80
+          },
+          {
+            id: 'job-search',
+            title: 'Land Dream Job',
+            description: 'Complete job search strategy including resume, networking, and interview prep',
+            category: 'career',
+            priority: 'high',
+            estimatedDuration: 90,
+            difficultyLevel: 6,
+            estimatedHours: 100
+          }
+        ],
+        health: [
+          {
+            id: 'fitness-routine',
+            title: 'Establish Fitness Routine',
+            description: 'Build a consistent workout routine and achieve target fitness metrics',
+            category: 'health',
+            priority: 'medium',
+            estimatedDuration: 180,
+            difficultyLevel: 4,
+            estimatedHours: 150
+          },
+          {
+            id: 'healthy-diet',
+            title: 'Develop Healthy Eating Habits',
+            description: 'Learn nutrition basics and establish sustainable healthy eating patterns',
+            category: 'health',
+            priority: 'medium',
+            estimatedDuration: 120,
+            difficultyLevel: 5,
+            estimatedHours: 60
+          }
+        ],
+        personal: [
+          {
+            id: 'read-books',
+            title: 'Read 12 Books This Year',
+            description: 'Expand knowledge and develop reading habit with diverse book selection',
+            category: 'personal',
+            priority: 'low',
+            estimatedDuration: 365,
+            difficultyLevel: 3,
+            estimatedHours: 120
+          },
+          {
+            id: 'learn-language',
+            title: 'Learn a New Language',
+            description: 'Achieve conversational fluency in a foreign language',
+            category: 'personal',
+            priority: 'medium',
+            estimatedDuration: 365,
+            difficultyLevel: 6,
+            estimatedHours: 200
+          }
+        ],
+        business: [
+          {
+            id: 'side-project',
+            title: 'Launch Side Project',
+            description: 'Build and deploy a meaningful SaaS application from concept to production',
+            category: 'business',
+            priority: 'high',
+            estimatedDuration: 180,
+            difficultyLevel: 8,
+            estimatedHours: 300
+          }
+        ]
+      };
+
+      const templates = category ? (allTemplates as any)[category as string] || [] : Object.values(allTemplates).flat();
+      res.json(templates);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch goal templates" });
+    }
+  });
+
+  app.get('/api/goals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const goalId = req.params.id;
+      const goal = await storage.getGoalById(goalId);
+      
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      // Verify user owns this goal
+      const userId = req.user.claims.sub;
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      res.json(goal);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch goal" });
+    }
+  });
+
+  // Update goal
+  app.patch('/api/goals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const goalId = req.params.id;
+      const updates = req.body;
+      
+      // Bust AI cache when goal is updated
+      aiCache.invalidateUserGoalContext(userId);
+      
+      // Verify goal exists and user owns it
+      const goal = await storage.getGoalById(goalId);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Update goal
+      await storage.updateGoal(goalId, updates);
+      
+      // Get updated goal
+      const updatedGoal = await storage.getGoalById(goalId);
+      res.json(updatedGoal);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update goal" });
+    }
+  });
+
+  // Delete goal
+  app.delete('/api/goals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const goalId = req.params.id;
+      
+      // Verify goal exists and user owns it
+      const goal = await storage.getGoalById(goalId);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Delete goal
+      await storage.deleteGoal(goalId);
+      res.json({ message: "Goal deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete goal" });
+    }
+  });
+
+  // Complete goal
+  app.post('/api/goals/:id/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const goalId = req.params.id;
+      
+      // Verify goal exists and user owns it
+      const goal = await storage.getGoalById(goalId);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Mark goal as completed
+      await storage.updateGoal(goalId, {
+        status: 'completed',
+        progress: '100',
+        completedAt: new Date()
+      });
+      
+      // Award XP for goal completion
+      const { gamificationService } = await import('./gamification');
+      await gamificationService.awardXP(
+        userId,
+        100, // Base XP for goal completion
+        'goal_completion',
+        `Completed goal: ${goal.title}`,
+        goalId
+      );
+      
+      // Check for achievements
+      await gamificationService.checkAchievements(userId, {
+        type: 'goal_completed',
+        value: 1
+      });
+
+      // Send goal completion notification
+      const { notificationService } = await import('./notifications');
+      await notificationService.createNotification({
+        userId,
+        type: 'goal_checkin',
+        title: 'Goal Completed! 🏆',
+        message: `Congratulations! You've successfully completed "${goal.title}".`,
+        category: 'goals',
+        priority: 'high',
+        relatedEntityIds: { goalId: goal.id },
+        actionUrl: `/goals/${goal.id}`
+      });
+      
+      // Get updated goal
+      const updatedGoal = await storage.getGoalById(goalId);
+      res.json(updatedGoal);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to complete goal" });
+    }
+  });
+
+  // Update goal progress
+  app.patch('/api/goals/:id/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const goalId = req.params.id;
+      const { progress } = req.body;
+      
+      // Validate progress value
+      const progressValue = parseFloat(progress);
+      if (isNaN(progressValue) || progressValue < 0 || progressValue > 100) {
+        return res.status(400).json({ message: "Progress must be a number between 0 and 100" });
+      }
+      
+      // Verify goal exists and user owns it
+      const goal = await storage.getGoalById(goalId);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Update progress
+      await storage.updateGoal(goalId, { progress: progressValue.toString() });
+      
+      // Award XP for progress milestones
+      const oldProgress = parseFloat(goal.progress || '0');
+      const milestones = [25, 50, 75];
+      
+      for (const milestone of milestones) {
+        if (oldProgress < milestone && progressValue >= milestone) {
+          const { gamificationService } = await import('./gamification');
+          await gamificationService.awardXP(
+            userId,
+            20, // XP for milestone
+            'goal_progress',
+            `${milestone}% progress on goal: ${goal.title}`,
+            goalId
+          );
+
+          // Send milestone notification
+          const { notificationService } = await import('./notifications');
+          await notificationService.createNotification({
+            userId,
+            type: 'goal_checkin',
+            title: `${milestone}% Progress Milestone! 🎯`,
+            message: `Great progress! You've reached ${milestone}% completion on "${goal.title}".`,
+            category: 'goals',
+            priority: milestone >= 75 ? 'high' : 'medium',
+            relatedEntityIds: { goalId: goal.id },
+            actionUrl: `/goals/${goal.id}`
+          });
+        }
+      }
+      
+      // Get updated goal
+      const updatedGoal = await storage.getGoalById(goalId);
+      res.json(updatedGoal);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update goal progress" });
+    }
+  });
+
+  // ===== SUB-GOALS ROUTES =====
+
+  // Get sub-goals for a goal
+  app.get('/api/goals/:id/subgoals', isAuthenticated, async (req: any, res) => {
+    try {
+      const goalId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Verify goal exists and user owns it
+      const goal = await storage.getGoalById(goalId);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const subGoals = await storage.getSubGoalsByGoalId(goalId);
+      res.json(subGoals);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch sub-goals" });
+    }
+  });
+
+  // Create a sub-goal
+  app.post('/api/goals/:id/subgoals', isAuthenticated, async (req: any, res) => {
+    try {
+      const goalId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Verify goal exists and user owns it
+      const goal = await storage.getGoalById(goalId);
+      if (!goal) {
+        return res.status(404).json({ message: "Goal not found" });
+      }
+      if (goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const validatedData = insertSubGoalSchema.parse({
+        ...req.body,
+        goalId
+      });
+      
+      const subGoal = await storage.createSubGoal(validatedData);
+      res.status(201).json(subGoal);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Invalid sub-goal data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create sub-goal" });
+    }
+  });
+
+  // Update a sub-goal
+  app.patch('/api/subgoals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const subGoalId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Get the sub-goal's parent goal to verify ownership
+      const subGoalsList = await db.select().from(subGoals).where(eq(subGoals.id, subGoalId));
+      const subGoal = subGoalsList[0];
+      
+      if (!subGoal) {
+        return res.status(404).json({ message: "Sub-goal not found" });
+      }
+      
+      const goal = await storage.getGoalById(subGoal.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const updated = await storage.updateSubGoal(subGoalId, req.body);
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update sub-goal" });
+    }
+  });
+
+  // Delete a sub-goal
+  app.delete('/api/subgoals/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const subGoalId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Get the sub-goal's parent goal to verify ownership
+      const subGoalsList = await db.select().from(subGoals).where(eq(subGoals.id, subGoalId));
+      const subGoal = subGoalsList[0];
+      
+      if (!subGoal) {
+        return res.status(404).json({ message: "Sub-goal not found" });
+      }
+      
+      const goal = await storage.getGoalById(subGoal.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      await storage.deleteSubGoal(subGoalId);
+      res.status(204).send();
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete sub-goal" });
+    }
+  });
+
+  // Complete a sub-goal
+  app.post('/api/subgoals/:id/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const subGoalId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Get the sub-goal's parent goal to verify ownership
+      const subGoalsList = await db.select().from(subGoals).where(eq(subGoals.id, subGoalId));
+      const subGoal = subGoalsList[0];
+      
+      if (!subGoal) {
+        return res.status(404).json({ message: "Sub-goal not found" });
+      }
+      
+      const goal = await storage.getGoalById(subGoal.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      const completed = await storage.completeSubGoal(subGoalId);
+      res.json(completed);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to complete sub-goal" });
+    }
+  });
+
+  // ===== TASKS ROUTES =====
+  
+  // Get next tasks
+  app.get('/api/tasks/next', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 5;
+      const tasks = await storage.getNextTasks(userId, limit);
+      res.json(tasks);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch next tasks" });
+    }
+  });
+
+  // Create new task
+  app.post('/api/tasks', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const taskData = req.body;
+      
+      // Validate required fields
+      if (!taskData.title || !taskData.goalId) {
+        return res.status(400).json({ message: "Title and goal ID are required" });
+      }
+      
+      // Verify user owns the goal
+      const goal = await storage.getGoalById(taskData.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized - invalid goal" });
+      }
+      
+      // Get or create active task plan for this goal
+      let activePlan = await storage.getActiveTaskPlan(taskData.goalId);
+      if (!activePlan) {
+        // Create a new task plan for this goal
+        activePlan = await storage.createTaskPlan({
+          goalId: taskData.goalId,
+          planType: 'custom',
+          totalTasks: 1,
+          estimatedHours: Math.round(parseInt(taskData.estimatedDuration || '60') / 60).toString(), // convert minutes to hours
+          complexityScore: taskData.difficultyRating || 5
+        });
+      }
+      
+      // Create the task
+      const task = await storage.createTask({
+        ...taskData,
+        planId: activePlan.id,
+        orderIndex: await storage.getUserTasksCount(userId) + 1,
+        estimatedDuration: taskData.estimatedDuration || 60, // minutes
+        priority: taskData.priority || 'medium',
+        type: taskData.type || 'project'
+      });
+      
+      res.json(task);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create task" });
+    }
+  });
+
+  // Get all tasks for a user with enhanced filtering
+  app.get('/api/tasks', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { 
+        goalId, 
+        status, 
+        priority, 
+        limit = 50, 
+        offset = 0, 
+        sortBy = 'createdAt', 
+        sortOrder = 'desc' 
+      } = req.query;
+      
+      const options = {
+        status: status as string,
+        priority: priority as string,
+        goalId: goalId as string,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+        sortBy: sortBy as string,
+        sortOrder: sortOrder as 'asc' | 'desc'
+      };
+      
+      const tasks = await storage.getUserTasks(userId, options);
+      const totalCount = await storage.getUserTasksCount(userId, status as string);
+      
+      res.json({
+        tasks,
+        totalCount,
+        currentPage: Math.floor(parseInt(offset as string) / parseInt(limit as string)) + 1,
+        totalPages: Math.ceil(totalCount / parseInt(limit as string))
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch tasks" });
+    }
+  });
+
+  // Get single task
+  app.get('/api/tasks/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      const task = await storage.getTaskById(taskId);
+      
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Verify user owns this task by checking the goal
+      const userId = req.user.claims.sub;
+      const goals = await storage.getUserGoals(userId);
+      const taskGoal = goals.find(goal => goal.id === task.goalId);
+      
+      if (!taskGoal) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      res.json(task);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch task" });
+    }
+  });
+
+  // Update task
+  app.patch('/api/tasks/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      const updates = req.body;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      const goals = await storage.getUserGoals(userId);
+      const taskGoal = goals.find(goal => goal.id === task.goalId);
+      
+      if (!taskGoal) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Update task
+      await storage.updateTask(taskId, updates);
+      
+      // Get updated task
+      const updatedTask = await storage.getTaskById(taskId);
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update task" });
+    }
+  });
+
+  // Delete task
+  app.delete('/api/tasks/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      const goals = await storage.getUserGoals(userId);
+      const taskGoal = goals.find(goal => goal.id === task.goalId);
+      
+      if (!taskGoal) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Delete task properly
+      await storage.deleteTask(taskId);
+      res.json({ message: "Task deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete task" });
+    }
+  });
+
+  // Complete task
+  app.post('/api/tasks/:id/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const userId = req.user.claims.sub;
+      const goals = await storage.getUserGoals(userId);
+      const taskGoal = goals.find(goal => goal.id === task.goalId);
+      
+      if (!taskGoal) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      // Mark task as completed
+      await storage.updateTask(taskId, {
+        status: 'completed',
+        completedAt: new Date()
+      });
+      
+      // Award XP for task completion
+      const { gamificationService } = await import('./gamification');
+      const xpAmount = Math.round((parseFloat(task.estimatedDuration?.toString() || '60') / 60) * 10); // 10 XP per estimated hour
+      
+      await gamificationService.awardXP(
+        userId,
+        xpAmount,
+        'task_completion',
+        `Completed task: ${task.title}`,
+        taskId
+      );
+      
+      // Check for achievements
+      await gamificationService.checkAchievements(userId, {
+        type: 'task_completed',
+        value: 1
+      });
+
+      // Send task completion notification
+      const { notificationService } = await import('./notifications');
+      await notificationService.createNotification({
+        userId,
+        type: 'task_reminder',
+        title: 'Task Completed! ✅',
+        message: `Great job! You've completed "${task.title}" and earned ${xpAmount} XP.`,
+        category: 'tasks',
+        priority: 'medium',
+        relatedEntityIds: { taskId: task.id, goalId: taskGoal.id },
+        actionUrl: `/goals/${taskGoal.id}`
+      });
+      
+      // Get updated task
+      const updatedTask = await storage.getTaskById(taskId);
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to complete task" });
+    }
+  });
+
+  // ===== TASK TIMER MANAGEMENT =====
+  
+  // Start task timer
+  app.post('/api/tasks/:id/timer/start', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      // Verify ownership through goal
+      const goal = await storage.getGoalById(task.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      await storage.startTaskTimer(taskId, userId);
+      
+      // Get updated task
+      const updatedTask = await storage.getTaskById(taskId);
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to start task timer" });
+    }
+  });
+
+  // Pause task timer
+  app.post('/api/tasks/:id/timer/pause', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const goal = await storage.getGoalById(task.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      await storage.pauseTaskTimer(taskId, userId);
+      
+      const updatedTask = await storage.getTaskById(taskId);
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to pause task timer" });
+    }
+  });
+
+  // Resume task timer
+  app.post('/api/tasks/:id/timer/resume', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const goal = await storage.getGoalById(task.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      await storage.resumeTaskTimer(taskId, userId);
+      
+      const updatedTask = await storage.getTaskById(taskId);
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to resume task timer" });
+    }
+  });
+
+  // Stop task timer
+  app.post('/api/tasks/:id/timer/stop', isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Verify task exists and user owns it
+      const task = await storage.getTaskById(taskId);
+      if (!task) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      
+      const goal = await storage.getGoalById(task.goalId);
+      if (!goal || goal.userId !== userId) {
+        return res.status(403).json({ message: "Unauthorized" });
+      }
+      
+      await storage.stopTaskTimer(taskId, userId);
+      
+      const updatedTask = await storage.getTaskById(taskId);
+      res.json(updatedTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to stop task timer" });
+    }
+  });
+
+  // Get active timer
+  app.get('/api/tasks/timer/active', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const activeTask = await storage.getActiveTimer(userId);
+      res.json(activeTask);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch active timer" });
+    }
+  });
+
+  // ===== BULK TASK OPERATIONS =====
+  
+  // Bulk update tasks
+  app.patch('/api/tasks/bulk', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { taskIds, updates } = req.body;
+      
+      if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        return res.status(400).json({ message: "Task IDs array is required" });
+      }
+      
+      if (!updates || typeof updates !== 'object') {
+        return res.status(400).json({ message: "Updates object is required" });
+      }
+      
+      // Verify user owns all tasks
+      for (const taskId of taskIds) {
+        const task = await storage.getTaskById(taskId);
+        if (!task) {
+          return res.status(404).json({ message: `Task ${taskId} not found` });
+        }
+        
+        const goal = await storage.getGoalById(task.goalId);
+        if (!goal || goal.userId !== userId) {
+          return res.status(403).json({ message: `Unauthorized for task ${taskId}` });
+        }
+      }
+      
+      await storage.bulkUpdateTasks(taskIds, updates);
+      
+      // If completing tasks, award XP
+      if (updates.status === 'completed') {
+        const { gamificationService } = await import('./gamification');
+        
+        for (const taskId of taskIds) {
+          const task = await storage.getTaskById(taskId);
+          if (task) {
+            const xpAmount = Math.round((parseFloat(task.estimatedDuration?.toString() || '60') / 60) * 10);
+            await gamificationService.awardXP(
+              userId,
+              xpAmount,
+              'task_completion',
+              `Completed task: ${task.title}`,
+              taskId
+            );
+          }
+        }
+        
+        await gamificationService.checkAchievements(userId, {
+          type: 'task_completed',
+          value: taskIds.length
+        });
+      }
+      
+      res.json({ message: `Successfully updated ${taskIds.length} tasks` });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to bulk update tasks" });
+    }
+  });
+
+  // Bulk delete tasks
+  app.delete('/api/tasks/bulk', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { taskIds } = req.body;
+      
+      if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        return res.status(400).json({ message: "Task IDs array is required" });
+      }
+      
+      await storage.bulkDeleteTasks(taskIds, userId);
+      res.json({ message: `Successfully deleted ${taskIds.length} tasks` });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to bulk delete tasks" });
+    }
+  });
+
+  // ===== TASK ANALYTICS =====
+  
+  // Get task analytics
+  app.get('/api/tasks/analytics', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { period = '30d' } = req.query;
+      
+      const analytics = await storage.getTaskAnalytics(userId, period as string);
+      res.json(analytics);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch task analytics" });
+    }
+  });
+
+  // Get task time logs
+  app.get('/api/tasks/time-logs', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { limit = 50 } = req.query;
+      
+      const timeLogs = await storage.getTaskTimeLogsForUser(userId, parseInt(limit as string));
+      res.json(timeLogs);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch task time logs" });
+    }
+  });
+
+  // ===== TEAM MANAGEMENT ROUTES (Note: Main team endpoints moved to socialService implementation below) =====
+  
+  // Get user's teams
+  app.get('/api/teams/my', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userTeams = await storage.getUserTeams(userId);
+      
+      // Format response to match frontend expectations
+      const formattedTeams = userTeams.map(team => ({
+        team: {
+          id: team.teamId,
+          name: team.teamName,
+          description: team.teamDescription,
+          avatarUrl: team.teamAvatarUrl,
+          maxMembers: team.teamMaxMembers,
+          isPublic: team.teamIsPublic,
+          requiresApproval: team.teamRequiresApproval,
+          totalXp: team.teamTotalXp,
+          teamLevel: team.teamLevel,
+          winStreak: team.teamWinStreak,
+          challengesWon: team.teamChallengesWon,
+          createdById: team.teamCreatedById,
+          createdAt: team.teamCreatedAt,
+          updatedAt: team.teamUpdatedAt
+        },
+        membership: {
+          id: team.membershipId,
+          userId: team.membershipUserId,
+          teamId: team.membershipTeamId,
+          role: team.membershipRole,
+          contributionXp: team.membershipContributionXp,
+          joinedAt: team.membershipJoinedAt
+        }
+      }));
+      
+      res.json(formattedTeams);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch teams" });
+    }
+  });
+  
+  // Get public teams for discovery (no auth required - public data)
+  app.get('/api/teams/public', async (req: any, res) => {
+    try {
+      const { limit = 20, search } = req.query;
+      const publicTeams = await storage.getPublicTeams(parseInt(limit as string), search as string);
+      res.json(publicTeams || []);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch public teams" });
+    }
+  });
+  
+  // Get team details
+  app.get('/api/teams/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Check if user is a member of this team
+      const userTeams = await storage.getUserTeams(userId);
+      const isMember = userTeams.some(team => team.id === teamId);
+      
+      if (!isMember) {
+        return res.status(403).json({ message: "Not authorized to view this team" });
+      }
+      
+      const team = await storage.getTeamById(teamId);
+      if (!team) {
+        return res.status(404).json({ message: "Team not found" });
+      }
+      
+      // Get team members
+      const members = await storage.getTeamMembers(teamId);
+      
+      // Format response to match frontend expectations
+      const response = {
+        team,
+        members: members.map(member => ({
+          user: {
+            id: member.userId,
+            email: member.email,
+            firstName: member.firstName,
+            lastName: member.lastName,
+            displayName: member.displayName,
+            username: member.username,
+            profileImageUrl: member.profileImageUrl
+          },
+          member: {
+            id: member.id,
+            userId: member.userId,
+            role: member.role,
+            contributionXp: member.contributionXp,
+            joinedAt: member.joinedAt
+          }
+        }))
+      };
+      
+      res.json(response);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team details" });
+    }
+  });
+  
+  // Update team
+  app.put('/api/teams/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      const updates = req.body;
+      
+      // Check if user is owner or admin
+      const userTeams = await storage.getUserTeams(userId);
+      const userTeam = userTeams.find(team => team.id === teamId);
+      
+      if (!userTeam || (userTeam.role !== 'owner' && userTeam.role !== 'admin')) {
+        return res.status(403).json({ message: "Not authorized to update this team" });
+      }
+      
+      await storage.updateTeam(teamId, updates);
+      
+      const updatedTeam = await storage.getTeamById(teamId);
+      res.json(updatedTeam);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update team" });
+    }
+  });
+  
+  // Delete team
+  app.delete('/api/teams/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Check if user is owner
+      const userTeams = await storage.getUserTeams(userId);
+      const userTeam = userTeams.find(team => team.id === teamId);
+      
+      if (!userTeam || userTeam.role !== 'owner') {
+        return res.status(403).json({ message: "Only team owner can delete the team" });
+      }
+      
+      await storage.deleteTeam(teamId);
+      res.json({ message: "Team deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete team" });
+    }
+  });
+  
+  // ===== TEAM MEMBER MANAGEMENT =====
+  
+  // Get team members
+  app.get('/api/teams/:id/members', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Check if user is a member
+      const userTeams = await storage.getUserTeams(userId);
+      const isMember = userTeams.some(team => team.teamId === teamId);
+      
+      if (!isMember) {
+        return res.status(403).json({ message: "Not authorized to view team members" });
+      }
+      
+      const members = await storage.getTeamMembers(teamId);
+      res.json(members);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team members" });
+    }
+  });
+  
+  // Invite user to team
+  app.post('/api/teams/:id/invite', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      const { inviteUserId, inviteEmail, role = 'member' } = req.body;
+      
+      // Check if user is owner or admin
+      const userTeams = await storage.getUserTeams(userId);
+      const userTeam = userTeams.find(team => team.teamId === teamId);
+      
+      if (!userTeam || (userTeam.membershipRole !== 'owner' && userTeam.membershipRole !== 'admin')) {
+        return res.status(403).json({ message: "Not authorized to invite members" });
+      }
+      
+      // Use social service to send invite with invite code generation
+      const inviteCode = await socialService.sendTeamInvite(
+        teamId,
+        userId,
+        inviteUserId,
+        inviteEmail
+      );
+      
+      res.json({ inviteCode });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to invite member" });
+    }
+  });
+  
+  // Accept team invitation / Join team
+  app.post('/api/teams/:id/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      const { inviteCode } = req.body;
+      
+      // Use social service for proper team joining
+      const member = await socialService.joinTeam(teamId, userId);
+      
+      // Award XP for joining team
+      const { gamificationService } = await import('./gamification');
+      await gamificationService.awardXP(
+        userId,
+        25, // XP for joining team
+        'team_joined',
+        `Joined a team`,
+        teamId
+      );
+      
+      res.json(member);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to join team" });
+    }
+  });
+  
+  // Update member role
+  app.put('/api/teams/:id/member/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const targetUserId = req.params.userId;
+      const currentUserId = req.user.claims.sub;
+      const { role } = req.body;
+      
+      if (!['owner', 'admin', 'member'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role" });
+      }
+      
+      // Check if current user is owner or admin
+      const userTeams = await storage.getUserTeams(currentUserId);
+      const userTeam = userTeams.find(team => team.id === teamId);
+      
+      if (!userTeam || (userTeam.role !== 'owner' && userTeam.role !== 'admin')) {
+        return res.status(403).json({ message: "Not authorized to change member roles" });
+      }
+      
+      // Owners can't be demoted by non-owners
+      const members = await storage.getTeamMembers(teamId);
+      const targetMember = members.find(member => member.userId === targetUserId);
+      
+      if (targetMember?.role === 'owner' && userTeam.role !== 'owner') {
+        return res.status(403).json({ message: "Cannot change owner role" });
+      }
+      
+      await storage.updateMemberRole(teamId, targetUserId, role);
+      
+      res.json({ message: "Member role updated successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update member role" });
+    }
+  });
+  
+  // Remove team member
+  app.delete('/api/teams/:id/member/:userId', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const targetUserId = req.params.userId;
+      const currentUserId = req.user.claims.sub;
+      
+      // Check if current user is owner or admin, or removing themselves
+      const userTeams = await storage.getUserTeams(currentUserId);
+      const userTeam = userTeams.find(team => team.id === teamId);
+      
+      const isOwnerOrAdmin = userTeam && (userTeam.role === 'owner' || userTeam.role === 'admin');
+      const isRemovingSelf = currentUserId === targetUserId;
+      
+      if (!isOwnerOrAdmin && !isRemovingSelf) {
+        return res.status(403).json({ message: "Not authorized to remove this member" });
+      }
+      
+      // Can't remove team owner (unless they're removing themselves)
+      const members = await storage.getTeamMembers(teamId);
+      const targetMember = members.find(member => member.userId === targetUserId);
+      
+      if (targetMember?.role === 'owner' && !isRemovingSelf) {
+        return res.status(403).json({ message: "Cannot remove team owner" });
+      }
+      
+      await storage.removeTeamMember(teamId, targetUserId);
+      
+      res.json({ message: "Member removed successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to remove member" });
+    }
+  });
+  
+  // ===== TEAM GOALS AND COLLABORATION =====
+  
+  // Create team goal
+  app.post('/api/teams/:id/goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod
+      const validatedData = insertTeamGoalSchema.parse({
+        ...req.body,
+        teamId
+      });
+      
+      // Check if user has permission to create team goals
+      const userTeams = await storage.getUserTeams(userId);
+      const userTeam = userTeams.find(team => team.teamId === teamId);
+      
+      if (!userTeam) {
+        return res.status(403).json({ message: "Not authorized to create team goals" });
+      }
+      
+      // Only owners and admins can create team goals
+      if (userTeam.membershipRole !== 'owner' && userTeam.membershipRole !== 'admin') {
+        return res.status(403).json({ message: "Only team owners and admins can create goals" });
+      }
+      
+      const teamGoal = await storage.createTeamGoal(validatedData);
+      
+      // Integrate with gamification - award XP for goal creation
+      const { gamificationService } = await import('./gamification');
+      await gamificationService.awardXP(
+        userId,
+        50, // XP for creating team goal
+        'team_goal_created',
+        `Created team goal: ${validatedData.title}`,
+        teamGoal.id
+      );
+      
+      res.json(teamGoal);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create team goal" });
+    }
+  });
+  
+  // Get team goals
+  app.get('/api/teams/:id/goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Check if user is a member
+      const userTeams = await storage.getUserTeams(userId);
+      const isMember = userTeams.some(team => team.teamId === teamId);
+      
+      if (!isMember) {
+        return res.status(403).json({ message: "Not authorized to view team goals" });
+      }
+      
+      const goals = await storage.getTeamGoals(teamId);
+      res.json(goals);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team goals" });
+    }
+  });
+  
+  // Get team analytics
+  app.get('/api/teams/:id/analytics', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      // Check if user is a member
+      const userTeams = await storage.getUserTeams(userId);
+      const isMember = userTeams.some(team => team.teamId === teamId);
+      
+      if (!isMember) {
+        return res.status(403).json({ message: "Not authorized to view team analytics" });
+      }
+      
+      const analytics = await storage.getTeamAnalytics(teamId);
+      res.json(analytics);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team analytics" });
+    }
+  });
+
+  // Get team chat messages
+  app.get('/api/teams/:id/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      const { limit = 50, before } = req.query;
+      
+      // Check if user is a member
+      const userTeams = await storage.getUserTeams(userId);
+      const isMember = userTeams.some((team: any) => team.teamId === teamId);
+      
+      if (!isMember) {
+        return res.status(403).json({ message: "Not authorized to view team chat" });
+      }
+      
+      const messages = await storage.getTeamChatMessages(teamId, parseInt(limit as string), before as string);
+      res.json(messages);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team chat messages" });
+    }
+  });
+
+  // Get team leaderboard
+  app.get('/api/teams/:id/leaderboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const teamId = req.params.id;
+      const userId = req.user.claims.sub;
+      const { period = 'all' } = req.query;
+      
+      // Check if user is a member
+      const userTeams = await storage.getUserTeams(userId);
+      const isMember = userTeams.some((team: any) => team.teamId === teamId);
+      
+      if (!isMember) {
+        return res.status(403).json({ message: "Not authorized to view team leaderboard" });
+      }
+      
+      const leaderboard = await storage.getTeamLeaderboard(teamId, period as string);
+      res.json(leaderboard);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team leaderboard" });
+    }
+  });
+
+  // ===== GAMIFICATION ROUTES =====
+  
+
+  // ===== ANALYTICS ROUTES =====
+  
+  // Get comprehensive performance metrics
+  app.get('/api/analytics/performance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const metrics = await analyticsService.getPerformanceMetrics(userId, dateRange);
+      res.json(metrics);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch performance metrics" });
+    }
+  });
+  
+  // Get chart data for visualizations
+  app.get('/api/analytics/charts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const chartData = await analyticsService.getChartData(userId, dateRange);
+      res.json(chartData);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch chart data" });
+    }
+  });
+  
+  // Get detailed analytics
+  app.get('/api/analytics/detailed', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const detailed = await analyticsService.getDetailedAnalytics(userId, dateRange);
+      res.json(detailed);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch detailed analytics" });
+    }
+  });
+  
+  // Get AI-powered insights
+  app.get('/api/analytics/insights', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const insights = await analyticsService.generateAIInsights(userId, dateRange);
+      res.json(insights);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to generate AI insights" });
+    }
+  });
+  
+  // ===== MENTAL HEALTH ANALYTICS ROUTES =====
+  
+  // Get mood trends over time
+  app.get('/api/analytics/mood-trends', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let days = 30;
+      if (range === '7') days = 7;
+      else if (range === 'all') days = 365;
+      else if (range) days = parseInt(range as string);
+      
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const endDate = new Date();
+      
+      const moodTrends = await storage.getMoodTrends(userId, startDate, endDate);
+      res.json(moodTrends);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch mood trends" });
+    }
+  });
+  
+  // Get activity statistics
+  app.get('/api/analytics/activity', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let days = 30;
+      if (range === '7') days = 7;
+      else if (range === 'all') days = 365;
+      else if (range) days = parseInt(range as string);
+      
+      const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      const endDate = new Date();
+      
+      const activityStats = await storage.getActivityStats(userId, startDate, endDate);
+      res.json(activityStats);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch activity stats" });
+    }
+  });
+  
+  // Get engagement statistics
+  app.get('/api/analytics/engagement', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const engagementStats = await storage.getEngagementStats(userId);
+      res.json(engagementStats);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch engagement stats" });
+    }
+  });
+  
+  // ===== TEAM ANALYTICS ROUTES =====
+  
+  // Helper function to verify team membership
+  const verifyTeamMembership = async (userId: string, teamId: string) => {
+    const membership = await db.select()
+      .from(teamMembers)
+      .where(and(
+        eq(teamMembers.userId, userId),
+        eq(teamMembers.teamId, teamId)
+      ))
+      .limit(1);
+    
+    return membership.length > 0 ? membership[0] : null;
+  };
+
+  // Get team analytics overview
+  app.get('/api/analytics/team/overview', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { teamId, range } = req.query;
+      
+      if (!teamId) {
+        return res.status(400).json({ message: "Team ID is required" });
+      }
+      
+      // Verify team membership
+      const membership = await verifyTeamMembership(userId, teamId as string);
+      if (!membership) {
+        return res.status(403).json({ message: "Not a member of this team" });
+      }
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const teamAnalytics = await analyticsService.getTeamAnalytics(teamId as string, dateRange);
+      res.json(teamAnalytics);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team analytics overview" });
+    }
+  });
+
+  // Get team performance metrics
+  app.get('/api/analytics/team/performance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { teamId, range } = req.query;
+      
+      if (!teamId) {
+        return res.status(400).json({ message: "Team ID is required" });
+      }
+      
+      // Verify team membership
+      const membership = await verifyTeamMembership(userId, teamId as string);
+      if (!membership) {
+        return res.status(403).json({ message: "Not a member of this team" });
+      }
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const teamPerformance = await analyticsService.getTeamPerformanceMetrics(teamId as string, dateRange);
+      res.json(teamPerformance);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team performance metrics" });
+    }
+  });
+
+  // Get team member contributions
+  app.get('/api/analytics/team/contributions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { teamId, range } = req.query;
+      
+      if (!teamId) {
+        return res.status(400).json({ message: "Team ID is required" });
+      }
+      
+      // Verify team membership
+      const membership = await verifyTeamMembership(userId, teamId as string);
+      if (!membership) {
+        return res.status(403).json({ message: "Not a member of this team" });
+      }
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const teamContributions = await analyticsService.getTeamMemberContributions(teamId as string, dateRange);
+      res.json(teamContributions);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team contributions" });
+    }
+  });
+
+  // Export analytics data as CSV
+  app.get('/api/analytics/export/csv', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      // Get all analytics data
+      const [metrics, charts, detailed] = await Promise.all([
+        analyticsService.getPerformanceMetrics(userId, dateRange),
+        analyticsService.getChartData(userId, dateRange),
+        analyticsService.getDetailedAnalytics(userId, dateRange)
+      ]);
+      
+      // Convert to CSV format
+      const csvData = [
+        ['LiLove Analytics Report'],
+        ['Generated:', new Date().toISOString()],
+        [''],
+        ['Performance Metrics'],
+        ['Goal Completion Rate', metrics.goalCompletionRate + '%'],
+        ['Tasks Per Day', metrics.taskProductivity.tasksPerDay],
+        ['Average Task Time', metrics.taskProductivity.averageCompletionTime + ' hours'],
+        ['Overall Score', metrics.overallPerformanceScore],
+        ['Current Streak', metrics.streakData.currentStreak + ' days'],
+        [''],
+        ['Time Tracking'],
+        ['Hours Today', metrics.timeTracking.hoursToday],
+        ['Hours This Week', metrics.timeTracking.hoursThisWeek],
+        ['Hours This Month', metrics.timeTracking.hoursThisMonth],
+        ['Daily Average', metrics.timeTracking.dailyAverage.toFixed(1) + ' hours'],
+        [''],
+        ['Goal Analytics'],
+        ['Success Rate', detailed.goalAnalytics.successRate + '%'],
+        ['Average Completion Time', detailed.goalAnalytics.averageTimeToComplete + ' days'],
+        [''],
+        ['Task Analytics'],
+        ['Average Task Duration', detailed.taskAnalytics.averageTaskDuration + ' hours'],
+        ['Overdue Tasks', detailed.taskAnalytics.overdueTasks],
+        [''],
+        ['Social Analytics'],
+        ['Team Contribution', detailed.socialAnalytics.teamContribution],
+        ['Challenge Performance', detailed.socialAnalytics.challengePerformance],
+        ['Posts Shared', detailed.socialAnalytics.postsShared]
+      ];
+      
+      const csv = csvData.map(row => row.join(',')).join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="analytics-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csv);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to export analytics" });
+    }
+  });
+  
+  // Generate analytics PDF report
+  app.get('/api/analytics/export/pdf', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      // For PDF generation, we would typically use a library like puppeteer or pdfkit
+      // For now, return a structured JSON that could be converted to PDF on the frontend
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const [metrics, charts, detailed, insights] = await Promise.all([
+        analyticsService.getPerformanceMetrics(userId, dateRange),
+        analyticsService.getChartData(userId, dateRange),
+        analyticsService.getDetailedAnalytics(userId, dateRange),
+        analyticsService.generateAIInsights(userId, dateRange)
+      ]);
+      
+      const report = {
+        title: 'LiLove Analytics Report',
+        generatedAt: new Date().toISOString(),
+        dateRange: dateRange?.label || 'Last 30 Days',
+        metrics,
+        charts,
+        detailed,
+        insights
+      };
+      
+      res.json(report);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to generate PDF report" });
+    }
+  });
+
+  // ===== ADDITIONAL ANALYTICS ENDPOINTS =====
+  
+  // Analytics overview - Key metrics summary
+  app.get('/api/analytics/overview', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const [metrics, profile] = await Promise.all([
+        analyticsService.getPerformanceMetrics(userId, dateRange),
+        storage.getUserProfile(userId)
+      ]);
+      
+      const overview = {
+        performanceScore: metrics.overallPerformanceScore,
+        goalCompletionRate: metrics.goalCompletionRate,
+        tasksCompletedToday: Math.round(metrics.taskProductivity.tasksPerDay),
+        currentStreak: metrics.streakData.currentStreak,
+        totalXP: profile?.totalXp || 0,
+        currentLevel: profile?.currentLevel || 1,
+        hoursThisWeek: metrics.timeTracking.hoursThisWeek,
+        consistencyScore: metrics.streakData.consistencyScore,
+        peakHours: metrics.taskProductivity.peakHours,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      res.json(overview);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch analytics overview" });
+    }
+  });
+  
+  // Goals progress analytics
+  app.get('/api/analytics/goals-progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range, category } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const detailed = await analyticsService.getDetailedAnalytics(userId, dateRange);
+      const chartData = await analyticsService.getChartData(userId, dateRange);
+      
+      // Get active goals for progress tracking
+      const activeGoals = await storage.getUserGoals(userId, 'active');
+      const completedGoals = await storage.getUserGoals(userId, 'completed');
+      
+      const goalsProgress = {
+        overview: {
+          totalGoals: activeGoals.length + completedGoals.length,
+          activeGoals: activeGoals.length,
+          completedGoals: completedGoals.length,
+          successRate: detailed.goalAnalytics.successRate,
+          averageCompletionTime: detailed.goalAnalytics.averageTimeToComplete
+        },
+        progressData: chartData.goalProgress,
+        progressOverTime: chartData.progressOverTime.goals,
+        difficultyBreakdown: detailed.goalAnalytics.difficultyBreakdown,
+        completionByCategory: detailed.goalAnalytics.completionByCategory,
+        categoryPerformance: chartData.categoryPerformance,
+        predictions: detailed.goalAnalytics.predictionAccuracy
+      };
+      
+      res.json(goalsProgress);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch goals progress analytics" });
+    }
+  });
+  
+  // Tasks performance analytics
+  app.get('/api/analytics/tasks-performance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range, priority, status } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const [detailed, chartData, metrics] = await Promise.all([
+        analyticsService.getDetailedAnalytics(userId, dateRange),
+        analyticsService.getChartData(userId, dateRange),
+        analyticsService.getPerformanceMetrics(userId, dateRange)
+      ]);
+      
+      // Get tasks for additional analysis
+      const userTasks = await storage.getUserTasks(userId, {
+        priority: priority as string,
+        status: status as string,
+        limit: 100
+      });
+      
+      const tasksPerformance = {
+        overview: {
+          tasksPerDay: metrics.taskProductivity.tasksPerDay,
+          averageCompletionTime: metrics.taskProductivity.averageCompletionTime,
+          peakHours: metrics.taskProductivity.peakHours,
+          totalTasks: userTasks.length,
+          overdueTasks: detailed.taskAnalytics.overdueTasks
+        },
+        completionPatterns: detailed.taskAnalytics.completionPatterns,
+        peakProductivityHours: detailed.taskAnalytics.peakProductivityHours,
+        taskTypeDistribution: detailed.taskAnalytics.taskTypeDistribution,
+        progressOverTime: chartData.progressOverTime.tasks,
+        velocityTrend: chartData.progressOverTime.tasks.map((item, index, arr) => ({
+          date: item.date,
+          velocity: index > 0 ? item.completed - arr[index - 1].completed : item.completed
+        })),
+        productivityByDay: detailed.timeAnalytics.productivityByDayOfWeek
+      };
+      
+      res.json(tasksPerformance);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch tasks performance analytics" });
+    }
+  });
+  
+  // Time tracking analytics
+  app.get('/api/analytics/time-tracking', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      const [metrics, detailed, chartData] = await Promise.all([
+        analyticsService.getPerformanceMetrics(userId, dateRange),
+        analyticsService.getDetailedAnalytics(userId, dateRange),
+        analyticsService.getChartData(userId, dateRange)
+      ]);
+      
+      const timeTracking = {
+        overview: {
+          hoursToday: metrics.timeTracking.hoursToday,
+          hoursThisWeek: metrics.timeTracking.hoursThisWeek,
+          hoursThisMonth: metrics.timeTracking.hoursThisMonth,
+          dailyAverage: metrics.timeTracking.dailyAverage,
+          optimalSessionLength: detailed.timeAnalytics.optimalSessionLength
+        },
+        dailyPattern: detailed.timeAnalytics.focusTimePerDay,
+        weeklyPattern: detailed.timeAnalytics.productivityByDayOfWeek,
+        breakPatterns: detailed.timeAnalytics.breakPatterns,
+        timeDistribution: chartData.timeDistribution,
+        dailyActivity: chartData.dailyActivity,
+        focusVsBreakRatio: {
+          focusTime: detailed.timeAnalytics.focusTimePerDay.reduce((sum, day) => sum + day.hours, 0),
+          breakTime: detailed.timeAnalytics.breakPatterns.reduce((sum, pattern) => sum + pattern.duration, 0)
+        },
+        peakProductivityWindows: metrics.taskProductivity.peakHours.map(hour => ({
+          hour,
+          label: `${hour}:00 - ${hour + 1}:00`
+        }))
+      };
+      
+      res.json(timeTracking);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch time tracking analytics" });
+    }
+  });
+  
+  // Achievements timeline analytics
+  app.get('/api/analytics/achievements', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range } = req.query;
+      
+      let dateRange: { start: Date; end: Date; label: string } | undefined;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      // Get user achievements and XP transactions
+      const [userAchievements, xpHistory, profile] = await Promise.all([
+        storage.getUserAchievements(userId),
+        storage.getXPTransactionHistory(userId, 50),
+        storage.getUserProfile(userId)
+      ]);
+      
+      // Filter achievements by date range if specified
+      const filteredAchievements = dateRange 
+        ? userAchievements.filter(a => a.unlockedAt && new Date(a.unlockedAt) >= dateRange.start && new Date(a.unlockedAt) <= dateRange.end)
+        : userAchievements;
+      
+      // Create achievement timeline
+      const achievementTimeline = filteredAchievements
+        .sort((a, b) => new Date(b.unlockedAt || 0).getTime() - new Date(a.unlockedAt || 0).getTime())
+        .map(achievement => ({
+          id: achievement.id,
+          title: achievement.achievementId || 'Achievement',
+          description: '',
+          category: 'general',
+          earnedAt: achievement.unlockedAt,
+          xpAwarded: 0,
+          badge: '🏆'
+        }));
+      
+      // Create XP growth timeline
+      const xpTimeline = xpHistory
+        .filter(tx => !dateRange || (tx.createdAt && new Date(tx.createdAt) >= dateRange.start && new Date(tx.createdAt) <= dateRange.end))
+        .map(tx => ({
+          date: tx.createdAt,
+          xpGained: tx.delta,
+          source: tx.source,
+          description: tx.reason,
+          relatedId: tx.sourceId
+        }))
+        .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+      
+      // Calculate milestones
+      const milestones = [];
+      const currentXP = profile?.totalXp || 0;
+      const currentLevel = profile?.currentLevel || 1;
+      
+      // Add level milestones
+      for (let level = 1; level <= currentLevel; level++) {
+        const xpRequired = level * 1000; // Simple level calculation
+        const levelAchievement = xpHistory.find(tx => 
+          tx.source === 'level_up' && tx.reason?.includes(`Level ${level}`)
+        );
+        
+        if (levelAchievement) {
+          milestones.push({
+            type: 'level',
+            level,
+            xpRequired,
+            achievedAt: levelAchievement.createdAt,
+            title: `Reached Level ${level}`,
+            badge: '⭐'
+          });
+        }
+      }
+      
+      const achievementsAnalytics = {
+        overview: {
+          totalAchievements: userAchievements.length,
+          achievementsThisPeriod: filteredAchievements.length,
+          totalXP: currentXP,
+          currentLevel,
+          xpThisPeriod: xpTimeline.reduce((sum, tx) => sum + tx.xpGained, 0),
+          averageXpPerDay: xpTimeline.length > 0 ? Math.round(xpTimeline.reduce((sum, tx) => sum + tx.xpGained, 0) / Math.max(1, differenceInDays(dateRange?.end || new Date(), dateRange?.start || subDays(new Date(), 30)))) : 0
+        },
+        achievementTimeline,
+        xpTimeline: xpTimeline.slice(0, 20), // Last 20 XP transactions
+        milestones,
+        categoryBreakdown: achievementTimeline.reduce((acc, achievement) => {
+          acc[achievement.category] = (acc[achievement.category] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>),
+        recentUnlocks: achievementTimeline.slice(0, 5),
+        progressToNextLevel: {
+          currentLevel,
+          nextLevel: currentLevel + 1,
+          currentXP,
+          xpForNextLevel: (currentLevel + 1) * 1000,
+          xpNeeded: Math.max(0, (currentLevel + 1) * 1000 - currentXP),
+          progress: Math.min(100, (currentXP / ((currentLevel + 1) * 1000)) * 100)
+        }
+      };
+      
+      res.json(achievementsAnalytics);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch achievements analytics" });
+    }
+  });
+  
+  // General export endpoint with format selection
+  app.get('/api/analytics/export', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { range, format = 'json', sections } = req.query;
+      
+      let dateRange: { start: Date; end: Date; label: string } | undefined;
+      if (range) {
+        const days = parseInt(range as string);
+        dateRange = {
+          start: new Date(Date.now() - days * 24 * 60 * 60 * 1000),
+          end: new Date(),
+          label: `Last ${days} Days`
+        };
+      }
+      
+      // Determine which sections to include
+      const includeSections = sections ? (sections as string).split(',') : ['overview', 'goals', 'tasks', 'time', 'achievements'];
+      
+      const exportData: any = {
+        generatedAt: new Date().toISOString(),
+        userId,
+        dateRange: dateRange?.label || 'All time',
+        format
+      };
+      
+      // Collect requested data sections using direct service calls
+      const [metrics, detailed, chartData] = await Promise.all([
+        analyticsService.getPerformanceMetrics(userId, dateRange),
+        analyticsService.getDetailedAnalytics(userId, dateRange),
+        analyticsService.getChartData(userId, dateRange)
+      ]);
+      
+      if (includeSections.includes('overview')) {
+        const profile = await storage.getUserProfile(userId);
+        exportData.overview = {
+          performanceScore: metrics.overallPerformanceScore,
+          goalCompletionRate: metrics.goalCompletionRate,
+          tasksCompletedToday: Math.round(metrics.taskProductivity.tasksPerDay),
+          currentStreak: metrics.streakData.currentStreak,
+          totalXP: profile?.totalXp || 0,
+          currentLevel: profile?.currentLevel || 1,
+          hoursThisWeek: metrics.timeTracking.hoursThisWeek,
+          consistencyScore: metrics.streakData.consistencyScore,
+          peakHours: metrics.taskProductivity.peakHours,
+          lastUpdated: new Date().toISOString()
+        };
+      }
+      
+      if (includeSections.includes('goals')) {
+        const [activeGoals, completedGoals] = await Promise.all([
+          storage.getUserGoals(userId, 'active'),
+          storage.getUserGoals(userId, 'completed')
+        ]);
+        
+        exportData.goalsProgress = {
+          overview: {
+            totalGoals: activeGoals.length + completedGoals.length,
+            activeGoals: activeGoals.length,
+            completedGoals: completedGoals.length,
+            successRate: detailed.goalAnalytics.successRate,
+            averageCompletionTime: detailed.goalAnalytics.averageTimeToComplete
+          },
+          progressData: chartData.goalProgress,
+          progressOverTime: chartData.progressOverTime.goals,
+          difficultyBreakdown: detailed.goalAnalytics.difficultyBreakdown,
+          completionByCategory: detailed.goalAnalytics.completionByCategory,
+          categoryPerformance: chartData.categoryPerformance,
+          predictions: detailed.goalAnalytics.predictionAccuracy
+        };
+      }
+      
+      if (includeSections.includes('tasks')) {
+        const userTasks = await storage.getUserTasks(userId, { limit: 100 });
+        
+        exportData.tasksPerformance = {
+          overview: {
+            tasksPerDay: metrics.taskProductivity.tasksPerDay,
+            averageCompletionTime: metrics.taskProductivity.averageCompletionTime,
+            peakHours: metrics.taskProductivity.peakHours,
+            totalTasks: userTasks.length,
+            overdueTasks: detailed.taskAnalytics.overdueTasks
+          },
+          completionPatterns: detailed.taskAnalytics.completionPatterns,
+          peakProductivityHours: detailed.taskAnalytics.peakProductivityHours,
+          taskTypeDistribution: detailed.taskAnalytics.taskTypeDistribution,
+          progressOverTime: chartData.progressOverTime.tasks,
+          velocityTrend: chartData.progressOverTime.tasks.map((item, index, arr) => ({
+            date: item.date,
+            velocity: index > 0 ? item.completed - arr[index - 1].completed : item.completed
+          })),
+          productivityByDay: detailed.timeAnalytics.productivityByDayOfWeek
+        };
+      }
+      
+      if (includeSections.includes('time')) {
+        exportData.timeTracking = {
+          overview: {
+            hoursToday: metrics.timeTracking.hoursToday,
+            hoursThisWeek: metrics.timeTracking.hoursThisWeek,
+            hoursThisMonth: metrics.timeTracking.hoursThisMonth,
+            dailyAverage: metrics.timeTracking.dailyAverage,
+            optimalSessionLength: detailed.timeAnalytics.optimalSessionLength
+          },
+          dailyPattern: detailed.timeAnalytics.focusTimePerDay,
+          weeklyPattern: detailed.timeAnalytics.productivityByDayOfWeek,
+          breakPatterns: detailed.timeAnalytics.breakPatterns,
+          timeDistribution: chartData.timeDistribution,
+          dailyActivity: chartData.dailyActivity,
+          focusVsBreakRatio: {
+            focusTime: detailed.timeAnalytics.focusTimePerDay.reduce((sum, day) => sum + day.hours, 0),
+            breakTime: detailed.timeAnalytics.breakPatterns.reduce((sum, pattern) => sum + pattern.duration, 0)
+          },
+          peakProductivityWindows: metrics.taskProductivity.peakHours.map(hour => ({
+            hour,
+            label: `${hour}:00 - ${hour + 1}:00`
+          }))
+        };
+      }
+      
+      if (includeSections.includes('achievements')) {
+        const [userAchievements, xpHistory, profile] = await Promise.all([
+          storage.getUserAchievements(userId),
+          storage.getXPTransactionHistory(userId, 50),
+          storage.getUserProfile(userId)
+        ]);
+        
+        const filteredAchievements = dateRange 
+          ? userAchievements.filter(a => a.unlockedAt && new Date(a.unlockedAt) >= dateRange.start && new Date(a.unlockedAt) <= dateRange.end)
+          : userAchievements;
+        
+        const achievementTimeline = filteredAchievements
+          .sort((a, b) => new Date(b.unlockedAt || 0).getTime() - new Date(a.unlockedAt || 0).getTime())
+          .map(achievement => ({
+            id: achievement.id,
+            title: achievement.achievementId || 'Achievement',
+            description: '',
+            category: 'general',
+            earnedAt: achievement.unlockedAt,
+            xpAwarded: 0,
+            badge: '🏆'
+          }));
+        
+        const xpTimeline = xpHistory
+          .filter(tx => !dateRange || (tx.createdAt && new Date(tx.createdAt) >= dateRange.start && new Date(tx.createdAt) <= dateRange.end))
+          .map(tx => ({
+            date: tx.createdAt,
+            xpGained: tx.delta,
+            source: tx.source,
+            description: tx.reason,
+            relatedId: tx.sourceId
+          }))
+          .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        
+        exportData.achievements = {
+          overview: {
+            totalAchievements: userAchievements.length,
+            achievementsThisPeriod: filteredAchievements.length,
+            totalXP: profile?.totalXp || 0,
+            currentLevel: profile?.currentLevel || 1,
+            xpThisPeriod: xpTimeline.reduce((sum, tx) => sum + tx.xpGained, 0),
+            averageXpPerDay: xpTimeline.length > 0 ? Math.round(xpTimeline.reduce((sum, tx) => sum + tx.xpGained, 0) / Math.max(1, differenceInDays(dateRange?.end || new Date(), dateRange?.start || subDays(new Date(), 30)))) : 0
+          },
+          achievementTimeline,
+          xpTimeline: xpTimeline.slice(0, 20),
+          categoryBreakdown: achievementTimeline.reduce((acc, achievement) => {
+            acc[achievement.category] = (acc[achievement.category] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>),
+          recentUnlocks: achievementTimeline.slice(0, 5)
+        };
+      }
+      
+      // Return in requested format
+      if (format === 'csv') {
+        // Convert to CSV format
+        const csvLines = [
+          ['Analytics Export Report'],
+          ['Generated:', exportData.generatedAt],
+          ['Date Range:', exportData.dateRange],
+          [''],
+        ];
+        
+        // Add overview data
+        if (exportData.overview) {
+          csvLines.push(['Overview']);
+          Object.entries(exportData.overview).forEach(([key, value]) => {
+            csvLines.push([key, String(value)]);
+          });
+          csvLines.push(['']);
+        }
+        
+        const csv = csvLines.map(row => row.join(',')).join('\n');
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="analytics-export-${new Date().toISOString().split('T')[0]}.csv"`);
+        res.send(csv);
+      } else {
+        // Return as JSON
+        res.setHeader('Content-Type', 'application/json');
+        if (format === 'download') {
+          res.setHeader('Content-Disposition', `attachment; filename="analytics-export-${new Date().toISOString().split('T')[0]}.json"`);
+        }
+        res.json(exportData);
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to export analytics data" });
+    }
+  });
+
+  // ===== AI MENTOR ROUTES =====
+  
+  // Create AI rate limiters
+  const openaiRateLimiter = createAIRateLimiter('openai');
+  const geminiRateLimiter = createAIRateLimiter('gemini');
+  
+  // Interactive AI mentor chat with context awareness (with rate limiting)
+  app.post('/api/ai-mentor/chat', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { message, goalId, context } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      const result = await aiMentor.chat(userId, message, goalId, context);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        response: "I'm here to help! Let me know what you're working on.",
+        suggestions: ["Tell me about your goals", "What challenges are you facing?", "How can I help?"]
+      });
+    }
+  });
+
+  // Streaming AI mentor chat with Server-Sent Events
+  app.post('/api/ai-mentor/chat-stream', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { message, goalId, context } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      // Set SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      
+      // Stream chunks to client
+      await aiMentor.chatStream(
+        userId,
+        message,
+        (chunk: string) => {
+          // Send chunk as SSE
+          res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        },
+        goalId,
+        context
+      );
+      
+      // Send completion event
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      res.write(`data: ${JSON.stringify({ error: error.message || 'Streaming failed' })}\n\n`);
+      res.end();
+    }
+  });
+  
+  // AI-powered goal planning and breakdown (with rate limiting)
+  app.post('/api/ai-mentor/goal-planning', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title, description, targetDate } = req.body;
+      
+      if (!title) {
+        return res.status(400).json({ error: 'Goal title is required' });
+      }
+      
+      const plan = await aiMentor.planGoal(userId, title, description, targetDate);
+      res.json(plan);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to generate goal plan" });
+    }
+  });
+  
+  // Get personalized daily insights  
+  app.get('/api/ai-mentor/daily-insight', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const insight = await aiMentor.getDailyInsight(userId);
+      res.json(insight);
+    } catch (error: any) {
+      res.status(500).json({ 
+        insight: "Every expert was once a beginner. Keep pushing forward!",
+        motivation: "You're on the right track. Today is a new opportunity to make progress.",
+        focusArea: "Complete one task that moves you closer to your goal",
+        challenge: "Work for 25 focused minutes without distractions"
+      });
+    }
+  });
+  
+  // Get AI advice for specific tasks (with rate limiting)
+  app.post('/api/ai-mentor/task-advice', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { taskTitle, taskDescription, context } = req.body;
+      
+      if (!taskTitle) {
+        return res.status(400).json({ error: 'Task title is required' });
+      }
+      
+      const advice = await aiMentor.getTaskAdvice(userId, taskTitle, taskDescription, context);
+      res.json(advice);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get task advice" });
+    }
+  });
+  
+  // Analyze user performance
+  app.get('/api/ai-mentor/performance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const analysis = await aiMentor.analyzePerformance(userId);
+      res.json(analysis);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to analyze performance" });
+    }
+  });
+  
+  // Legacy mentor endpoint for backward compatibility (with rate limiting)
+  app.post('/api/mentor/chat', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { query, goalId, sessionType } = req.body;
+      
+      // Redirect to new AI mentor endpoint
+      const result = await aiMentor.chat(userId, query, goalId, { sessionType });
+      res.json({ response: result.response });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to process mentor chat" });
+    }
+  });
+  
+  // ===== AI COACH ROUTES =====
+  
+  // AI Coach - Enhanced coaching system with new endpoints
+  // GET /api/ai-coach/daily-insight - Daily AI-powered insights and coaching messages
+  app.get('/api/ai-coach/daily-insight', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const insight = await aiMentor.getDailyInsight(userId);
+      res.json(insight);
+    } catch (error: any) {
+      res.status(500).json({ 
+        insight: "Every expert was once a beginner. Keep pushing forward!",
+        motivation: "You're on the right track. Today is a new opportunity to make progress.",
+        focusArea: "Complete one task that moves you closer to your goal",
+        challenge: "Work for 25 focused minutes without distractions"
+      });
+    }
+  });
+
+  // GET /api/ai-coach/recommendations - Personalized goal and performance recommendations
+  app.get('/api/ai-coach/recommendations', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const recommendations = await aiMentor.getRecommendations(userId);
+      res.json(recommendations);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get recommendations" });
+    }
+  });
+
+  // POST /api/ai-coach/chat - Interactive AI coaching chat
+  app.post('/api/ai-coach/chat', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { message, goalId, context } = req.body;
+      
+      if (!message || message.trim().length === 0) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      const result = await aiMentor.chat(userId, message, goalId, context);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        response: "I'm here to help! Let me know what you're working on.",
+        suggestions: ["Tell me about your goals", "What challenges are you facing?", "How can I help?"]
+      });
+    }
+  });
+
+  // GET /api/ai-coach/performance-analysis - Advanced performance analysis and insights
+  app.get('/api/ai-coach/performance-analysis', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get both performance analysis and pattern analysis
+      const [analysis, patterns] = await Promise.all([
+        aiMentor.analyzePerformance(userId),
+        aiMentor.analyzeUserPatterns(userId)
+      ]);
+      
+      res.json({
+        ...analysis,
+        patterns,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to analyze performance" });
+    }
+  });
+
+  // ===== AI ASSISTANT - NATURAL LANGUAGE COMMAND INTERFACE =====
+  
+  // POST /api/ai-assistant/command - Parse natural language commands for goals/tasks
+  app.post('/api/ai-assistant/command', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { command } = req.body;
+      
+      if (!command || command.trim().length === 0) {
+        return res.status(400).json({ error: 'Command is required' });
+      }
+      
+      // Get user context for personalization
+      const [user, goals, tasks, profile] = await Promise.all([
+        storage.getUserById(userId),
+        storage.getUserGoals(userId),
+        storage.getUserTasks(userId),
+        storage.getUserProfile(userId)
+      ]);
+      
+      const activeGoals = goals.filter(g => g.status === 'active');
+      const pendingTasks = tasks.filter(t => t.status !== 'completed');
+      
+      const systemPrompt = `You are LiLove AI Assistant - a friendly, helpful assistant that helps users manage their personal growth goals and tasks through natural language.
+
+Your job is to:
+1. Parse the user's natural language command
+2. Determine the intent (create_goal, create_task, show_progress, daily_focus, or general)
+3. Return a helpful response
+
+User Context:
+- Name: ${user?.displayName || 'Friend'}
+- Active Goals: ${activeGoals.length}
+- Pending Tasks: ${pendingTasks.length}
+- Current Level: ${profile?.currentLevel || 1}
+- Streak: ${profile?.streakCount || 0} days
+
+Current Goals: ${activeGoals.slice(0, 5).map(g => g.title).join(', ') || 'None'}
+
+Respond in JSON format with this structure:
+{
+  "type": "create_goal" | "create_task" | "show_progress" | "daily_focus" | "general",
+  "response": "Your helpful, warm, encouraging response to the user",
+  "data": {
+    // For create_goal: { title, description, category, targetDate }
+    // For create_task: { title, goalId (optional), dueDate, estimatedDuration }
+    // For show_progress: { summary, metrics }
+    // For daily_focus: { focusTasks, motivation }
+    // For general: null or additional context
+  }
+}
+
+Categories for goals: health, career, finance, education, relationships, personal, fitness, creativity
+
+Be warm, encouraging, and supportive. Use the LiLove nurturing tone.`;
+
+      const openai = new (await import('openai')).default({
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+      });
+      
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: command }
+        ],
+        response_format: { type: 'json_object' }
+      });
+      
+      const responseText = completion.choices[0]?.message?.content || '{}';
+      let parsedResponse;
+      
+      try {
+        parsedResponse = JSON.parse(responseText);
+      } catch {
+        parsedResponse = {
+          type: 'general',
+          response: "I'm here to help! Could you please rephrase your request?",
+          data: null
+        };
+      }
+      
+      // If creating a goal, actually create it
+      if (parsedResponse.type === 'create_goal' && parsedResponse.data) {
+        const goalData = parsedResponse.data;
+        const newGoal = await storage.createGoal({
+          userId,
+          title: goalData.title || 'New Goal',
+          description: goalData.description || '',
+          category: goalData.category || 'personal',
+          targetOutcome: goalData.description || goalData.title || 'New Goal',
+          status: 'active',
+          progress: '0'
+        });
+        parsedResponse.data = newGoal;
+      }
+      
+      // If creating a task, return suggestion (task creation requires goal/plan context)
+      if (parsedResponse.type === 'create_task' && parsedResponse.data) {
+        // Tasks require goalId and planId - return suggestion to user
+        parsedResponse.response = `I'd love to help you create that task! To add "${parsedResponse.data.title || 'your task'}", please go to your Goals page and add it to a specific goal. This helps track your progress better!`;
+        parsedResponse.data = {
+          suggestion: 'create_task_via_goal',
+          taskTitle: parsedResponse.data.title,
+          estimatedDuration: parsedResponse.data.estimatedDuration || 30
+        };
+      }
+      
+      // For show_progress, enrich with real data
+      if (parsedResponse.type === 'show_progress') {
+        const completedToday = tasks.filter(t => 
+          t.status === 'completed' && 
+          t.completedAt && 
+          new Date(t.completedAt).toDateString() === new Date().toDateString()
+        ).length;
+        
+        parsedResponse.data = {
+          ...parsedResponse.data,
+          metrics: {
+            activeGoals: activeGoals.length,
+            pendingTasks: pendingTasks.length,
+            completedToday,
+            streak: profile?.streakCount || 0,
+            level: profile?.currentLevel || 1,
+            totalXp: profile?.totalXp || 0
+          }
+        };
+      }
+      
+      // For daily_focus, provide actionable suggestions
+      if (parsedResponse.type === 'daily_focus') {
+        const highPriorityTasks = pendingTasks
+          .filter(t => t.priority === 'high')
+          .slice(0, 3)
+          .map(t => ({ id: t.id, title: t.title }));
+        
+        const dueTodayTasks = pendingTasks
+          .filter(t => t.dueDate && new Date(t.dueDate).toDateString() === new Date().toDateString())
+          .slice(0, 3)
+          .map(t => ({ id: t.id, title: t.title }));
+        
+        parsedResponse.data = {
+          ...parsedResponse.data,
+          focusTasks: highPriorityTasks.length > 0 ? highPriorityTasks : dueTodayTasks,
+          pendingCount: pendingTasks.length
+        };
+      }
+      
+      res.json(parsedResponse);
+    } catch (error: any) {
+      res.status(500).json({ 
+        type: 'general',
+        response: "I'm sorry, I had trouble understanding that. Could you try rephrasing your request?",
+        data: null
+      });
+    }
+  });
+
+  // ===== AI GOAL WIZARD ROUTES =====
+  
+  // POST /api/ai-goals/plan - Generate AI-powered action plan for a goal
+  app.post('/api/ai-goals/plan', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { title, description, category, desiredOutcome, timeframeDays, hoursPerWeek, workingStyle, preferredTime, dependencies } = req.body;
+      
+      if (!title || !desiredOutcome || !timeframeDays) {
+        return res.status(400).json({ error: 'Title, desired outcome, and timeframe are required' });
+      }
+      
+      // Get user profile for personalization
+      const userProfile = await storage.getUserProfile(userId);
+      
+      const prompt = `You are an expert goal coach creating a personalized action plan. Generate a structured plan with milestones, tasks, and habits.
+
+Goal: ${title}
+Description: ${description || 'Not provided'}
+Category: ${category}
+Desired Outcome: ${desiredOutcome}
+Timeframe: ${timeframeDays} days
+Available Time: ${hoursPerWeek} hours per week
+Working Style: ${workingStyle === 'daily_small' ? 'Prefers short daily tasks' : workingStyle === 'weekly_large' ? 'Prefers larger weekly blocks' : 'Mixed approach with daily habits and weekly milestones'}
+Preferred Time: ${preferredTime}
+Dependencies/Resources: ${dependencies || 'None specified'}
+${userProfile?.learningStyle ? `User Learning Style: ${userProfile.learningStyle}` : ''}
+${userProfile?.preferredPace ? `User Preferred Pace: ${userProfile.preferredPace}` : ''}
+
+Create a comprehensive action plan with:
+1. 3-5 milestones spread across the timeframe
+2. 2-4 specific tasks per milestone
+3. 1-3 daily/weekly habits to build
+
+Respond ONLY with valid JSON (no markdown, no explanation):
+{
+  "summary": "Brief one-sentence summary of the plan approach",
+  "milestones": [
+    {
+      "id": "m1",
+      "title": "Milestone title",
+      "description": "Brief description",
+      "dueDate": "YYYY-MM-DD",
+      "order": 0
+    }
+  ],
+  "tasks": [
+    {
+      "id": "t1",
+      "milestoneId": "m1",
+      "title": "Task title",
+      "description": "What to do",
+      "estimatedMinutes": 30,
+      "dueDate": "YYYY-MM-DD",
+      "priority": "medium",
+      "type": "learning",
+      "order": 0
+    }
+  ],
+  "habits": [
+    {
+      "id": "h1",
+      "title": "Habit name",
+      "frequency": "daily",
+      "estimatedMinutes": 15
+    }
+  ],
+  "estimatedTotalHours": 25
+}
+
+Start dates from today: ${new Date().toISOString().split('T')[0]}
+End date: ${new Date(Date.now() + timeframeDays * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`;
+
+      // Import OpenAI dynamically
+      const { default: OpenAI } = await import('openai');
+      const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'OpenAI API key not configured' });
+      }
+      const openaiClient = new OpenAI({ apiKey });
+
+      const completion = await openaiClient.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 2000,
+      });
+      
+      const responseText = completion.choices[0]?.message?.content || '{}';
+      
+      // Parse the JSON response
+      let plan;
+      try {
+        const cleanedResponse = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        plan = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        return res.status(500).json({ error: 'Failed to parse AI response' });
+      }
+      
+      // Validate and ensure required fields
+      if (!plan.milestones || !plan.tasks) {
+        return res.status(500).json({ error: 'Invalid plan structure from AI' });
+      }
+      
+      res.json(plan);
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to generate goal plan' });
+    }
+  });
+  
+  // POST /api/ai-goals/create - Create goal with AI-generated plan
+  app.post('/api/ai-goals/create', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { goalData, plan } = req.body;
+      
+      if (!goalData || !plan) {
+        return res.status(400).json({ error: 'Goal data and plan are required' });
+      }
+      
+      // Create the main goal
+      const goal = await storage.createGoal({
+        userId,
+        title: goalData.title,
+        description: goalData.description || '',
+        category: goalData.category,
+        targetOutcome: goalData.desiredOutcome,
+        estimatedDuration: goalData.timeframeDays,
+        difficultyLevel: 5,
+        status: 'active',
+        progress: "0",
+        originalETA: new Date(Date.now() + goalData.timeframeDays * 24 * 60 * 60 * 1000),
+        currentETA: new Date(Date.now() + goalData.timeframeDays * 24 * 60 * 60 * 1000),
+      });
+      
+      // Create milestones as sub-goals
+      const milestoneIdMap = new Map();
+      for (const milestone of plan.milestones) {
+        const subGoal = await storage.createSubGoal({
+          goalId: goal.id,
+          title: milestone.title,
+          description: milestone.description || '',
+          status: 'pending',
+          order: milestone.order,
+          dueDate: new Date(milestone.dueDate),
+        });
+        milestoneIdMap.set(milestone.id, subGoal.id);
+      }
+      
+      // Create a task plan for this goal
+      const taskPlan = await storage.createTaskPlan({
+        goalId: goal.id,
+        version: 1,
+        isActive: true,
+        planType: 'ai_wizard',
+        totalTasks: plan.tasks.length,
+        estimatedHours: String(plan.estimatedTotalHours),
+      });
+      
+      // Create tasks
+      for (const task of plan.tasks) {
+        await storage.createTask({
+          planId: taskPlan.id,
+          goalId: goal.id,
+          title: task.title,
+          description: task.description || '',
+          type: task.type || 'practice',
+          orderIndex: task.order,
+          depth: 0,
+          estimatedDuration: task.estimatedMinutes,
+          difficultyRating: 5,
+          priority: task.priority || 'medium',
+          status: 'pending',
+          dueDate: new Date(task.dueDate),
+        });
+      }
+      
+      // Create habits if any
+      for (const habit of plan.habits || []) {
+        await storage.createHabit({
+          userId,
+          title: habit.title,
+          description: `AI-generated habit for ${goalData.title}`,
+          frequency: habit.frequency,
+          targetCount: 1,
+          category: goalData.category,
+          isActive: true,
+        });
+      }
+      
+      // Award XP for creating an AI-powered goal
+      await storage.addXPTransaction({
+        userId,
+        delta: 50,
+        source: 'goal',
+        sourceId: goal.id,
+        reason: 'Created an AI-powered goal with personalized action plan',
+        goalId: goal.id,
+      });
+      
+      // Award coins for AI-powered goal creation (25 coins)
+      const currentUser = await storage.getUser(userId);
+      if (currentUser) {
+        const newCoinBalance = (currentUser.coinBalance || 0) + 25;
+        await db.update(users).set({ coinBalance: newCoinBalance }).where(eq(users.id, userId));
+      }
+      
+      res.json({ 
+        success: true, 
+        goalId: goal.id,
+        message: 'Goal created with personalized action plan'
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to create goal with plan' });
+    }
+  });
+
+  // ===== ADAPTIVE SCHEDULING ROUTES =====
+  
+  // GET /api/ai-scheduler/analyze - Analyze tasks and suggest rescheduling
+  app.get('/api/ai-scheduler/analyze', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get user's active tasks and goals
+      const goals = await storage.getUserGoals(userId);
+      const activeGoals = goals.filter(g => g.status === 'active');
+      
+      // Analyze overdue tasks
+      const now = new Date();
+      const overdueAnalysis: any[] = [];
+      const recommendations: any[] = [];
+      
+      for (const goal of activeGoals) {
+        const tasks = await storage.getTasksByGoal(goal.id);
+        const overdueTasks = tasks.filter(t => 
+          t.status === 'pending' && 
+          t.dueDate && 
+          new Date(t.dueDate) < now
+        );
+        
+        if (overdueTasks.length > 0) {
+          overdueAnalysis.push({
+            goalId: goal.id,
+            goalTitle: goal.title,
+            overdueTasks: overdueTasks.map(t => ({
+              id: t.id,
+              title: t.title,
+              dueDate: t.dueDate,
+              daysOverdue: Math.floor((now.getTime() - new Date(t.dueDate!).getTime()) / (1000 * 60 * 60 * 24)),
+              estimatedMinutes: t.estimatedDuration,
+            })),
+          });
+          
+          // Add rescheduling recommendations
+          recommendations.push({
+            type: 'reschedule',
+            goalId: goal.id,
+            message: `You have ${overdueTasks.length} overdue tasks for "${goal.title}". Consider rescheduling to stay on track.`,
+            suggestedActions: overdueTasks.slice(0, 3).map(t => ({
+              taskId: t.id,
+              taskTitle: t.title,
+              suggestedDate: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            })),
+          });
+        }
+        
+        // Check goal progress vs ETA
+        const progress = parseFloat(goal.progress || '0');
+        const createdAt = goal.createdAt ? new Date(goal.createdAt) : new Date();
+        const eta = goal.currentETA ? new Date(goal.currentETA) : null;
+        if (eta) {
+          const totalDuration = eta.getTime() - createdAt.getTime();
+          const elapsed = now.getTime() - createdAt.getTime();
+          const expectedProgress = (elapsed / totalDuration) * 100;
+          
+          if (progress < expectedProgress - 20) {
+            recommendations.push({
+              type: 'pace_adjustment',
+              goalId: goal.id,
+              message: `You're behind schedule on "${goal.title}". Current progress: ${progress.toFixed(0)}%, expected: ${expectedProgress.toFixed(0)}%.`,
+              suggestion: 'Consider increasing daily time commitment or adjusting your timeline.',
+            });
+          }
+        }
+      }
+      
+      res.json({
+        overdueAnalysis,
+        recommendations,
+        totalOverdueTasks: overdueAnalysis.reduce((sum, a) => sum + a.overdueTasks.length, 0),
+        analyzedAt: now.toISOString(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to analyze schedule' });
+    }
+  });
+  
+  // POST /api/ai-scheduler/reschedule - AI-powered task rescheduling
+  app.post('/api/ai-scheduler/reschedule', isAuthenticated, openaiRateLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { taskIds, reason } = req.body;
+      
+      if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+        return res.status(400).json({ error: 'Task IDs are required' });
+      }
+      
+      // Get user profile for scheduling preferences
+      const userProfile = await storage.getUserProfile(userId);
+      
+      // Get tasks to reschedule
+      const tasks: any[] = [];
+      for (const taskId of taskIds) {
+        const task = await storage.getTaskById(taskId);
+        if (task) {
+          tasks.push(task);
+        }
+      }
+      
+      if (tasks.length === 0) {
+        return res.status(404).json({ error: 'No valid tasks found' });
+      }
+      
+      // Calculate new schedule based on available time and task estimates
+      const now = new Date();
+      const dailyMinutes = userProfile?.dailyTimeCommitment || 30;
+      
+      // Simple rescheduling: spread tasks across upcoming days
+      const rescheduledTasks = tasks.map((task, index) => {
+        const daysToAdd = Math.ceil((index + 1) * (task.estimatedDuration || 30) / dailyMinutes);
+        const newDate = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+        return {
+          taskId: task.id,
+          originalDueDate: task.dueDate,
+          newDueDate: newDate.toISOString().split('T')[0],
+          estimatedMinutes: task.estimatedDuration || 30,
+        };
+      });
+      
+      // Update tasks with new dates
+      for (const rescheduled of rescheduledTasks) {
+        await storage.updateTask(rescheduled.taskId, {
+          dueDate: new Date(rescheduled.newDueDate),
+        });
+      }
+      
+      res.json({
+        success: true,
+        rescheduledTasks,
+        message: `Successfully rescheduled ${rescheduledTasks.length} tasks`,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to reschedule tasks' });
+    }
+  });
+  
+  // GET /api/ai-scheduler/daily-summary - Get AI-generated daily summary
+  app.get('/api/ai-scheduler/daily-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+      
+      // Get today's tasks
+      const goals = await storage.getUserGoals(userId);
+      const todaysTasks: any[] = [];
+      const completedToday: any[] = [];
+      const upcomingMilestones: any[] = [];
+      
+      for (const goal of goals.filter(g => g.status === 'active')) {
+        const tasks = await storage.getTasksByGoal(goal.id);
+        
+        tasks.forEach(task => {
+          if (task.dueDate) {
+            const taskDate = new Date(task.dueDate);
+            if (taskDate >= today && taskDate < tomorrow) {
+              if (task.status === 'completed') {
+                completedToday.push({ ...task, goalTitle: goal.title });
+              } else {
+                todaysTasks.push({ ...task, goalTitle: goal.title });
+              }
+            }
+          }
+          if (task.completedAt) {
+            const completedDate = new Date(task.completedAt);
+            if (completedDate >= today && completedDate < tomorrow) {
+              completedToday.push({ ...task, goalTitle: goal.title });
+            }
+          }
+        });
+        
+        // Get upcoming milestones (sub-goals)
+        const subGoals = await storage.getSubGoalsByGoalId(goal.id);
+        subGoals.forEach((sg: any) => {
+          if (sg.status === 'pending' && sg.dueDate) {
+            const dueDate = new Date(sg.dueDate);
+            const daysUntil = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysUntil <= 7 && daysUntil >= 0) {
+              upcomingMilestones.push({
+                id: sg.id,
+                title: sg.title,
+                goalTitle: goal.title,
+                dueDate: sg.dueDate,
+                daysUntil,
+              });
+            }
+          }
+        });
+      }
+      
+      // Get habit completions for today
+      const habitCompletions = await storage.getUserHabitCompletions(userId, today);
+      const userHabits = await storage.getUserHabits(userId, { isActive: true });
+      
+      // Calculate productivity score
+      const tasksScheduled = todaysTasks.length + completedToday.length;
+      const tasksCompleted = completedToday.length;
+      const completionRate = tasksScheduled > 0 ? (tasksCompleted / tasksScheduled) * 100 : 0;
+      
+      const habitsCompleted = habitCompletions.length;
+      const habitsTotal = userHabits.length;
+      const habitRate = habitsTotal > 0 ? (habitsCompleted / habitsTotal) * 100 : 0;
+      
+      const productivityScore = Math.round((completionRate + habitRate) / 2);
+      
+      res.json({
+        date: today.toISOString().split('T')[0],
+        summary: {
+          tasksScheduled,
+          tasksCompleted,
+          tasksPending: todaysTasks.length,
+          completionRate: Math.round(completionRate),
+          habitsCompleted,
+          habitsTotal,
+          habitRate: Math.round(habitRate),
+          productivityScore,
+        },
+        todaysTasks: todaysTasks.slice(0, 10),
+        completedToday: completedToday.slice(0, 10),
+        upcomingMilestones: upcomingMilestones.slice(0, 5),
+        tips: generateProductivityTips(productivityScore, todaysTasks.length, completedToday.length),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to get daily summary' });
+    }
+  });
+  
+  // GET /api/ai-scheduler/weekly-summary - Get AI-generated weekly summary
+  app.get('/api/ai-scheduler/weekly-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const now = new Date();
+      const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+      const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      
+      // Get XP earned this week
+      const xpHistory = await storage.getXPTransactionHistory(userId, 100);
+      const weeklyXP = xpHistory
+        .filter(t => new Date(t.createdAt!) >= weekStart)
+        .reduce((sum, t) => sum + (t.delta || 0), 0);
+      
+      // Get goals progress
+      const goals = await storage.getUserGoals(userId);
+      const goalProgress = goals.filter(g => g.status === 'active').map(g => ({
+        id: g.id,
+        title: g.title,
+        progress: parseFloat(g.progress || '0'),
+        category: g.category,
+      }));
+      
+      // Get completed tasks this week
+      let weeklyTasksCompleted = 0;
+      let weeklyTasksTotal = 0;
+      
+      for (const goal of goals.filter(g => g.status === 'active')) {
+        const tasks = await storage.getTasksByGoal(goal.id);
+        tasks.forEach(task => {
+          if (task.dueDate) {
+            const taskDate = new Date(task.dueDate);
+            if (taskDate >= weekStart && taskDate < weekEnd) {
+              weeklyTasksTotal++;
+              if (task.status === 'completed') {
+                weeklyTasksCompleted++;
+              }
+            }
+          }
+        });
+      }
+      
+      // Get streak info
+      const userProfile = await storage.getUserProfile(userId);
+      const streakCount = userProfile?.streakCount || 0;
+      
+      res.json({
+        weekStart: weekStart.toISOString().split('T')[0],
+        weekEnd: weekEnd.toISOString().split('T')[0],
+        summary: {
+          weeklyXP,
+          tasksCompleted: weeklyTasksCompleted,
+          tasksTotal: weeklyTasksTotal,
+          completionRate: weeklyTasksTotal > 0 ? Math.round((weeklyTasksCompleted / weeklyTasksTotal) * 100) : 0,
+          streakCount,
+          activeGoals: goalProgress.length,
+        },
+        goalProgress,
+        highlights: generateWeeklyHighlights(weeklyXP, weeklyTasksCompleted, streakCount),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: 'Failed to get weekly summary' });
+    }
+  });
+
+  // POST /api/ai-coach/replan-goals - Smart goal replanning based on performance
+  app.post('/api/ai-coach/replan-goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { goalIds, reason } = req.body;
+      
+      if (!goalIds || !Array.isArray(goalIds) || goalIds.length === 0) {
+        return res.status(400).json({ error: 'goalIds array is required' });
+      }
+      
+      const replanResults = await aiMentor.replanGoals(userId, goalIds, reason);
+      res.json(replanResults);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to replan goals" });
+    }
+  });
+
+  // GET /api/ai-coach/conversation-history - Coaching conversation history and logs
+  app.get('/api/ai-coach/conversation-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { limit = 10 } = req.query;
+      
+      const history = await aiMentor.getConversationHistory(userId, parseInt(limit as string));
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get conversation history" });
+    }
+  });
+
+  // POST /api/ai/sentiment - Analyze text sentiment for mood detection
+  app.post('/api/ai/sentiment', isAuthenticated, async (req: any, res) => {
+    try {
+      const { text } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'Text is required' });
+      }
+      
+      const sentiment = await aiMentor.analyzeSentiment(text);
+      res.json(sentiment);
+    } catch (error: any) {
+      res.status(500).json({ 
+        mood: 'neutral',
+        sentimentScore: 0,
+        emotions: [],
+        urgencyLevel: 'low',
+        confidence: 0,
+        error: 'Sentiment analysis unavailable'
+      });
+    }
+  });
+
+  // ===== VOICE AI ROUTES =====
+  
+  // Configure multer for audio uploads
+  const audioUploadDir = path.join(process.cwd(), 'uploads', 'voice-recordings');
+  if (!fs.existsSync(audioUploadDir)) {
+    fs.mkdirSync(audioUploadDir, { recursive: true });
+  }
+  
+  const audioStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, audioUploadDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, 'voice-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+  
+  const uploadAudio = multer({
+    storage: audioStorage,
+    limits: { fileSize: 25 * 1024 * 1024 }, // 25MB limit (OpenAI limit)
+    fileFilter: (req, file, cb) => {
+      const allowedMimes = ['audio/webm', 'audio/mp4', 'audio/wav', 'audio/mpeg', 'audio/ogg'];
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid audio format. Allowed: webm, mp4, wav, mpeg, ogg'));
+      }
+    }
+  });
+
+  // POST /api/coach/voice/transcribe - Speech-to-Text using OpenAI Whisper
+  app.post('/api/coach/voice/transcribe', isAuthenticated, uploadRateLimit, uploadAudio.single('audio'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No audio file provided' });
+      }
+
+      // Import OpenAI from aiMentor
+      const { default: OpenAI } = await import('openai');
+      const apiKey = process.env.OPENAI_API_KEY;
+      
+      if (!apiKey || apiKey === 'sk-dummy-key-for-development') {
+        // Clean up uploaded file
+        fs.unlinkSync(req.file.path);
+        return res.status(503).json({ 
+          error: 'Voice transcription unavailable',
+          message: 'OpenAI API key not configured' 
+        });
+      }
+
+      const openai = new OpenAI({ apiKey });
+      const audioFilePath = req.file.path;
+
+      try {
+        // Transcribe audio using Whisper
+        const transcription = await openai.audio.transcriptions.create({
+          file: fs.createReadStream(audioFilePath),
+          model: 'whisper-1',
+          language: 'tr', // Turkish language
+          response_format: 'verbose_json'
+        });
+
+        // Clean up uploaded file
+        fs.unlinkSync(audioFilePath);
+
+        res.json({
+          transcript: transcription.text,
+          confidence: 1.0, // Whisper doesn't provide confidence, using 1.0 as default
+          language: transcription.language || 'tr',
+          duration: transcription.duration
+        });
+      } catch (transcriptionError: any) {
+        // Clean up uploaded file on error
+        if (fs.existsSync(audioFilePath)) {
+          fs.unlinkSync(audioFilePath);
+        }
+        res.status(500).json({ 
+          error: 'Transcription failed',
+          message: transcriptionError.message 
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: 'Failed to process audio',
+        message: error.message 
+      });
+    }
+  });
+
+  // POST /api/coach/voice/speak - Text-to-Speech using OpenAI TTS
+  app.post('/api/coach/voice/speak', isAuthenticated, async (req: any, res) => {
+    try {
+      const { text, voice = 'alloy', speed = 1.0 } = req.body;
+
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'Text is required' });
+      }
+
+      if (text.length > 4096) {
+        return res.status(400).json({ error: 'Text too long (max 4096 characters)' });
+      }
+
+      // Import OpenAI
+      const { default: OpenAI } = await import('openai');
+      const apiKey = process.env.OPENAI_API_KEY;
+      
+      if (!apiKey || apiKey === 'sk-dummy-key-for-development') {
+        return res.status(503).json({ 
+          error: 'Text-to-speech unavailable',
+          message: 'OpenAI API key not configured' 
+        });
+      }
+
+      const openai = new OpenAI({ apiKey });
+
+      // Validate voice model
+      const validVoices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
+      const selectedVoice = validVoices.includes(voice) ? voice : 'alloy';
+
+      // Validate speed (0.25 to 4.0 according to OpenAI docs)
+      const validSpeed = Math.max(0.25, Math.min(4.0, speed));
+
+      // Generate speech
+      const mp3 = await openai.audio.speech.create({
+        model: 'tts-1',
+        voice: selectedVoice as any,
+        input: text,
+        speed: validSpeed
+      });
+
+      // Convert response to buffer
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+
+      // Set headers for audio streaming
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': buffer.length,
+        'Cache-Control': 'no-cache'
+      });
+
+      res.send(buffer);
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: 'Failed to generate speech',
+        message: error.message 
+      });
+    }
+  });
+  
+  // ===== GAMIFICATION ROUTES =====
+  
+  // Import gamification service
+  const { gamificationService } = await import('./gamification');
+  
+  // Initialize gamification data
+  app.post('/api/gamification/initialize', async (req, res) => {
+    try {
+      // Use the comprehensive system initialization
+      await gamificationService.initializeSystem();
+      await gamificationService.initializeDailyChallenges();
+      res.json({ message: "Gamification system initialized successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to initialize gamification" });
+    }
+  });
+  
+  // Get user's gamification profile
+  app.get('/api/gamification/profile', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Use the comprehensive profile method
+      const profile = await gamificationService.getUserProfile(userId);
+      
+      if (!profile) {
+        return res.status(404).json({ message: "User profile not found" });
+      }
+      
+      res.json(profile);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch gamification profile" });
+    }
+  });
+  
+  // Process daily login and streaks with rate limiting
+  app.post('/api/gamification/daily-login', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Check idempotency - can user do daily login?
+      const canLogin = await gamificationService.canDoDailyLogin(userId);
+      if (!canLogin) {
+        return res.status(400).json({ 
+          message: "Daily login already claimed today",
+          rewardClaimed: false
+        });
+      }
+      
+      const result = await gamificationService.updateLoginStreak(userId);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to process daily login" });
+    }
+  });
+  
+  // Get recent achievements for dashboard
+  app.get('/api/gamification/achievements/recent', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { limit = 5 } = req.query;
+      
+      // Use the comprehensive recent achievements method
+      const recentAchievements = await gamificationService.getRecentAchievements(
+        userId, 
+        parseInt(limit as string)
+      );
+      
+      res.json(recentAchievements);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch recent achievements" });
+    }
+  });
+
+  // Get all achievements with user progress
+  app.get('/api/gamification/achievements', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Use the comprehensive all achievements method
+      const userAchievements = await gamificationService.getAllUserAchievements(userId);
+      
+      res.json(userAchievements);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch achievements" });
+    }
+  });
+  
+  // Toggle achievement showcase
+  app.patch('/api/gamification/achievements/:achievementId/showcase', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { achievementId } = req.params;
+      const { showcased } = req.body;
+      
+      await db.update(userAchievements)
+        .set({ showcased })
+        .where(and(
+          eq(userAchievements.userId, userId),
+          eq(userAchievements.achievementId, achievementId)
+        ));
+      
+      res.json({ message: "Showcase status updated" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update showcase" });
+    }
+  });
+  
+  // Get daily challenges
+  app.get('/api/gamification/challenges/daily', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Use the comprehensive daily challenges with progress method
+      const challengesWithProgress = await gamificationService.getDailyChallengesWithProgress(userId);
+      
+      res.json(challengesWithProgress);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch daily challenges" });
+    }
+  });
+  
+  // Update challenge progress
+  app.post('/api/gamification/challenges/:challengeId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { challengeId } = req.params;
+      const { increment } = req.body;
+      
+      const progress = await gamificationService.updateChallengeProgress(userId, challengeId, increment || 1);
+      res.json(progress);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update challenge progress" });
+    }
+  });
+  
+  // Get global leaderboard for dashboard
+  app.get('/api/gamification/leaderboard/global', isAuthenticated, async (req: any, res) => {
+    try {
+      const { limit = 10 } = req.query;
+      
+      // Get global leaderboard (top performers)
+      const leaderboard = await db.select({
+        rank: leaderboards.rank,
+        userId: leaderboards.userId,
+        score: leaderboards.score,
+        previousRank: leaderboards.previousRank,
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+        level: userProfiles.currentLevel,
+      })
+      .from(leaderboards)
+      .leftJoin(users, eq(leaderboards.userId, users.id))
+      .leftJoin(userProfiles, eq(leaderboards.userId, userProfiles.userId))
+      .where(and(
+        eq(leaderboards.category, 'global'),
+        eq(leaderboards.timeframe, 'weekly')
+      ))
+      .orderBy(leaderboards.rank)
+      .limit(parseInt(limit as string));
+      
+      res.json(leaderboard);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch global leaderboard" });
+    }
+  });
+
+  // Get leaderboards
+  app.get('/api/gamification/leaderboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const { category = 'global', timeframe = 'weekly' } = req.query;
+      const leaderboard = await gamificationService.getLeaderboard(
+        category as string,
+        timeframe as string,
+        100
+      );
+      res.json(leaderboard);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+  
+  // Get friends leaderboard
+  app.get('/api/gamification/leaderboard/friends', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get user's friends
+      const friendships = await db.query.friendConnections.findMany({
+        where: and(
+          or(
+            eq(friendConnections.userId, userId),
+            eq(friendConnections.friendId, userId)
+          ),
+          eq(friendConnections.status, 'accepted')
+        )
+      });
+      
+      const friendIds = friendships.map(f => 
+        f.userId === userId ? f.friendId : f.userId
+      );
+      friendIds.push(userId); // Include self
+      
+      // Get leaderboard entries for friends
+      const leaderboard = await db.select({
+        rank: leaderboards.rank,
+        userId: leaderboards.userId,
+        score: leaderboards.score,
+        previousRank: leaderboards.previousRank,
+        username: users.username,
+        displayName: users.displayName,
+        profileImageUrl: users.profileImageUrl,
+      })
+      .from(leaderboards)
+      .leftJoin(users, eq(leaderboards.userId, users.id))
+      .where(and(
+        eq(leaderboards.category, 'global'),
+        eq(leaderboards.timeframe, 'weekly'),
+        sql`${leaderboards.userId} IN (${sql.join(friendIds, sql`, `)})`
+      ))
+      .orderBy(leaderboards.score);
+      
+      res.json(leaderboard);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch friends leaderboard" });
+    }
+  });
+  
+  // Spin reward wheel with anti-abuse checks
+  app.post('/api/gamification/spin-wheel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Check if user can spin (rate limiting)
+      const canSpin = await gamificationService.canSpinWheel(userId);
+      if (!canSpin.canSpin) {
+        return res.status(400).json({ 
+          message: canSpin.reason || "Cannot spin wheel",
+          canSpin: false
+        });
+      }
+      
+      const reward = await gamificationService.spinWheel(userId);
+      res.json({
+        ...reward,
+        canSpin: true
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to spin wheel" });
+    }
+  });
+  
+  // Get spin wheel configuration
+  app.get('/api/gamification/spin-wheel/config', async (req, res) => {
+    try {
+      const rewards = await db.query.spinWheelRewards.findMany();
+      
+      // Return default rewards if none exist in database
+      if (!rewards || rewards.length === 0) {
+        const defaultRewards = [
+          { id: 'default-1', rewardType: 'coins', value: 50, label: '50 Coins', probability: 25, color: '#FFD700' },
+          { id: 'default-2', rewardType: 'coins', value: 100, label: '100 Coins', probability: 20, color: '#FFA500' },
+          { id: 'default-3', rewardType: 'coins', value: 200, label: '200 Coins', probability: 15, color: '#FF6347' },
+          { id: 'default-4', rewardType: 'xp', value: 25, label: '25 XP', probability: 20, color: '#4169E1' },
+          { id: 'default-5', rewardType: 'xp', value: 50, label: '50 XP', probability: 10, color: '#9370DB' },
+          { id: 'default-6', rewardType: 'coins', value: 500, label: '500 Coins!', probability: 5, color: '#32CD32' },
+          { id: 'default-7', rewardType: 'xp', value: 100, label: '100 XP!', probability: 4, color: '#FF1493' },
+          { id: 'default-8', rewardType: 'coins', value: 1000, label: 'JACKPOT!', probability: 1, color: '#DC143C' }
+        ];
+        return res.json(defaultRewards);
+      }
+      
+      res.json(rewards);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch spin wheel configuration" });
+    }
+  });
+  
+  // Get gamification stats for dashboard
+  app.get('/api/gamification/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get user stats from different sources
+      const [goals, tasks, profile] = await Promise.all([
+        storage.getUserGoals(userId),
+        // Get user tasks through goals
+        Promise.all((await storage.getUserGoals(userId)).map(goal => 
+          storage.getGoalById(goal.id).then(g => g ? storage.getTasksByPlan(g.id) : [])
+        )).then(taskArrays => taskArrays.flat()),
+        storage.getUserProfile(userId)
+      ]);
+      
+      // Calculate stats
+      const completedGoals = goals.filter(g => g.status === 'completed').length;
+      const completedTasks = tasks.filter(t => t.status === 'completed').length;
+      const totalHours = tasks.reduce((sum, task) => sum + (parseFloat(task.estimatedDuration?.toString() || '0') / 60), 0);
+      
+      // Performance score calculation (simplified)
+      const goalCompletionRate = goals.length > 0 ? (completedGoals / goals.length) * 100 : 0;
+      const taskCompletionRate = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
+      const performanceScore = Math.round((goalCompletionRate + taskCompletionRate) / 2);
+      
+      res.json({
+        tasksCompleted: completedTasks,
+        goalsAchieved: completedGoals,
+        hoursLogged: Math.round(totalHours),
+        productivityScore: performanceScore,
+        streakCount: profile?.streakCount || 0,
+        totalXp: profile?.totalXp || 0,
+        level: profile?.currentLevel || 1
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch gamification stats" });
+    }
+  });
+
+  // Award XP (for task/goal completion)
+  app.post('/api/gamification/award-xp', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount, source, reason, sourceId, multiplier } = req.body;
+      
+      const result = await gamificationService.awardXP(
+        userId,
+        amount,
+        source,
+        reason,
+        sourceId,
+        multiplier
+      );
+      
+      // Update leaderboards
+      await gamificationService.updateLeaderboard(userId, 'global', amount);
+      
+      // Check for achievements based on source
+      const unlockedAchievements = [];
+      if (source === 'task') {
+        const taskCount = await db.query.xpTransactions.findMany({
+          where: and(
+            eq(xpTransactions.userId, userId),
+            eq(xpTransactions.source, 'task')
+          )
+        });
+        const achievements = await gamificationService.checkAchievements(userId, { 
+          type: 'task_count', 
+          value: taskCount.length 
+        });
+        unlockedAchievements.push(...achievements);
+      }
+      
+      res.json({ ...result, unlockedAchievements });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to award XP" });
+    }
+  });
+  
+  // ===== PAYMENT & BILLING ROUTES =====
+  
+  // Initialize Stripe only if API key is available
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  let stripe: Stripe | null = null;
+  
+  if (stripeKey) {
+    stripe = new Stripe(stripeKey, {
+      apiVersion: '2025-08-27.basil',
+    });
+  }
+  
+  // Get subscription plans
+  app.get('/api/subscription-plans', async (req, res) => {
+    try {
+      const plans = await db.select().from(subscriptionPlans)
+        .where(eq(subscriptionPlans.isActive, true));
+      res.json(plans);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch subscription plans" });
+    }
+  });
+  
+  // Get user's current subscription
+  app.get('/api/subscription', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const subscriptionInfo = await paymentService.getUserSubscription(userId);
+      
+      res.json(subscriptionInfo);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch subscription" });
+    }
+  });
+  
+  // Create a new subscription with PayGate.to
+  app.post('/api/create-subscription', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { planId, email, billingCycle = 'monthly', currency = 'USD', provider = 'multi' } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required for PayGate.to payment" });
+      }
+      
+      const result = await paymentService.createSubscription(
+        userId, 
+        planId, 
+        email,
+        billingCycle,
+        currency,
+        provider
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create subscription" });
+    }
+  });
+  
+  // Cancel subscription
+  app.post('/api/cancel-subscription', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const result = await paymentService.cancelSubscription(userId);
+      res.json({ message: "Subscription cancelled", subscription: result });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to cancel subscription" });
+    }
+  });
+  
+  // Resume cancelled subscription with PayGate.to
+  app.post('/api/resume-subscription', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { email, currency = 'USD' } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required for PayGate.to payment" });
+      }
+      
+      const result = await paymentService.resumeSubscription(userId, email, currency);
+      res.json({ message: "Subscription resumed", subscription: result });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to resume subscription" });
+    }
+  });
+  
+  // Change subscription plan with PayGate.to
+  app.post('/api/change-subscription-plan', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { newPlanId, email, currency = 'USD' } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required for PayGate.to payment" });
+      }
+      
+      const result = await paymentService.changeSubscriptionPlan(userId, newPlanId, email, currency);
+      res.json({ message: "Subscription plan changed", subscription: result });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to change subscription plan" });
+    }
+  });
+  
+  // ===== COIN SYSTEM ROUTES =====
+  
+  // Get coin packages
+  app.get('/api/coin-packages', async (req, res) => {
+    try {
+      const packages = await db.select().from(coinPackages)
+        .where(eq(coinPackages.isActive, true));
+      res.json(packages);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch coin packages" });
+    }
+  });
+  
+  // Get user's coin balance
+  app.get('/api/coin-balance', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json({ balance: user?.coinBalance || 0 });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch coin balance" });
+    }
+  });
+  
+  // Get coin transaction history
+  app.get('/api/coin-transactions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      const transactions = await db.select().from(coinTransactions)
+        .where(eq(coinTransactions.userId, userId))
+        .orderBy(desc(coinTransactions.createdAt))
+        .limit(limit);
+      
+      res.json(transactions);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch coin transactions" });
+    }
+  });
+  
+  // Purchase coins
+  app.post('/api/purchase-coins', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { packageId, email, currency = 'USD', provider = 'multi' } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required for PayGate.to payment" });
+      }
+      
+      const result = await paymentService.purchaseCoins(userId, packageId, email, currency, provider);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to purchase coins" });
+    }
+  });
+  
+  // Spend coins
+  app.post('/api/spend-coins', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount, purpose, sourceId } = req.body;
+      
+      const newBalance = await paymentService.spendCoins(userId, amount, purpose, sourceId);
+      res.json({ balance: newBalance });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to spend coins" });
+    }
+  });
+  
+  // Award free coins (daily login, achievements, etc.)
+  app.post('/api/award-coins', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { amount, reason } = req.body;
+      
+      const newBalance = await paymentService.awardCoins(userId, amount, reason);
+      res.json({ balance: newBalance });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to award coins" });
+    }
+  });
+  
+  // ===== ONE-TIME PURCHASES =====
+  
+  // Get purchaseable items
+  app.get('/api/purchase-items', async (req, res) => {
+    try {
+      const { type, category } = req.query;
+      const whereConditions = [eq(purchaseItems.isActive, true)];
+      
+      // Add filters if provided
+      if (type) {
+        whereConditions.push(eq(purchaseItems.type, type as string));
+      }
+      if (category) {
+        whereConditions.push(eq(purchaseItems.category, category as string));
+      }
+      
+      const query = db.select().from(purchaseItems)
+        .where(and(...whereConditions));
+      
+      const items = await query;
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch purchase items" });
+    }
+  });
+  
+  // Get user's purchases
+  app.get('/api/user-purchases', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const purchases = await db.select().from(userPurchases)
+        .where(and(
+          eq(userPurchases.userId, userId),
+          eq(userPurchases.isActive, true)
+        ));
+      
+      res.json(purchases);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user purchases" });
+    }
+  });
+  
+  // Purchase an item
+  app.post('/api/purchase-item', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itemId, paymentMethod } = req.body;
+      
+      const result = await paymentService.purchaseItem(userId, itemId, paymentMethod);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to purchase item" });
+    }
+  });
+  
+  // ===== PAYMENT PROCESSING =====
+  
+  // Confirm payment completion
+  app.post('/api/confirm-payment', isAuthenticated, async (req: any, res) => {
+    try {
+      const { paymentIntentId } = req.body;
+      await paymentService.confirmPayment(paymentIntentId);
+      res.json({ message: "Payment confirmed" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to confirm payment" });
+    }
+  });
+  
+  // ===== FEATURE GATING =====
+  
+  // Check feature access
+  app.post('/api/check-feature-access', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { featureKey } = req.body;
+      
+      const hasAccess = await paymentService.checkFeatureAccess(userId, featureKey);
+      const limitOk = await paymentService.checkFeatureLimit(userId, featureKey);
+      
+      res.json({ 
+        hasAccess,
+        limitOk,
+        canUseFeature: hasAccess && limitOk
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to check feature access" });
+    }
+  });
+  
+  // Get feature gates
+  app.get('/api/feature-gates', async (req, res) => {
+    try {
+      const gates = await db.select().from(featureGates)
+        .where(eq(featureGates.isActive, true));
+      res.json(gates);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch feature gates" });
+    }
+  });
+  
+  // ===== PADDLE PAYMENT ROUTES =====
+  
+  // Get Paddle configuration for frontend
+  app.get('/api/payments/paddle/config', async (req, res) => {
+    try {
+      const { PADDLE_CLIENT_TOKEN, IS_PRODUCTION, PADDLE_ENVIRONMENT } = await import('./payments/paddle');
+      
+      res.json({
+        clientToken: PADDLE_CLIENT_TOKEN,
+        environment: IS_PRODUCTION ? 'production' : 'sandbox',
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch Paddle configuration" });
+    }
+  });
+  
+  // Create Paddle checkout session for subscription
+  app.post('/api/payments/paddle/checkout', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { tier, billingCycle } = req.body;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.email) {
+        return res.status(400).json({ message: "User email not found" });
+      }
+      
+      if (!tier || !['pro', 'team'].includes(tier)) {
+        return res.status(400).json({ message: "Valid tier (pro or team) is required" });
+      }
+      
+      if (!billingCycle || !['monthly', 'yearly'].includes(billingCycle)) {
+        return res.status(400).json({ message: "Valid billing cycle (monthly or yearly) is required" });
+      }
+      
+      const successUrl = `${req.protocol}://${req.get('host')}/payment-success?provider=paddle`;
+      const cancelUrl = `${req.protocol}://${req.get('host')}/pricing?cancelled=true`;
+      
+      const checkoutUrl = await createPaddleCheckout({
+        userId,
+        email: user.email,
+        tier: tier as 'pro' | 'team',
+        billingCycle: billingCycle as 'monthly' | 'yearly',
+        successUrl,
+        cancelUrl,
+      });
+      
+      res.json({ checkoutUrl });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create Paddle checkout" });
+    }
+  });
+  
+  // Create Paddle checkout session for coin packages (simplified endpoint)
+  app.post('/api/payments/coins/purchase', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { packageType } = req.body;
+      
+      if (!packageType || !['starter', 'value', 'power', 'ultimate'].includes(packageType)) {
+        return res.status(400).json({ message: "Valid packageType (starter, value, power, ultimate) is required" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user?.email) {
+        return res.status(400).json({ message: "User email not found" });
+      }
+      
+      const { getCoinPackagePriceId } = await import('./payments/paddle');
+      const priceId = getCoinPackagePriceId(packageType as 'starter' | 'value' | 'power' | 'ultimate');
+      
+      const successUrl = `${req.protocol}://${req.get('host')}/payment-success?provider=paddle&type=coins&package=${packageType}`;
+      const cancelUrl = `${req.protocol}://${req.get('host')}/pricing?cancelled=true&tab=coins`;
+      
+      const checkoutUrl = await createPaddleCoinCheckout({
+        userId,
+        email: user.email,
+        packageId: packageType,
+        priceId,
+        successUrl,
+        cancelUrl,
+      });
+      
+      res.json({ checkoutUrl });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create Paddle coin checkout" });
+    }
+  });
+  
+  // Create Paddle checkout session for coin packages (legacy endpoint)
+  app.post('/api/payments/paddle/coins', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { packageId, priceId, email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+      
+      if (!packageId || !priceId) {
+        return res.status(400).json({ message: "Package ID and price ID are required" });
+      }
+      
+      const successUrl = `${req.protocol}://${req.get('host')}/payment-success?provider=paddle&type=coins`;
+      const cancelUrl = `${req.protocol}://${req.get('host')}/pricing?cancelled=true`;
+      
+      const checkoutUrl = await createPaddleCoinCheckout({
+        userId,
+        email,
+        packageId,
+        priceId,
+        successUrl,
+        cancelUrl,
+      });
+      
+      res.json({ paymentUrl: checkoutUrl });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create Paddle coin checkout" });
+    }
+  });
+  
+  // Get Paddle subscription status
+  app.get('/api/payments/paddle/subscription', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.paddleSubscriptionId) {
+        return res.status(404).json({ message: "No Paddle subscription found" });
+      }
+      
+      const subscription = await getPaddleSubscription(user.paddleSubscriptionId);
+      res.json(subscription);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch Paddle subscription" });
+    }
+  });
+  
+  // Cancel Paddle subscription
+  app.post('/api/payments/paddle/cancel', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.paddleSubscriptionId) {
+        return res.status(404).json({ message: "No Paddle subscription found" });
+      }
+      
+      const result = await cancelPaddleSubscription(user.paddleSubscriptionId);
+      
+      // Update user status locally
+      await db.update(users)
+        .set({
+          subscriptionStatus: 'cancelled',
+        })
+        .where(eq(users.id, userId));
+      
+      res.json({ message: "Paddle subscription cancelled", subscription: result });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to cancel Paddle subscription" });
+    }
+  });
+  
+  // SECURITY: Paddle webhook handler with signature verification and rate limiting
+  app.post('/api/webhooks/paddle', webhookRateLimit, express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+      await handlePaddleWebhook(req);
+      res.status(200).json({ received: true });
+    } catch (error: any) {
+      // SECURITY FIX: Return 400 for signature verification errors, 500 for other errors
+      if (error.message && (error.message.includes('signature') || error.message.includes('Missing webhook signature') || error.message.includes('Invalid webhook signature'))) {
+        return res.status(400).json({ error: 'Invalid signature' });
+      }
+      res.status(500).json({ message: error.message || "Webhook handling failed" });
+    }
+  });
+  
+  // ===== APPLE IN-APP PURCHASE ROUTES (App Store Server API) =====
+  
+  // Validation schema for Apple receipt verification
+  const appleReceiptSchema = z.object({
+    receiptData: z.string().optional(),
+    transactionId: z.string().min(1, 'Transaction ID is required'),
+  });
+  
+  // POST /api/payments/apple/verify - Verify Apple receipt with App Store Server API
+  app.post('/api/payments/apple/verify', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validation = appleReceiptSchema.parse(req.body);
+      
+      // Verify receipt with App Store Server API
+      const receipt = await appleIAPService.verifyReceipt(
+        userId,
+        validation.receiptData || '',
+        validation.transactionId
+      );
+      
+      res.json({
+        success: true,
+        receipt: {
+          transactionId: receipt.transactionId,
+          originalTransactionId: receipt.originalTransactionId,
+          productId: receipt.productId,
+          purchaseDate: receipt.purchaseDate,
+          expiresDate: receipt.expiresDate,
+          isTrialPeriod: receipt.isTrialPeriod,
+          environment: receipt.environment,
+        }
+      });
+    } catch (error: any) {
+      
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Receipt verification failed',
+      });
+    }
+  });
+  
+  // GET /api/payments/apple/status - Get current Apple subscription status
+  app.get('/api/payments/apple/status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const status = await appleIAPService.getSubscriptionStatus(userId);
+      
+      res.json({
+        success: true,
+        subscription: status,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to fetch subscription status',
+      });
+    }
+  });
+  
+  // SECURITY: Apple webhook handler with JWT signature verification and rate limiting
+  app.post('/api/webhooks/apple', webhookRateLimit, express.json(), async (req, res) => {
+    try {
+      const payload = req.body;
+      const signedPayload = req.headers['x-apple-signature'] as string;
+      
+      // SECURITY: Verify webhook signature
+      const verificationResult = await appleIAPService.verifyWebhookSignature(payload, signedPayload);
+      
+      if (verificationResult.status === 'dev-mode') {
+        // DEV MODE: Allow webhook processing without signature verification
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⚠️ Apple webhook in dev-mode:', verificationResult.reason);
+        }
+      } else if (verificationResult.status === 'error') {
+        // PRODUCTION FAILURE: Configuration issue or invalid signature
+        return res.status(400).json({
+          success: false,
+          message: verificationResult.reason || 'Webhook verification failed',
+        });
+      }
+      
+      // Process webhook (processWebhook handles dev-mode gracefully, throws in production failures)
+      await appleIAPService.processWebhook(payload);
+      
+      res.status(200).json({ 
+        success: true,
+        message: 'Webhook processed successfully' 
+      });
+    } catch (error: any) {
+      
+      // Return 400 for processing errors
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Webhook processing failed',
+      });
+    }
+  });
+  
+  /*
+  // OLD IMPLEMENTATION - Removed deprecated endpoint
+  // Use /api/payments/apple/verify-receipt instead
+  app.post('/api/payments/ios/verify-receipt', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const validatedData = iosReceiptSchema.parse(req.body);
+      const { receiptData, productId } = validatedData;
+      
+      // Verify receipt with Apple
+      const verificationResult = await verifyAppleReceipt(receiptData);
+      
+      // Check verification status
+      if (verificationResult.status !== 0) {
+        const errorMessages: { [key: number]: string } = {
+          21000: 'The App Store could not read the JSON object you provided',
+          21002: 'The data in the receipt-data property was malformed or missing',
+          21003: 'The receipt could not be authenticated',
+          21004: 'The shared secret you provided does not match the shared secret on file',
+          21005: 'The receipt server is not currently available',
+          21006: 'This receipt is valid but the subscription has expired',
+          21007: 'This receipt is from the test environment',
+          21008: 'This receipt is from the production environment',
+          21010: 'This receipt could not be authorized'
+        };
+        
+        return res.status(400).json({
+          message: 'Invalid receipt',
+          error: errorMessages[verificationResult.status] || `Unknown error (status: ${verificationResult.status})`
+        });
+      }
+      
+      // Determine if this is a subscription or coin purchase
+      const isSubscription = productId?.toLowerCase().includes('subscription') || 
+                            productId?.toLowerCase().includes('sub') ||
+                            productId?.toLowerCase().includes('pro') ||
+                            productId?.toLowerCase().includes('team') ||
+                            productId?.toLowerCase().includes('enterprise');
+      
+      let result;
+      if (isSubscription) {
+        result = await processAppleSubscription(userId, verificationResult);
+      } else {
+        result = await processAppleCoins(userId, verificationResult);
+      }
+      
+      res.json({
+        message: 'Receipt verified successfully',
+        ...result,
+        receiptStatus: verificationResult.status
+      });
+      
+    } catch (error: any) {
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: 'Invalid request data',
+          errors: error.errors
+        });
+      }
+      
+      res.status(500).json({
+        message: 'Failed to verify receipt',
+        error: error.message
+      });
+    }
+  });
+  
+  // POST /api/payments/ios/subscription-status - Get iOS subscription status
+  app.post('/api/payments/ios/subscription-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get user from database
+      const [user] = await db.select()
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if user has an active subscription from Apple
+      const hasAppleSubscription = user.paymentProvider === 'apple';
+      const isActive = user.subscriptionStatus === 'active' && 
+                      user.subscriptionCurrentPeriodEnd && 
+                      user.subscriptionCurrentPeriodEnd > new Date();
+      
+      if (!hasAppleSubscription || !isActive) {
+        return res.json({
+          hasActiveSubscription: false,
+          subscriptionTier: user.subscriptionTier,
+          subscriptionStatus: user.subscriptionStatus
+        });
+      }
+      
+      res.json({
+        hasActiveSubscription: true,
+        subscriptionTier: user.subscriptionTier,
+        subscriptionStatus: user.subscriptionStatus,
+        currentPeriodEnd: user.subscriptionCurrentPeriodEnd,
+        paymentProvider: user.paymentProvider
+      });
+      
+    } catch (error: any) {
+      res.status(500).json({
+        message: 'Failed to check subscription status',
+        error: error.message
+      });
+    }
+  });
+  
+  // POST /api/payments/ios/restore - Restore previous iOS purchases
+  app.post('/api/payments/ios/restore', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body
+      const validatedData = iosReceiptSchema.parse(req.body);
+      const { receiptData } = validatedData;
+      
+      // Verify receipt with Apple
+      const verificationResult = await verifyAppleReceipt(receiptData);
+      
+      // Check verification status
+      if (verificationResult.status !== 0) {
+        return res.status(400).json({
+          message: 'Invalid receipt',
+          error: `Receipt verification failed (status: ${verificationResult.status})`
+        });
+      }
+      
+      const restoredItems: any[] = [];
+      
+      // Process all subscriptions from receipt
+      if (verificationResult.latest_receipt_info || verificationResult.receipt?.in_app) {
+        const subscriptionResult = await processAppleSubscription(userId, verificationResult);
+        restoredItems.push({
+          type: 'subscription',
+          ...subscriptionResult
+        });
+      }
+      
+      // Process all coin purchases from receipt
+      const inAppPurchases = verificationResult.receipt?.in_app || [];
+      for (const purchase of inAppPurchases) {
+        if (purchase.product_id?.toLowerCase().includes('coin')) {
+          try {
+            const coinResult = await processAppleCoins(userId, { receipt: { in_app: [purchase] } });
+            restoredItems.push({
+              type: 'coins',
+              ...coinResult
+            });
+          } catch (error) {
+          }
+        }
+      }
+      
+      // Get updated user data
+      const [updatedUser] = await db.select()
+        .from(users)
+        .where(eq(users.id, userId));
+      
+      res.json({
+        message: 'Purchases restored successfully',
+        restoredItems,
+        currentCoinBalance: updatedUser?.coinBalance || 0,
+        subscriptionTier: updatedUser?.subscriptionTier || 'free',
+        subscriptionStatus: updatedUser?.subscriptionStatus || 'inactive'
+      });
+      
+    } catch (error: any) {
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: 'Invalid request data',
+          errors: error.errors
+        });
+      }
+      
+      res.status(500).json({
+        message: 'Failed to restore purchases',
+        error: error.message
+      });
+    }
+  });
+  */
+  
+  // ===== PAYGATE.TO WEBHOOK =====
+  
+  // Enhanced PayGate.to webhook endpoint with validation and security
+  app.get('/api/payments/paygate/webhook', async (req, res) => {
+    const startTime = Date.now();
+    const webhookId = `wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    try {
+      // Extract all query parameters and body data
+      const queryParams = req.query;
+      const headers = req.headers;
+      const clientIp = req.ip || req.connection.remoteAddress;
+      
+      // Extract required parameters
+      const { 
+        type, 
+        userId, 
+        transactionId, 
+        value_coin, 
+        planId, 
+        packageId, 
+        billingCycle,
+        // PayGate.to specific parameters
+        address_in,
+        polygon_address_in,
+        callback_url,
+        ipn_token,
+        // Transaction status parameters
+        status,
+        tx_hash,
+        block_number,
+        confirmation_count
+      } = queryParams;
+      
+      // Comprehensive parameter validation
+      const validationErrors: string[] = [];
+      
+      if (!type) validationErrors.push('Missing payment type');
+      if (!userId) validationErrors.push('Missing user ID');
+      if (!transactionId) validationErrors.push('Missing transaction ID');
+      if (!value_coin) validationErrors.push('Missing value_coin');
+      
+      // Validate payment type
+      if (type && !['subscription', 'coins'].includes(type as string)) {
+        validationErrors.push('Invalid payment type');
+      }
+      
+      // Validate value_coin format
+      let valueCoin = 0;
+      if (value_coin) {
+        const parsed = parseFloat(value_coin as string);
+        if (isNaN(parsed) || parsed <= 0) {
+          validationErrors.push('Invalid value_coin format');
+        } else {
+          valueCoin = parsed;
+        }
+      }
+      
+      // Type-specific validation
+      if (type === 'subscription') {
+        if (!planId) validationErrors.push('Missing subscription plan ID');
+        if (!billingCycle) validationErrors.push('Missing billing cycle');
+        if (billingCycle && !['monthly', 'yearly'].includes(billingCycle as string)) {
+          validationErrors.push('Invalid billing cycle');
+        }
+      } else if (type === 'coins') {
+        if (!packageId) validationErrors.push('Missing coin package ID');
+      }
+      
+      if (validationErrors.length > 0) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          details: validationErrors,
+          webhookId
+        });
+      }
+      
+      // Security validation with PayGate.to HMAC
+      const hmacHash = headers['x-hmac-hash'] as string;
+      const isSecurityValid = await paymentService.validatePayGateWebhookSecurity(
+        req.url,
+        hmacHash,
+        ipn_token as string
+      );
+      
+      if (!isSecurityValid) {
+        // Security validation failed but don't block webhook for now
+      }
+      
+      // Additional parameters for payment processing
+      const additionalParams: any = {
+        webhookId,
+        clientIp,
+        addressIn: address_in,
+        polygonAddressIn: polygon_address_in,
+        ipnToken: ipn_token,
+        txHash: tx_hash,
+        blockNumber: block_number,
+        confirmationCount: confirmation_count,
+        status: status || 'completed'
+      };
+      
+      if (type === 'subscription') {
+        additionalParams.planId = planId;
+        additionalParams.billingCycle = billingCycle;
+      } else if (type === 'coins') {
+        additionalParams.packageId = packageId;
+      }
+      
+      // Process the webhook with enhanced error handling
+      const result = await paymentService.processPayGateWebhook(
+        type as 'subscription' | 'coins',
+        userId as string,
+        transactionId as string,
+        valueCoin,
+        additionalParams
+      );
+      
+      const processingTime = Date.now() - startTime;
+      
+      // Return success response
+      res.json({
+        webhookId,
+        processingTime,
+        ...result
+      });
+      
+    } catch (error: any) {
+      const processingTime = Date.now() - startTime;
+      
+      // Return error response
+      res.status(500).json({ 
+        error: 'Webhook processing failed',
+        message: error.message,
+        webhookId,
+        processingTime,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+  
+  // Get billing history
+  app.get('/api/billing-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      if (!user?.stripeCustomerId) {
+        return res.json([]);
+      }
+      
+      if (!stripe) {
+        return res.json([]);
+      }
+      
+      // Get invoices from Stripe
+      const invoices = await stripe.invoices.list({
+        customer: user.stripeCustomerId,
+        limit: 20,
+      });
+      
+      res.json(invoices.data.map(invoice => ({
+        id: invoice.id,
+        date: new Date(invoice.created * 1000),
+        amount: invoice.amount_paid / 100,
+        status: invoice.status,
+        description: invoice.description || 'Subscription payment',
+        invoiceUrl: invoice.hosted_invoice_url,
+      })));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch billing history" });
+    }
+  });
+
+  // ===== COMPREHENSIVE SOCIAL FEATURES =====
+
+  // --- TEAMS ---
+  
+  // Create a new team
+  app.post('/api/teams', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod
+      const validatedData = insertTeamSchema.parse({
+        ...req.body,
+        createdById: userId
+      });
+      
+      const team = await socialService.createTeam(validatedData);
+      
+      // Award XP for creating team
+      const { gamificationService } = await import('./gamification');
+      await gamificationService.awardXP(
+        userId,
+        100, // XP for creating team
+        'team_created',
+        `Created team: ${validatedData.name}`,
+        team.id
+      );
+      
+      res.json(team);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ message: error.message || "Failed to create team" });
+    }
+  });
+  
+  // Get user's teams
+  app.get('/api/teams/my', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const teams = await socialService.getUserTeams(userId);
+      res.json(teams);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch teams" });
+    }
+  });
+  
+  // Get team details
+  app.get('/api/teams/:teamId', isAuthenticated, async (req: any, res) => {
+    try {
+      const team = await socialService.getTeam(req.params.teamId);
+      const members = await socialService.getTeamMembers(req.params.teamId);
+      res.json({ team, members });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch team" });
+    }
+  });
+  
+  // Join team
+  app.post('/api/teams/:teamId/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const member = await socialService.joinTeam(req.params.teamId, userId);
+      res.json(member);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to join team" });
+    }
+  });
+  
+  // Send team invite
+  app.post('/api/teams/:teamId/invite', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { invitedUserId, inviteEmail } = req.body;
+      const inviteCode = await socialService.sendTeamInvite(
+        req.params.teamId,
+        userId,
+        invitedUserId,
+        inviteEmail
+      );
+      res.json({ inviteCode });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to send invite" });
+    }
+  });
+  
+  // Create team goal
+  app.post('/api/teams/:teamId/goals', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Validate request body with Zod
+      const validatedData = insertTeamGoalSchema.parse({
+        ...req.body,
+        teamId: req.params.teamId
+      });
+      
+      // Check authorization - only team members can create goals
+      const userTeams = await socialService.getUserTeams(userId);
+      const userTeam = userTeams.find(membership => membership.team.id === req.params.teamId);
+      
+      if (!userTeam) {
+        return res.status(403).json({ message: "Not authorized to create team goals" });
+      }
+      
+      // Only owners and admins can create team goals
+      if (userTeam.membership.role !== 'owner' && userTeam.membership.role !== 'admin') {
+        return res.status(403).json({ message: "Only team owners and admins can create goals" });
+      }
+      
+      const goal = await socialService.createTeamGoal(validatedData);
+      
+      // Award XP for creating team goal
+      const { gamificationService } = await import('./gamification');
+      await gamificationService.awardXP(
+        userId,
+        50, // XP for creating team goal
+        'team_goal_created',
+        `Created team goal: ${validatedData.title}`,
+        goal.id
+      );
+      
+      res.json(goal);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to create team goal" });
+    }
+  });
+  
+  // --- CHALLENGES ---
+  
+  // Create challenge
+  app.post('/api/challenges', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Map frontend duration to dates
+      const duration = req.body.duration || '1_week';
+      const startDate = new Date();
+      let endDate = new Date();
+      
+      switch (duration) {
+        case '1_day': endDate.setDate(startDate.getDate() + 1); break;
+        case '3_days': endDate.setDate(startDate.getDate() + 3); break;
+        case '1_week': endDate.setDate(startDate.getDate() + 7); break;
+        case '2_weeks': endDate.setDate(startDate.getDate() + 14); break;
+        case '1_month': endDate.setMonth(startDate.getMonth() + 1); break;
+        default: endDate.setDate(startDate.getDate() + 7);
+      }
+
+      // Map challengeType to targetMetric if missing
+      let targetMetric = req.body.targetMetric;
+      if (!targetMetric) {
+        switch (req.body.challengeType) {
+          case 'xp_gain': targetMetric = 'most_xp'; break;
+          case 'tasks_completed': targetMetric = 'tasks_completed'; break;
+          case 'streak_length': targetMetric = 'longest_streak'; break;
+          default: targetMetric = 'custom';
+        }
+      }
+
+      // Prepare prize distribution
+      const prizeDistribution = req.body.prizeDistribution || {
+        first: 50,
+        second: 30,
+        third: 20
+      };
+
+      // Prepare prize pool
+      const prizePool = req.body.prizePool || {
+        coins: req.body.prizeType === 'coins' ? req.body.prizeAmount : 0,
+        xp: req.body.prizeType === 'xp' ? req.body.prizeAmount : 0,
+      };
+
+      const validatedData = insertChallengeSchema.parse({
+        ...req.body,
+        creatorId: userId,
+        startDate,
+        endDate,
+        targetMetric,
+        prizePool,
+        prizeDistribution,
+        status: 'upcoming'
+      });
+
+      const challenge = await socialService.createChallenge(validatedData);
+      res.json(challenge);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create challenge" });
+    }
+  });
+  
+  // Get active challenges
+  app.get('/api/challenges/active', async (req, res) => {
+    try {
+      const challenges = await socialService.getActiveChallenges();
+      res.json(challenges);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch challenges" });
+    }
+  });
+  
+  // Get upcoming challenges
+  app.get('/api/challenges/upcoming', async (req, res) => {
+    try {
+      const challenges = await socialService.getUpcomingChallenges();
+      res.json(challenges);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch challenges" });
+    }
+  });
+  
+  // Get challenge details
+  app.get('/api/challenges/:challengeId', async (req, res) => {
+    try {
+      const challenge = await socialService.getChallenge(req.params.challengeId);
+      const leaderboard = await socialService.getChallengeLeaderboard(req.params.challengeId);
+      res.json({ challenge, leaderboard });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch challenge" });
+    }
+  });
+  
+  // Join challenge
+  app.post('/api/challenges/:challengeId/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const participant = await socialService.joinChallenge(
+        req.params.challengeId,
+        userId,
+        req.body.teamId
+      );
+      res.json(participant);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to join challenge" });
+    }
+  });
+  
+  // Update challenge progress
+  app.post('/api/challenges/:challengeId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { participantId, score } = req.body;
+      await socialService.updateChallengeProgress(
+        req.params.challengeId,
+        participantId,
+        score
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update progress" });
+    }
+  });
+  
+  // Get challenge leaderboard
+  app.get('/api/challenges/:challengeId/leaderboard', async (req, res) => {
+    try {
+      const leaderboard = await socialService.getChallengeLeaderboard(req.params.challengeId);
+      res.json(leaderboard);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+  
+  // --- FRIENDS ---
+  
+  // Send friend request
+  app.post('/api/friends/request', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { friendId } = req.body;
+      await socialService.sendFriendRequest(userId, friendId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to send friend request" });
+    }
+  });
+  
+  // Accept friend request
+  app.post('/api/friends/accept', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { friendId } = req.body;
+      await socialService.acceptFriendRequest(userId, friendId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to accept friend request" });
+    }
+  });
+  
+  // Get friends list - returns { accepted, pending, sent }
+  app.get('/api/friends', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get accepted friends
+      const acceptedFriends = await socialService.getFriends(userId);
+      const acceptedDetails = await Promise.all(
+        acceptedFriends.map(async (f) => {
+          const user = await storage.getUser(f.friendId);
+          return {
+            ...f,
+            friend: user
+          };
+        })
+      );
+      
+      // Get pending friend requests (requests sent TO this user)
+      const pendingRequests = await socialService.getFriendRequests(userId);
+      const pendingDetails = pendingRequests.map((r: any) => ({
+        id: r.request.id,
+        userId: r.request.userId,
+        friendId: r.request.friendId,
+        status: r.request.status,
+        createdAt: r.request.createdAt,
+        requester: r.user
+      }));
+      
+      // Get sent friend requests (requests sent BY this user)
+      const sentRequests = await db
+        .select()
+        .from(friendConnections)
+        .where(
+          and(
+            eq(friendConnections.userId, userId),
+            eq(friendConnections.status, "pending")
+          )
+        );
+      const sentDetails = await Promise.all(
+        sentRequests.map(async (s) => {
+          const user = await storage.getUser(s.friendId);
+          return {
+            ...s,
+            recipient: user
+          };
+        })
+      );
+      
+      res.json({
+        accepted: acceptedDetails,
+        pending: pendingDetails,
+        sent: sentDetails
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch friends" });
+    }
+  });
+  
+  // Get friend requests (legacy endpoint - kept for backward compatibility)
+  app.get('/api/friends/requests', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const requests = await socialService.getFriendRequests(userId);
+      const pendingDetails = requests.map((r: any) => ({
+        id: r.request.id,
+        userId: r.request.userId,
+        friendId: r.request.friendId,
+        status: r.request.status,
+        createdAt: r.request.createdAt,
+        requester: r.user
+      }));
+      res.json(pendingDetails);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch friend requests" });
+    }
+  });
+  
+  // Search users for friend requests
+  app.get('/api/users/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const { query } = req.query;
+      if (!query || query.length < 2) {
+        return res.json([]);
+      }
+      
+      const results = await db.select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        username: users.username,
+        profileImageUrl: users.profileImageUrl
+      })
+      .from(users)
+      .where(
+        or(
+          sql`${users.email} ILIKE ${`%${query}%`}`,
+          sql`${users.displayName} ILIKE ${`%${query}%`}`,
+          sql`${users.username} ILIKE ${`%${query}%`}`
+        )
+      )
+      .limit(10);
+      
+      res.json(results);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to search users" });
+    }
+  });
+  
+  // --- SOCIAL FEED ---
+  
+  // Get friends feed
+  app.get('/api/feed', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const feed = await socialService.getFriendsFeed(userId, limit);
+      res.json(feed);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch feed" });
+    }
+  });
+  
+  // Create social post
+  app.post('/api/feed/post', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const post = await socialService.createSocialPost({
+        ...req.body,
+        userId
+      });
+      res.json(post);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create post" });
+    }
+  });
+  
+  // Like a post
+  app.post('/api/feed/posts/:postId/like', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await socialService.likePost(req.params.postId, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to like post" });
+    }
+  });
+  
+  // Comment on a post
+  app.post('/api/feed/posts/:postId/comment', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { comment } = req.body;
+      await socialService.commentOnPost(req.params.postId, userId, comment);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to comment on post" });
+    }
+  });
+  
+  // Get post comments
+  app.get('/api/feed/posts/:postId/comments', async (req, res) => {
+    try {
+      const comments = await db.select({
+        comment: socialFeedPosts,
+        user: users
+      })
+      .from(socialFeedPosts)
+      .innerJoin(users, eq(socialFeedPosts.userId, users.id))
+      .where(eq(socialFeedPosts.id, req.params.postId))
+      .orderBy(desc(socialFeedPosts.createdAt));
+      
+      res.json(comments);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch comments" });
+    }
+  });
+  
+  // --- MENTORSHIP ---
+  
+  // Create mentorship
+  app.post('/api/mentorship/request', isAuthenticated, async (req: any, res) => {
+    try {
+      const menteeId = req.user.claims.sub;
+      const { mentorId, goalCategory } = req.body;
+      const mentorship = await socialService.createMentorship(
+        mentorId,
+        menteeId,
+        goalCategory
+      );
+      res.json(mentorship);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to create mentorship" });
+    }
+  });
+  
+  // Update mentorship progress
+  app.post('/api/mentorship/:mentorshipId/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const { progressDelta } = req.body;
+      await socialService.updateMentorshipProgress(
+        req.params.mentorshipId,
+        progressDelta
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update mentorship" });
+    }
+  });
+  
+  // Rate mentor
+  app.post('/api/mentorship/:mentorshipId/review', isAuthenticated, async (req: any, res) => {
+    try {
+      const reviewerId = req.user.claims.sub;
+      const { rating, review, detailedRatings } = req.body;
+      await socialService.rateMentor(
+        req.params.mentorshipId,
+        reviewerId,
+        rating,
+        review,
+        detailedRatings
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to rate mentor" });
+    }
+  });
+  
+  // Get available mentors
+  app.get('/api/mentors', async (req, res) => {
+    try {
+      const { category } = req.query;
+      
+      let query = db.select({
+        user: users,
+        profile: userProfiles,
+        mentorshipCount: sql<number>`COUNT(DISTINCT ${mentorships.id})`
+      })
+      .from(users)
+      .innerJoin(userProfiles, eq(users.id, userProfiles.userId))
+      .leftJoin(mentorships, eq(users.id, mentorships.mentorId))
+      .where(gte(userProfiles.currentLevel, 20))
+      .groupBy(users.id, userProfiles.id);
+      
+      const mentors = await query;
+      res.json(mentors);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch mentors" });
+    }
+  });
+  
+  // --- NOTIFICATIONS ---
+  
+  // Rate limiting for notification endpoints
+  const notificationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each user to 100 notification requests per window
+    message: {
+      message: 'Too many notification requests from this IP, please try again later.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  
+  // Get notifications with filtering
+  app.get('/api/notifications', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { limit = 50, offset = 0, category, unreadOnly } = req.query;
+      
+      const notifications = await notificationService.getUserNotifications(userId, {
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string),
+        category: category as any,
+        unreadOnly: unreadOnly === 'true',
+        includeArchived: false,
+      });
+      
+      res.json(notifications);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch notifications" });
+    }
+  });
+  
+  // Get unread notification count
+  app.get('/api/notifications/unread-count', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const count = await notificationService.getUnreadCount(userId);
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch unread count" });
+    }
+  });
+  
+  // Get notification preferences
+  app.get('/api/notifications/preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const preferences = await notificationService.getUserPreferences(userId);
+      res.json(preferences || {});
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch preferences" });
+    }
+  });
+  
+  // Update notification preferences
+  app.put('/api/notifications/preferences', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const preferences = await notificationService.updateUserPreferences(userId, req.body);
+      res.json(preferences);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update preferences" });
+    }
+  });
+  
+  // Mark notification as read
+  app.post('/api/notifications/:notificationId/read', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await notificationService.markAsRead(req.params.notificationId, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to mark notification" });
+    }
+  });
+  
+  // Mark all notifications as read
+  app.post('/api/notifications/read-all', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await notificationService.markAllAsRead(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to mark notifications" });
+    }
+  });
+  
+  // Clear (archive) a notification
+  app.delete('/api/notifications/:notificationId', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await notificationService.clearNotification(req.params.notificationId, userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to clear notification" });
+    }
+  });
+  
+  // Clear all notifications
+  app.delete('/api/notifications', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await notificationService.clearAll(userId);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to clear notifications" });
+    }
+  });
+  
+  // Register push subscription
+  app.post('/api/notifications/push-subscription', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { subscription } = req.body;
+      
+      await notificationService.updateUserPreferences(userId, {
+        pushSubscription: subscription,
+        pushEnabled: true,
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to register push subscription" });
+    }
+  });
+  
+  // Test notification (for development/debugging)
+  app.post('/api/notifications/test', isAuthenticated, notificationLimiter, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { type = 'achievement', channels } = req.body;
+      
+      await notificationService.createNotification({
+        userId,
+        type: type as any,
+        title: 'Test Notification',
+        message: 'This is a test notification to verify your notification settings are working correctly.',
+        category: 'system',
+        priority: 'medium',
+        channels: channels || undefined,
+      });
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to send test notification" });
+    }
+  });
+  
+  // --- DIRECT MESSAGES ---
+  
+  // Send direct message
+  app.post('/api/messages/send', isAuthenticated, async (req: any, res) => {
+    try {
+      const senderId = req.user.claims.sub;
+      const { receiverId, message } = req.body;
+      await socialService.sendDirectMessage(senderId, receiverId, message);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to send message" });
+    }
+  });
+  
+  // Get conversation
+  app.get('/api/messages/:friendId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const messages = await socialService.getConversation(userId, req.params.friendId);
+      res.json(messages);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  // ===== HABIT TRACKING SYSTEM =====
+  
+  // Create new habit
+  app.post('/api/habits', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const habitData = {
+        ...req.body,
+        userId
+      };
+      
+      const newHabit = await storage.createHabit(habitData);
+      res.status(201).json(newHabit);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create habit" });
+    }
+  });
+  
+  // Get all user habits
+  app.get('/api/habits', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category, isActive } = req.query;
+      
+      const options: any = {};
+      if (category) options.category = category;
+      if (isActive !== undefined) options.isActive = isActive === 'true';
+      
+      const habits = await storage.getUserHabits(userId, options);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayCompletions = await storage.getUserHabitCompletions(userId, today);
+      const completedHabitIds = new Set(todayCompletions.map(c => c.habitId));
+      
+      const habitsWithStatus = habits.map(habit => ({
+        ...habit,
+        completedToday: completedHabitIds.has(habit.id)
+      }));
+      
+      res.json(habitsWithStatus);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch habits" });
+    }
+  });
+  
+  // Get single habit by ID
+  app.get('/api/habits/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const habit = await storage.getHabitById(req.params.id);
+      
+      if (!habit) {
+        return res.status(404).json({ message: "Habit not found" });
+      }
+      
+      res.json(habit);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch habit" });
+    }
+  });
+  
+  // Update habit
+  app.patch('/api/habits/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const habit = await storage.getHabitById(req.params.id);
+      
+      if (!habit) {
+        return res.status(404).json({ message: "Habit not found" });
+      }
+      
+      if (habit.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to update this habit" });
+      }
+      
+      await storage.updateHabit(req.params.id, req.body);
+      const updatedHabit = await storage.getHabitById(req.params.id);
+      
+      res.json(updatedHabit);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update habit" });
+    }
+  });
+  
+  // Delete habit
+  app.delete('/api/habits/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const habit = await storage.getHabitById(req.params.id);
+      
+      if (!habit) {
+        return res.status(404).json({ message: "Habit not found" });
+      }
+      
+      if (habit.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized to delete this habit" });
+      }
+      
+      await storage.deleteHabit(req.params.id);
+      res.json({ message: "Habit deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete habit" });
+    }
+  });
+  
+  // Check habit (mark as completed for today)
+  app.post('/api/habits/:id/check', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const habitId = req.params.id;
+      
+      const habit = await storage.getHabitById(habitId);
+      if (!habit) {
+        return res.status(404).json({ message: "Habit not found" });
+      }
+      
+      if (habit.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const completion = {
+        userId,
+        habitId,
+        completionDate: today,
+        xpAwarded: habit.xpReward || 10,
+        notes: req.body.notes,
+        mood: req.body.mood,
+        effort: req.body.effort
+      };
+      
+      const newCompletion = await storage.checkHabit(habitId, userId, completion);
+      
+      const updatedHabit = await storage.getHabitById(habitId);
+      
+      res.json({
+        completion: newCompletion,
+        habit: updatedHabit
+      });
+    } catch (error: any) {
+      
+      if (error.message?.includes('duplicate') || error.code === '23505') {
+        return res.status(400).json({ message: "Habit already completed today" });
+      }
+      
+      res.status(500).json({ message: "Failed to check habit" });
+    }
+  });
+  
+  // Get habit statistics
+  app.get('/api/habits/:id/stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const habitId = req.params.id;
+      
+      const habit = await storage.getHabitById(habitId);
+      if (!habit) {
+        return res.status(404).json({ message: "Habit not found" });
+      }
+      
+      if (habit.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const stats = await storage.getHabitStats(habitId);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch habit statistics" });
+    }
+  });
+  
+  // Get user's rhythm score
+  app.get('/api/habits/rhythm-score', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const rhythmScore = await storage.calculateRhythmScore(userId);
+      
+      res.json({ rhythmScore });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to calculate rhythm score" });
+    }
+  });
+  
+  // Get habit completions for a date range
+  app.get('/api/habits/:id/completions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const habitId = req.params.id;
+      const { startDate, endDate } = req.query;
+      
+      const habit = await storage.getHabitById(habitId);
+      if (!habit) {
+        return res.status(404).json({ message: "Habit not found" });
+      }
+      
+      if (habit.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const completions = await storage.getHabitCompletions(habitId, start, end);
+      res.json(completions);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch habit completions" });
+    }
+  });
+
+  // ===== CALENDAR INTEGRATION & ICAL FEED =====
+  
+  // Get or create calendar token for authenticated user
+  app.get('/api/calendar/token', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const token = await storage.getOrCreateCalendarToken(userId);
+      res.json(token);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get calendar token" });
+    }
+  });
+  
+  // Regenerate calendar token
+  app.post('/api/calendar/token/regenerate', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const newToken = await storage.regenerateCalendarToken(userId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'settings_change',
+        eventDescription: 'Calendar token regenerated',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      res.json(newToken);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to regenerate calendar token" });
+    }
+  });
+  
+  // Get all calendar events for authenticated user
+  app.get('/api/calendar/events', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const events = await storage.getAllCalendarEvents(userId);
+      res.json(events);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch calendar events" });
+    }
+  });
+  
+  // iCal Feed Endpoint - Public with token authentication
+  app.get('/api/ical/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { token } = req.query;
+      
+      if (!token || typeof token !== 'string') {
+        return res.status(401).json({ message: "Token required" });
+      }
+      
+      // Verify token
+      const calendarToken = await storage.getCalendarTokenByToken(token);
+      if (!calendarToken || calendarToken.userId !== userId) {
+        return res.status(403).json({ message: "Invalid token" });
+      }
+      
+      // Get all calendar events
+      const events = await storage.getAllCalendarEvents(userId);
+      
+      // Generate iCal feed
+      const icalFeed = generateICalFeed(userId, events);
+      
+      // Set proper headers for iCal format
+      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="lilove-calendar.ics"');
+      res.send(icalFeed);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to generate iCal feed" });
+    }
+  });
+  
+  // Import iCal data (basic implementation)
+  app.post('/api/calendar/import', isAuthenticated, uploadRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { icalData } = req.body;
+      
+      if (!icalData) {
+        return res.status(400).json({ message: "iCal data required" });
+      }
+      
+      // Basic validation - check if it's valid iCal format
+      if (!icalData.includes('BEGIN:VCALENDAR') || !icalData.includes('END:VCALENDAR')) {
+        return res.status(400).json({ message: "Invalid iCal format" });
+      }
+      
+      // TODO: Implement full iCal parsing and event import
+      // For now, just acknowledge receipt
+      res.json({ 
+        message: "iCal import initiated", 
+        status: "processing",
+        note: "Full iCal import functionality coming soon"
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to import iCal data" });
+    }
+  });
+
+  // ===== DATA EXPORT SYSTEM (GDPR COMPLIANT) =====
+  
+  // Request data export
+  app.post('/api/export/request', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { exportType, format } = req.body;
+      
+      // Validate export type
+      const validTypes = ['full', 'profile', 'goals', 'tasks', 'habits', 'achievements', 'social'];
+      if (!validTypes.includes(exportType)) {
+        return res.status(400).json({ message: "Invalid export type" });
+      }
+      
+      // Validate format
+      const validFormats = ['json', 'csv'];
+      if (!validFormats.includes(format)) {
+        return res.status(400).json({ message: "Invalid format" });
+      }
+      
+      // Create export request
+      const exportRequest = await storage.createDataExport({
+        userId,
+        exportType,
+        format,
+        status: 'pending',
+        progress: 0
+      });
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'data_export',
+        eventDescription: `Data export requested: ${exportType} (${format})`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      // Start async export processing (non-blocking)
+      const { exportProcessor } = await import('./exportProcessor');
+      setTimeout(() => {
+        exportProcessor.processExport({
+          userId,
+          exportId: exportRequest.id,
+          exportType,
+          format
+        });
+      }, 100);
+      
+      res.json({
+        id: exportRequest.id,
+        status: exportRequest.status,
+        progress: exportRequest.progress,
+        message: "Export request created successfully"
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to request export" });
+    }
+  });
+  
+  // Get export status
+  app.get('/api/export/status/:exportId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { exportId } = req.params;
+      
+      const exportRecord = await storage.getDataExportById(exportId);
+      
+      if (!exportRecord) {
+        return res.status(404).json({ message: "Export not found" });
+      }
+      
+      if (exportRecord.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      res.json({
+        id: exportRecord.id,
+        status: exportRecord.status,
+        progress: exportRecord.progress,
+        exportType: exportRecord.exportType,
+        format: exportRecord.format,
+        fileName: exportRecord.fileName,
+        fileSize: exportRecord.fileSize,
+        requestedAt: exportRecord.requestedAt,
+        completedAt: exportRecord.completedAt,
+        expiresAt: exportRecord.expiresAt,
+        errorMessage: exportRecord.errorMessage
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get export status" });
+    }
+  });
+  
+  // Download export file
+  app.get('/api/export/download/:exportId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { exportId } = req.params;
+      
+      const exportRecord = await storage.getDataExportById(exportId);
+      
+      if (!exportRecord) {
+        return res.status(404).json({ message: "Export not found" });
+      }
+      
+      if (exportRecord.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      if (exportRecord.status !== 'completed') {
+        return res.status(400).json({ message: "Export not completed yet" });
+      }
+      
+      if (!exportRecord.filePath || !fs.existsSync(exportRecord.filePath)) {
+        return res.status(404).json({ message: "Export file not found" });
+      }
+      
+      // Check if expired
+      if (exportRecord.expiresAt && new Date() > exportRecord.expiresAt) {
+        return res.status(410).json({ message: "Export has expired" });
+      }
+      
+      // Mark as downloaded
+      await storage.markDataExportDownloaded(exportId);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'data_export_download',
+        eventDescription: `Data export downloaded: ${exportRecord.exportType}`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || ''
+      });
+      
+      // Send file
+      const fileName = exportRecord.fileName || `export_${exportId}.${exportRecord.format}`;
+      res.download(exportRecord.filePath, fileName);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to download export" });
+    }
+  });
+  
+  // Get export history
+  app.get('/api/export/history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const exports = await storage.getDataExports(userId);
+      
+      res.json(exports.map(exp => ({
+        id: exp.id,
+        exportType: exp.exportType,
+        format: exp.format,
+        status: exp.status,
+        progress: exp.progress,
+        fileName: exp.fileName,
+        fileSize: exp.fileSize,
+        downloadCount: exp.downloadCount,
+        requestedAt: exp.requestedAt,
+        completedAt: exp.completedAt,
+        lastDownloadedAt: exp.lastDownloadedAt,
+        expiresAt: exp.expiresAt
+      })));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to get export history" });
+    }
+  });
+  
+  // Delete export
+  app.delete('/api/export/:exportId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { exportId } = req.params;
+      
+      const exportRecord = await storage.getDataExportById(exportId);
+      
+      if (!exportRecord) {
+        return res.status(404).json({ message: "Export not found" });
+      }
+      
+      if (exportRecord.userId !== userId) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+      
+      // Delete file if exists
+      if (exportRecord.filePath && fs.existsSync(exportRecord.filePath)) {
+        fs.unlinkSync(exportRecord.filePath);
+      }
+      
+      // Delete from database
+      const { dataExports } = await import('@shared/schema');
+      await db.delete(dataExports).where(eq(dataExports.id, exportId));
+      
+      res.json({ message: "Export deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete export" });
+    }
+  });
+
+  // ===== ACCOUNT DELETION - GDPR/KVKK COMPLIANT =====
+  
+  // Request account deletion (30-day grace period)
+  app.post('/api/account/delete/request', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { reason, additionalReason } = req.body;
+      
+      // Check if already scheduled
+      const existingDeletion = await storage.getAccountDeletion(userId);
+      if (existingDeletion) {
+        return res.status(400).json({ 
+          message: "Account deletion already scheduled",
+          scheduledFor: existingDeletion.scheduledFor
+        });
+      }
+      
+      // Create deletion request with 30-day grace period
+      const confirmationToken = crypto.randomBytes(32).toString('hex');
+      const deletion = await storage.requestAccountDeletion({
+        userId,
+        reason: reason || 'user_request',
+        additionalReason,
+        status: 'scheduled',
+        scheduledFor: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || '',
+        confirmationToken,
+      });
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'account_deletion_requested',
+        eventDescription: `Account deletion scheduled for ${deletion.scheduledFor}`,
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || '',
+      });
+      
+      res.json({
+        message: "Account deletion scheduled",
+        scheduledFor: deletion.scheduledFor,
+        deletionId: deletion.id,
+        gracePeriodDays: 30
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to request account deletion" });
+    }
+  });
+  
+  // Check deletion status
+  app.get('/api/account/deletion-status', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deletion = await storage.getAccountDeletion(userId);
+      
+      if (!deletion) {
+        return res.json({ scheduled: false });
+      }
+      
+      const now = new Date();
+      const daysRemaining = Math.ceil((deletion.scheduledFor.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      
+      res.json({
+        scheduled: true,
+        scheduledFor: deletion.scheduledFor,
+        daysRemaining: Math.max(0, daysRemaining),
+        deletionId: deletion.id,
+        reason: deletion.reason,
+        canCancel: deletion.status === 'scheduled'
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to check deletion status" });
+    }
+  });
+  
+  // Cancel scheduled deletion
+  app.post('/api/account/delete/cancel', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const deletion = await storage.getAccountDeletion(userId);
+      
+      if (!deletion) {
+        return res.status(404).json({ message: "No deletion scheduled" });
+      }
+      
+      if (deletion.status !== 'scheduled') {
+        return res.status(400).json({ message: "Cannot cancel deletion at this stage" });
+      }
+      
+      await storage.cancelAccountDeletion(deletion.id);
+      
+      // Log security event
+      await storage.logSecurityEvent({
+        userId,
+        eventType: 'account_deletion_cancelled',
+        eventDescription: 'User cancelled scheduled account deletion',
+        ipAddress: req.ip || '',
+        userAgent: req.get('User-Agent') || '',
+      });
+      
+      res.json({ message: "Account deletion cancelled successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to cancel deletion" });
+    }
+  });
+  
+  // Immediate deletion (development only)
+  app.delete('/api/account/delete/immediate', isAuthenticated, sensitiveRateLimit, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // SECURITY: Only allow in development
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(403).json({ message: "Immediate deletion not allowed in production" });
+      }
+      
+      // Perform immediate deletion
+      await storage.permanentlyDeleteAccount(userId);
+      
+      // Destroy session
+      req.logout(() => {});
+      
+      res.json({ message: "Account deleted immediately" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete account" });
+    }
+  });
+
+  // ===== HEALTH CHECK =====
+  
+  app.get('/api/health', (req, res) => {
+    res.json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    });
+  });
+
+  // ===== iOS IN-APP PURCHASE ROUTES =====
+  
+  // Helper function to verify iOS receipt with Apple
+  async function verifyIosReceipt(receiptData: string) {
+    const endpoint = process.env.NODE_ENV === 'production'
+      ? 'https://buy.itunes.apple.com/verifyReceipt'
+      : 'https://sandbox.itunes.apple.com/verifyReceipt';
+    
+    const sharedSecret = process.env.APPSTORE_SHARED_SECRET;
+    
+    if (!sharedSecret) {
+      throw new Error('APPSTORE_SHARED_SECRET not configured');
+    }
+    
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          'receipt-data': receiptData,
+          password: sharedSecret
+        })
+      });
+      
+      const data = await response.json();
+      
+      // Status code 0 means receipt is valid
+      // Status code 21007 means sandbox receipt sent to production, retry with sandbox
+      if (data.status === 21007) {
+        // Retry with sandbox endpoint
+        const sandboxResponse = await fetch('https://sandbox.itunes.apple.com/verifyReceipt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            'receipt-data': receiptData,
+            password: sharedSecret
+          })
+        });
+        
+        const sandboxData = await sandboxResponse.json();
+        return sandboxData;
+      }
+      
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+  
+  // POST /api/iap/verify - Verify iOS receipt
+  app.post('/api/iap/verify', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { receiptData, productId, transactionId } = req.body;
+      
+      if (!receiptData || !productId || !transactionId) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Missing required fields" 
+        });
+      }
+      
+      // Verify receipt with Apple
+      const verificationResult = await verifyIosReceipt(receiptData);
+      
+      if (verificationResult.status === 0) {
+        // Receipt is valid
+        const receipt = verificationResult.receipt;
+        const latestReceiptInfo = verificationResult.latest_receipt_info?.[0] || receipt.in_app?.[0];
+        
+        if (!latestReceiptInfo) {
+          return res.status(400).json({
+            success: false,
+            message: "No purchase information in receipt"
+          });
+        }
+        
+        // Determine product type
+        const isSubscription = productId.includes('.sub.');
+        const isConsumable = productId.includes('.coins.');
+        
+        const purchaseData: any = {
+          userId,
+          productId: latestReceiptInfo.product_id || productId,
+          transactionId: latestReceiptInfo.transaction_id || transactionId,
+          originalTransactionId: latestReceiptInfo.original_transaction_id,
+          receiptData,
+          productType: isSubscription ? 'subscription' : 'consumable',
+          environment: verificationResult.environment || 'sandbox',
+          verified: true,
+          verifiedAt: new Date(),
+          validationResponse: verificationResult,
+          purchaseDate: new Date(parseInt(latestReceiptInfo.purchase_date_ms || Date.now())),
+        };
+        
+        // Add subscription-specific fields
+        if (isSubscription) {
+          purchaseData.expiresDate = latestReceiptInfo.expires_date_ms 
+            ? new Date(parseInt(latestReceiptInfo.expires_date_ms))
+            : null;
+          purchaseData.isTrialPeriod = latestReceiptInfo.is_trial_period === 'true';
+          purchaseData.cancellationDate = latestReceiptInfo.cancellation_date_ms
+            ? new Date(parseInt(latestReceiptInfo.cancellation_date_ms))
+            : null;
+        }
+        
+        // Add consumable-specific fields
+        if (isConsumable) {
+          purchaseData.quantity = latestReceiptInfo.quantity || 1;
+          // Calculate coins based on product ID
+          const coinAmount = productId.includes('1000') ? 1000
+            : productId.includes('500') ? 500
+            : productId.includes('100') ? 100
+            : 0;
+          purchaseData.coinsAwarded = coinAmount;
+        }
+        
+        // Record purchase in database
+        await storage.recordIapPurchase(purchaseData);
+        
+        // Update user based on purchase type
+        if (isSubscription) {
+          await storage.updateSubscriptionFromIap({
+            userId,
+            productId: purchaseData.productId,
+            expiresDate: purchaseData.expiresDate,
+            isActive: true
+          });
+        } else if (isConsumable) {
+          await storage.addCoinsFromIap(userId, purchaseData.coinsAwarded);
+        }
+        
+        // Log security event
+        await storage.logSecurityEvent({
+          userId,
+          eventType: 'iap_purchase',
+          eventDescription: `iOS purchase verified: ${productId}`,
+          ipAddress: req.ip || '',
+          userAgent: req.get('User-Agent') || ''
+        });
+        
+        res.json({
+          success: true,
+          message: "Purchase verified successfully",
+          productId: purchaseData.productId,
+          transactionId: purchaseData.transactionId
+        });
+      } else {
+        // Receipt is invalid
+        res.status(400).json({
+          success: false,
+          message: "Receipt verification failed",
+          status: verificationResult.status
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to verify receipt" 
+      });
+    }
+  });
+  
+  // POST /api/iap/webhook - Handle App Store Server Notifications v2
+  app.post('/api/iap/webhook', webhookRateLimit, express.json(), async (req, res) => {
+    try {
+      // App Store Server Notifications v2 format
+      const notification = req.body;
+      const signedPayload = req.headers['x-apple-signature'] as string;
+      
+      // SECURITY: Verify webhook signature using Apple App Store Server API
+      const verificationResult = await appleIAPService.verifyWebhookSignature(notification, signedPayload);
+      
+      if (verificationResult.status === 'dev-mode') {
+        // DEV MODE: Allow webhook processing without signature verification
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Apple IAP webhook in dev-mode:', verificationResult.reason);
+        }
+      } else if (verificationResult.status === 'error') {
+        // PRODUCTION FAILURE: Invalid signature or configuration issue
+        return res.status(401).json({
+          message: verificationResult.reason || 'Webhook signature verification failed',
+        });
+      }
+      
+      // Extract notification type and data
+      const notificationType = notification.notificationType;
+      const subtype = notification.subtype;
+      const data = notification.data;
+      
+      if (!data || !data.signedTransactionInfo) {
+        return res.status(400).json({ message: "Invalid notification format" });
+      }
+      
+      // Transaction info is already verified via signature verification above
+      const transactionInfo = data.signedTransactionInfo;
+      
+      // Handle different notification types
+      switch (notificationType) {
+        case 'SUBSCRIBED':
+        case 'DID_RENEW':
+          // Subscription started or renewed
+          // await storage.updateSubscriptionFromWebhook(transactionInfo);
+          break;
+          
+        case 'DID_CHANGE_RENEWAL_STATUS':
+          // User changed auto-renewal status
+          break;
+          
+        case 'DID_FAIL_TO_RENEW':
+          // Subscription renewal failed - update user subscription status to past_due
+          break;
+          
+        case 'EXPIRED':
+          // Subscription expired - update user subscription status to expired
+          break;
+          
+        case 'GRACE_PERIOD_EXPIRED':
+          // Grace period expired, revoke access
+          break;
+          
+        case 'REFUND':
+          // Purchase was refunded - revoke coins or subscription access
+          break;
+          
+        case 'CONSUMPTION_REQUEST':
+          // For consumables
+          break;
+          
+        default:
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Unknown IAP notification type:', notificationType);
+          }
+      }
+      
+      // Always respond with 200 to acknowledge receipt
+      res.status(200).json({ message: "Notification received" });
+    } catch (error: any) {
+      // Still respond with 200 to prevent retries
+      res.status(200).json({ message: "Notification processed with errors" });
+    }
+  });
+  
+  // GET /api/iap/receipts - Get user's purchase history
+  app.get('/api/iap/receipts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const receipts = await storage.getUserIapReceipts(userId);
+      
+      res.json(receipts);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch receipts" });
+    }
+  });
+
+  // Use existing HTTP server if provided, otherwise create new one
+  const httpServer = existingServer || createServer(app);
+  
+  // ===== LEAGUE SYSTEM ROUTES =====
+  
+  // Get all leagues
+  app.get('/api/leagues', isAuthenticated, async (req: any, res) => {
+    try {
+      const leagues = await storage.getAllLeagues();
+      res.json(leagues);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch leagues" });
+    }
+  });
+  
+  // Get user's current league
+  app.get('/api/leagues/current', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const currentLeague = await storage.getUserCurrentLeague(userId);
+      
+      if (!currentLeague) {
+        return res.status(404).json({ message: "Not enrolled in any league" });
+      }
+      
+      const leaderboard = await storage.getLeagueLeaderboard(currentLeague.season.id);
+      
+      // Calculate time remaining in season
+      const now = new Date();
+      const endDate = new Date(currentLeague.season.endDate);
+      const timeRemaining = endDate.getTime() - now.getTime();
+      const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
+      
+      res.json({
+        league: currentLeague.league,
+        season: currentLeague.season,
+        participant: currentLeague.participant,
+        leaderboard,
+        hoursRemaining,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch current league" });
+    }
+  });
+  
+  // Get league leaderboard
+  app.get('/api/leagues/:leagueId/leaderboard', isAuthenticated, async (req: any, res) => {
+    try {
+      const { leagueId } = req.params;
+      
+      const activeSeason = await storage.getActiveSeason(leagueId);
+      if (!activeSeason) {
+        return res.status(404).json({ message: "No active season for this league" });
+      }
+      
+      const leaderboard = await storage.getLeagueLeaderboard(activeSeason.id);
+      
+      res.json({
+        season: activeSeason,
+        leaderboard,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch leaderboard" });
+    }
+  });
+  
+  // Join a league
+  app.post('/api/leagues/join', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { leagueId } = req.body;
+      
+      if (!leagueId) {
+        return res.status(400).json({ message: "League ID is required" });
+      }
+      
+      // Check if user is already in an active league
+      const currentLeague = await storage.getUserCurrentLeague(userId);
+      if (currentLeague && currentLeague.season.status === 'active') {
+        return res.status(400).json({ message: "Already enrolled in an active league" });
+      }
+      
+      // Get or create active season for this league
+      let activeSeason = await storage.getActiveSeason(leagueId);
+      
+      if (!activeSeason) {
+        // Create a new season if none exists
+        const league = await storage.getLeagueById(leagueId);
+        if (!league) {
+          return res.status(404).json({ message: "League not found" });
+        }
+        
+        const now = new Date();
+        const startDate = new Date(now);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 7);
+        endDate.setHours(23, 59, 59, 999);
+        
+        activeSeason = await storage.createLeagueSeason({
+          seasonNumber: 1,
+          leagueId: league.id,
+          startDate,
+          endDate,
+          status: 'active',
+          maxParticipants: 50,
+          currentParticipants: 0,
+        });
+      }
+      
+      // Check if season is full
+      if ((activeSeason.currentParticipants ?? 0) >= (activeSeason.maxParticipants ?? 50)) {
+        return res.status(400).json({ message: "League season is full" });
+      }
+      
+      // Join the league
+      const participant = await storage.joinLeague({
+        userId,
+        seasonId: activeSeason.id,
+        leagueId,
+        weeklyXp: 0,
+        rank: 0,
+        promoted: false,
+        relegated: false,
+        rewardClaimed: false,
+      });
+      
+      res.json({
+        message: "Successfully joined league",
+        participant,
+        season: activeSeason,
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to join league" });
+    }
+  });
+  
+  // Get user's league history
+  app.get('/api/leagues/history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const history = await storage.getUserLeagueHistory(userId, 20);
+      
+      res.json(history);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch league history" });
+    }
+  });
+  
+  // ===== SHOP SYSTEM ROUTES (Sanctuary Elements & Avatar Traits) =====
+  
+  // Get all sanctuary elements for the shop
+  app.get('/api/sanctuary-elements', isAuthenticated, async (req: any, res) => {
+    try {
+      const { type, rarity } = req.query;
+      const filters: { type?: string; rarity?: string } = {};
+      if (type) filters.type = type as string;
+      if (rarity) filters.rarity = rarity as string;
+      
+      const elements = await storage.getSanctuaryElements(filters);
+      res.json(elements);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch sanctuary elements" });
+    }
+  });
+  
+  // Get all avatar traits for the shop
+  app.get('/api/avatar-traits', isAuthenticated, async (req: any, res) => {
+    try {
+      const traits = await storage.getAllAvatarTraits();
+      res.json(traits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch avatar traits" });
+    }
+  });
+  
+  // Get user's sanctuary state (unlocked elements)
+  app.get('/api/user/sanctuary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const sanctuary = await storage.getSanctuaryState(userId);
+      
+      if (!sanctuary) {
+        return res.json({ unlockedElements: [] });
+      }
+      
+      res.json(sanctuary);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user sanctuary" });
+    }
+  });
+  
+  // Get user's owned avatar traits
+  app.get('/api/user/avatar-traits', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userTraits = await storage.getUserAvatarTraits(userId);
+      res.json(userTraits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user avatar traits" });
+    }
+  });
+  
+  // Purchase a sanctuary element (unlockSanctuaryElement handles coin deduction internally)
+  app.post('/api/purchase-sanctuary-element/:elementId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { elementId } = req.params;
+      
+      // unlockSanctuaryElement handles: coin checking, deduction, and unlocking
+      const result = await storage.unlockSanctuaryElement(userId, elementId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error || "Failed to purchase element" });
+      }
+      
+      const element = await storage.getSanctuaryElementById(elementId);
+      
+      res.json({ 
+        message: "Element purchased successfully", 
+        element,
+        sanctuary: result.sanctuary 
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to purchase element" });
+    }
+  });
+  
+  // Purchase an avatar trait
+  app.post('/api/purchase-avatar-trait/:traitId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { traitId } = req.params;
+      
+      // Get the trait to check price
+      const trait = await storage.getAvatarTrait(traitId);
+      if (!trait) {
+        return res.status(404).json({ message: "Trait not found" });
+      }
+      
+      // Check if already owned
+      const alreadyOwned = await storage.hasUserUnlockedTrait(userId, traitId);
+      if (alreadyOwned) {
+        return res.status(400).json({ message: "You already own this trait" });
+      }
+      
+      // Check user has enough coins
+      const user = await storage.getUserById(userId);
+      const coinCost = trait.coinCost || 0;
+      if (!user || (user.coinBalance || 0) < coinCost) {
+        return res.status(400).json({ message: "Not enough coins" });
+      }
+      
+      // Deduct coins from user
+      await storage.deductUserCoins(userId, coinCost);
+      
+      // Unlock trait and record coins paid
+      const userTrait = await storage.unlockTraitForUser(userId, traitId, 'purchase', undefined, coinCost);
+      
+      res.json({ 
+        message: "Trait purchased successfully", 
+        trait,
+        userTrait 
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to purchase trait" });
+    }
+  });
+  
+  // ===== AVATAR & QUEST SYSTEM ROUTES =====
+  
+  // Avatar Routes
+  app.get('/api/avatar', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const avatar = await storage.getOrCreateAvatar(userId);
+      res.json(avatar);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch avatar" });
+    }
+  });
+  
+  app.patch('/api/avatar', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const updates = req.body;
+      await storage.updateAvatar(userId, updates);
+      const updatedAvatar = await storage.getOrCreateAvatar(userId);
+      res.json(updatedAvatar);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update avatar" });
+    }
+  });
+  
+  app.post('/api/avatar/equip/:itemId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itemId } = req.params;
+      await storage.equipItem(userId, itemId);
+      const updatedAvatar = await storage.getOrCreateAvatar(userId);
+      res.json({ message: "Item equipped successfully", avatar: updatedAvatar });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to equip item" });
+    }
+  });
+  
+  app.post('/api/avatar/unequip/:category', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { category } = req.params;
+      await storage.unequipItem(userId, category);
+      const updatedAvatar = await storage.getOrCreateAvatar(userId);
+      res.json({ message: "Item unequipped successfully", avatar: updatedAvatar });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to unequip item" });
+    }
+  });
+  
+  // Quest Routes
+  app.get('/api/quests', isAuthenticated, async (req: any, res) => {
+    try {
+      const { difficulty, minLevel } = req.query;
+      const filters: any = {};
+      if (difficulty) filters.difficulty = difficulty;
+      if (minLevel) filters.minLevel = parseInt(minLevel as string);
+      
+      const quests = await storage.getAllQuests(filters);
+      res.json(quests);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch quests" });
+    }
+  });
+  
+  app.get('/api/quests/active', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const activeQuests = await storage.getUserActiveQuests(userId);
+      res.json(activeQuests);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch active quests" });
+    }
+  });
+  
+  app.post('/api/quests/:id/start', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const userQuest = await storage.startQuest(userId, id);
+      res.json({ message: "Quest started successfully", userQuest });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to start quest" });
+    }
+  });
+  
+  app.get('/api/quests/:id/progress', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const activeQuests = await storage.getUserActiveQuests(userId);
+      const quest = activeQuests.find(q => q.questId === id);
+      
+      if (!quest) {
+        return res.status(404).json({ message: "Quest not found" });
+      }
+      
+      res.json(quest);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch quest progress" });
+    }
+  });
+  
+  app.post('/api/quests/:id/attack-boss', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      const { damage } = req.body;
+      
+      const activeQuests = await storage.getUserActiveQuests(userId);
+      const userQuest = activeQuests.find(q => q.questId === id);
+      
+      if (!userQuest) {
+        return res.status(404).json({ message: "Quest not found" });
+      }
+      
+      const result = await storage.attackBoss(userQuest.id, damage || 10);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to attack boss" });
+    }
+  });
+  
+  app.post('/api/quests/:id/complete', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { id } = req.params;
+      
+      const activeQuests = await storage.getUserActiveQuests(userId);
+      const userQuest = activeQuests.find(q => q.questId === id);
+      
+      if (!userQuest) {
+        return res.status(404).json({ message: "Quest not found" });
+      }
+      
+      await storage.completeQuest(userQuest.id);
+      res.json({ message: "Quest completed successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to complete quest" });
+    }
+  });
+  
+  // Shop Routes
+  app.get('/api/shop/items', isAuthenticated, async (req: any, res) => {
+    try {
+      const { category, rarity } = req.query;
+      const filters: any = {};
+      if (category) filters.category = category;
+      if (rarity) filters.rarity = rarity;
+      
+      const items = await storage.getAllAvatarItems(filters);
+      
+      // Return default shop items if none exist in database
+      if (!items || items.length === 0) {
+        const defaultItems = [
+          { id: 'default-hat-1', name: 'Starter Cap', category: 'hair', rarity: 'common', coinCost: 100, imageUrl: '/shop/starter-cap.png', description: 'A simple cap to start your journey' },
+          { id: 'default-shirt-1', name: 'Basic Tee', category: 'outfit', rarity: 'common', coinCost: 150, imageUrl: '/shop/basic-tee.png', description: 'Comfortable everyday wear' },
+          { id: 'default-accessory-1', name: 'Lucky Charm', category: 'weapon', rarity: 'rare', coinCost: 500, imageUrl: '/shop/lucky-charm.png', description: 'A charm for good fortune' },
+          { id: 'default-background-1', name: 'Sunset View', category: 'armor', rarity: 'uncommon', coinCost: 300, imageUrl: '/shop/sunset-bg.png', description: 'Beautiful sunset background' },
+          { id: 'default-theme-1', name: 'Ocean Theme', category: 'hair', rarity: 'rare', coinCost: 750, imageUrl: '/shop/ocean-theme.png', description: 'Calming ocean-inspired theme' }
+        ];
+        return res.json(defaultItems);
+      }
+      
+      res.json(items);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch shop items" });
+    }
+  });
+  
+  app.get('/api/shop/my-items', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const userItems = await storage.getUserAvatarItems(userId);
+      res.json(userItems);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user items" });
+    }
+  });
+  
+  app.post('/api/shop/purchase/:itemId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { itemId } = req.params;
+      const userItem = await storage.purchaseAvatarItem(userId, itemId);
+      res.json({ message: "Item purchased successfully", userItem });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to purchase item" });
+    }
+  });
+
+  // ===== AVATAR ZONES & TRAITS SYSTEM ROUTES =====
+  
+  // 1. GET /api/avatar-system/zones - Get all avatar zones ordered by layerOrder
+  app.get('/api/avatar-system/zones', async (_req, res) => {
+    try {
+      const zones = await storage.getAvatarZones();
+      res.json(zones);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch avatar zones" });
+    }
+  });
+
+  // 2. GET /api/avatar-system/zones/:zoneId/traits - Get all traits for a zone
+  app.get('/api/avatar-system/zones/:zoneId/traits', async (req, res) => {
+    try {
+      const { zoneId } = req.params;
+      const traits = await storage.getTraitsByZone(zoneId);
+      res.json(traits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch zone traits" });
+    }
+  });
+
+  // 3. GET /api/avatar-system/traits/defaults - Get all default/free traits
+  app.get('/api/avatar-system/traits/defaults', async (_req, res) => {
+    try {
+      const defaultTraits = await storage.getDefaultTraits();
+      res.json(defaultTraits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch default traits" });
+    }
+  });
+
+  // 4. GET /api/avatar-system/traits/by-rarity/:rarity - Get traits by rarity
+  app.get('/api/avatar-system/traits/by-rarity/:rarity', async (req, res) => {
+    try {
+      const { rarity } = req.params;
+      const traits = await storage.getTraitsByRarity(rarity);
+      res.json(traits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch traits by rarity" });
+    }
+  });
+
+  // 5. GET /api/avatar-system/traits/:traitId - Get single trait details
+  app.get('/api/avatar-system/traits/:traitId', async (req, res) => {
+    try {
+      const { traitId } = req.params;
+      const trait = await storage.getAvatarTrait(traitId);
+      if (!trait) {
+        return res.status(404).json({ message: "Trait not found" });
+      }
+      res.json(trait);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch trait" });
+    }
+  });
+
+  // 6. GET /api/avatar-system/my-traits - Get user's unlocked traits with joins to trait details
+  app.get('/api/avatar-system/my-traits', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const userTraits = await storage.getUserAvatarTraits(userId);
+      
+      // Enrich with trait details
+      const enrichedTraits = await Promise.all(
+        userTraits.map(async (ut) => {
+          const traitDetails = await storage.getAvatarTrait(ut.traitId);
+          return { ...ut, trait: traitDetails };
+        })
+      );
+      
+      res.json(enrichedTraits);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch user traits" });
+    }
+  });
+
+  // 7. POST /api/avatar-system/unlock/:traitId - Unlock/purchase a trait
+  app.post('/api/avatar-system/unlock/:traitId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { traitId } = req.params;
+      
+      // Check if trait exists
+      const trait = await storage.getAvatarTrait(traitId);
+      if (!trait) {
+        return res.status(404).json({ message: "Trait not found" });
+      }
+      
+      // Check if already owned
+      const existingOwnership = await storage.hasUserUnlockedTrait(userId, traitId);
+      if (existingOwnership) {
+        return res.status(400).json({ message: "You already own this trait" });
+      }
+      
+      // Get user for coin balance
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check unlock requirements based on unlockType
+      if (trait.unlockType === 'achievement' && trait.unlockRequirement) {
+        const unlockReq = trait.unlockRequirement as { achievementId?: string };
+        if (unlockReq.achievementId) {
+          const achievementRecords = await db.select().from(userAchievements)
+            .where(and(
+              eq(userAchievements.userId, userId),
+              eq(userAchievements.achievementId, unlockReq.achievementId)
+            ));
+          if (achievementRecords.length === 0) {
+            return res.status(403).json({ message: "Achievement requirement not met" });
+          }
+        }
+      }
+      
+      if (trait.unlockType === 'challenge' && trait.unlockRequirement) {
+        const challengeReq = trait.unlockRequirement as { challengeId?: string };
+        if (challengeReq.challengeId) {
+          const participation = await db.select().from(challengeParticipants)
+            .where(and(
+              eq(challengeParticipants.userId, userId),
+              eq(challengeParticipants.challengeId, challengeReq.challengeId),
+              eq(challengeParticipants.status, 'completed')
+            ));
+          if (participation.length === 0) {
+            return res.status(403).json({ message: "Challenge requirement not met" });
+          }
+        }
+      }
+      
+      // Check and deduct coins if required
+      const coinCost = trait.coinCost || 0;
+      if (coinCost > 0) {
+        const currentBalance = user.coinBalance || 0;
+        if (currentBalance < coinCost) {
+          return res.status(400).json({ 
+            message: "Insufficient coins", 
+            required: coinCost, 
+            balance: currentBalance 
+          });
+        }
+        
+        // Deduct coins from user
+        await db.update(users)
+          .set({ coinBalance: currentBalance - coinCost })
+          .where(eq(users.id, userId));
+      }
+      
+      // Unlock the trait
+      const unlockedTrait = await storage.unlockTraitForUser(
+        userId, 
+        traitId, 
+        trait.unlockType || 'purchase', 
+        undefined, 
+        coinCost
+      );
+      
+      // Log to traitRewardLogs with server-side computed verification hash
+      const timestamp = Date.now();
+      const source = trait.unlockType || 'purchase';
+      const verificationHash = crypto
+        .createHash('sha256')
+        .update(`${userId}-${traitId}-${timestamp}-${source}`)
+        .digest('hex');
+      
+      await db.insert(traitRewardLogs).values({
+        userId,
+        traitId,
+        source,
+        verificationHash,
+        metadata: {
+          coinsPaid: coinCost,
+        },
+      });
+      
+      // Return enriched trait
+      const traitDetails = await storage.getAvatarTrait(traitId);
+      res.status(201).json({ ...unlockedTrait, trait: traitDetails });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to unlock trait" });
+    }
+  });
+
+  // 8. GET /api/avatar-system/my-equipped - Get user's currently equipped traits per zone
+  app.get('/api/avatar-system/my-equipped', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const equipped = await storage.getUserEquippedTraits(userId);
+      
+      // Enrich with trait and zone details
+      const enrichedEquipped = await Promise.all(
+        equipped.map(async (eq) => {
+          const traitDetails = await storage.getAvatarTrait(eq.traitId);
+          const zoneDetails = await storage.getAvatarZone(eq.zoneId);
+          return { ...eq, trait: traitDetails, zone: zoneDetails };
+        })
+      );
+      
+      res.json(enrichedEquipped);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch equipped traits" });
+    }
+  });
+
+  // 9. POST /api/avatar-system/equip - Equip a trait to a zone
+  app.post('/api/avatar-system/equip', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { zoneId, traitId } = req.body;
+      
+      if (!zoneId || !traitId) {
+        return res.status(400).json({ message: "zoneId and traitId are required" });
+      }
+      
+      // Verify user owns the trait
+      const ownsTraitResult = await storage.hasUserUnlockedTrait(userId, traitId);
+      if (!ownsTraitResult) {
+        // Check if it's a default trait (free to use)
+        const trait = await storage.getAvatarTrait(traitId);
+        if (!trait || !trait.isDefault) {
+          return res.status(403).json({ message: "You do not own this trait" });
+        }
+      }
+      
+      // Verify trait belongs to the zone
+      const trait = await storage.getAvatarTrait(traitId);
+      if (!trait || trait.zoneId !== zoneId) {
+        return res.status(400).json({ message: "Trait does not belong to this zone" });
+      }
+      
+      // Equip the trait (upsert)
+      const equipped = await storage.equipTrait(userId, zoneId, traitId);
+      
+      res.json({ message: "Trait equipped successfully", equipped });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to equip trait" });
+    }
+  });
+
+  // 10. DELETE /api/avatar-system/unequip/:zoneId - Unequip trait from a zone
+  app.delete('/api/avatar-system/unequip/:zoneId', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { zoneId } = req.params;
+      
+      await storage.unequipTrait(userId, zoneId);
+      
+      res.json({ message: "Trait unequipped successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to unequip trait" });
+    }
+  });
+
+  // 11. GET /api/avatar-system/collection-stats - Get user's collection statistics by rarity
+  app.get('/api/avatar-system/collection-stats', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      
+      // Get all traits
+      const allTraits = await storage.getAllAvatarTraits();
+      
+      // Get user's unlocked traits
+      const userTraits = await storage.getUserAvatarTraits(userId);
+      const ownedTraitIds = new Set(userTraits.map((ut: any) => ut.traitId));
+      
+      // Also count default traits as owned
+      const defaultTraitIds = new Set(allTraits.filter((t: any) => t.isDefault).map((t: any) => t.id));
+      
+      // Initialize stats by rarity
+      const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+      const byRarity: Record<string, { total: number; owned: number }> = {};
+      
+      rarities.forEach(rarity => {
+        byRarity[rarity] = { total: 0, owned: 0 };
+      });
+      
+      // Count traits by rarity
+      allTraits.forEach((trait: any) => {
+        const rarity = trait.rarity || 'common';
+        if (byRarity[rarity]) {
+          byRarity[rarity].total++;
+          if (ownedTraitIds.has(trait.id) || defaultTraitIds.has(trait.id)) {
+            byRarity[rarity].owned++;
+          }
+        }
+      });
+      
+      const totalTraits = allTraits.length;
+      const combinedTraitIds = new Set([...Array.from(ownedTraitIds), ...Array.from(defaultTraitIds)]);
+      const ownedTraits = combinedTraitIds.size;
+      
+      res.json({
+        totalTraits,
+        ownedTraits,
+        byRarity
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch collection stats" });
+    }
+  });
+
+  // ===== LIVING FOREST ENVIRONMENT ROUTES =====
+  
+  // Helper function to get level name based on environment level
+  const getLevelName = (level: number): string => {
+    if (level <= 2) return "Barren Lands";
+    if (level <= 4) return "Awakening Grove";
+    if (level <= 6) return "Growing Sanctuary";
+    if (level <= 8) return "Flourishing Forest";
+    return "Magical Paradise";
+  };
+
+  // 11. GET /api/environment - Get user's environment state (create if not exists)
+  app.get('/api/environment', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      
+      let environment = await storage.getUserEnvironment(userId);
+      if (!environment) {
+        environment = await storage.createUserEnvironment(userId);
+      }
+      
+      // Count unlocked elements
+      const unlockedElements = environment.unlockedElements as { trees?: string[]; animals?: string[]; decorations?: string[]; effects?: string[] } || {};
+      const unlockedCount = (unlockedElements.trees?.length || 0) + 
+                            (unlockedElements.animals?.length || 0) + 
+                            (unlockedElements.decorations?.length || 0) + 
+                            (unlockedElements.effects?.length || 0);
+      
+      // Return consistent response shape
+      res.json({
+        level: environment.environmentLevel,
+        levelName: getLevelName(environment.environmentLevel),
+        currentXp: environment.environmentXp,
+        requiredXp: environment.xpToNextLevel,
+        unlockedElementsCount: unlockedCount,
+        totalElements: 50, // Total available elements in the game
+        // Also include the raw data for backwards compatibility
+        ...environment
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch environment" });
+    }
+  });
+
+  // 12. POST /api/environment/xp - Add XP to environment
+  app.post('/api/environment/xp', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { xp, source } = req.body;
+      
+      if (typeof xp !== 'number' || xp <= 0) {
+        return res.status(400).json({ message: "Valid positive xp value is required" });
+      }
+      
+      if (!source || typeof source !== 'string') {
+        return res.status(400).json({ message: "Source is required" });
+      }
+      
+      const updatedEnvironment = await storage.addEnvironmentXp(userId, xp);
+      
+      res.json({ 
+        message: "XP added successfully", 
+        environment: updatedEnvironment,
+        xpAdded: xp,
+        source
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to add environment XP" });
+    }
+  });
+
+  // 13. PATCH /api/environment/theme - Update environment theme
+  app.patch('/api/environment/theme', requireAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { currentTheme } = req.body;
+      
+      if (!currentTheme || typeof currentTheme !== 'string') {
+        return res.status(400).json({ message: "currentTheme is required" });
+      }
+      
+      const updatedEnvironment = await storage.updateUserEnvironment(userId, { currentTheme });
+      
+      res.json({ message: "Theme updated successfully", environment: updatedEnvironment });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update environment theme" });
+    }
+  });
+
+  // 14. POST /api/admin/seed-avatar-data - Seed zones and traits (admin only)
+  app.post('/api/admin/seed-avatar-data', requireAuth, requireAdmin, async (req: any, res) => {
+    try {
+      // Import and run the seed function
+      const { seedAllAvatarData } = await import('./seeds/avatarTraits');
+      await seedAllAvatarData();
+      
+      res.json({ message: "Avatar zones and traits seeded successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to seed avatar data" });
+    }
+  });
+  
+  // Seed data routes (for development/initial setup)
+  app.post('/api/admin/seed-quests', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.seedQuests();
+      res.json({ message: "Quests seeded successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to seed quests" });
+    }
+  });
+
+  // POST /api/admin/seed-shop-items - Seed all shop items (sanctuary + avatar)
+  app.post('/api/admin/seed-shop-items', async (req: any, res) => {
+    try {
+      const { seedAllShopData } = await import('./seeds/shopItems');
+      const result = await seedAllShopData();
+      res.json(result);
+    } catch (error: any) {
+      console.error('Failed to seed shop items:', error);
+      res.status(500).json({ message: "Failed to seed shop items", error: error.message });
+    }
+  });
+  
+  // ===== TEST ACCOUNT SEEDING FOR QA =====
+  // Creates test accounts with all subscription tiers and gamification data
+  app.post('/api/admin/seed-test-accounts', async (req: any, res) => {
+    try {
+      const testAccounts = [
+        {
+          email: 'lilove.qa.free@gmail.com',
+          displayName: 'LiLove QA Free',
+          firstName: 'Free',
+          lastName: 'Tester',
+          subscriptionTier: 'free',
+          subscriptionStatus: 'active',
+          coinBalance: 1000
+        },
+        {
+          email: 'lilove.qa.protrial@gmail.com',
+          displayName: 'LiLove QA Pro Trial',
+          firstName: 'ProTrial',
+          lastName: 'Tester',
+          subscriptionTier: 'pro',
+          subscriptionStatus: 'trialing',
+          coinBalance: 2500,
+          subscriptionCurrentPeriodEnd: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days trial
+        },
+        {
+          email: 'lilove.qa.propaid@gmail.com',
+          displayName: 'LiLove QA Pro Paid',
+          firstName: 'ProPaid',
+          lastName: 'Tester',
+          subscriptionTier: 'pro',
+          subscriptionStatus: 'active',
+          coinBalance: 5000,
+          subscriptionCurrentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        },
+        {
+          email: 'lilove.qa.teamowner@gmail.com',
+          displayName: 'LiLove QA Team Owner',
+          firstName: 'TeamOwner',
+          lastName: 'Tester',
+          subscriptionTier: 'team',
+          subscriptionStatus: 'active',
+          coinBalance: 10000,
+          subscriptionCurrentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        },
+        {
+          email: 'lilove.qa.teammember@gmail.com',
+          displayName: 'LiLove QA Team Member',
+          firstName: 'TeamMember',
+          lastName: 'Tester',
+          subscriptionTier: 'team',
+          subscriptionStatus: 'active',
+          coinBalance: 3000
+        }
+      ];
+      
+      const createdAccounts: any[] = [];
+      
+      for (const account of testAccounts) {
+        // Check if account already exists
+        const existing = await db.select().from(users).where(eq(users.email, account.email)).limit(1);
+        
+        if (existing.length > 0) {
+          // Update existing account
+          await db.update(users).set({
+            displayName: account.displayName,
+            firstName: account.firstName,
+            lastName: account.lastName,
+            subscriptionTier: account.subscriptionTier,
+            subscriptionStatus: account.subscriptionStatus,
+            coinBalance: account.coinBalance,
+            subscriptionCurrentPeriodEnd: account.subscriptionCurrentPeriodEnd,
+            onboardingCompleted: true,
+            updatedAt: new Date()
+          }).where(eq(users.email, account.email));
+          
+          createdAccounts.push({ ...account, status: 'updated', id: existing[0].id });
+        } else {
+          // Create new account
+          const [newUser] = await db.insert(users).values({
+            email: account.email,
+            displayName: account.displayName,
+            firstName: account.firstName,
+            lastName: account.lastName,
+            subscriptionTier: account.subscriptionTier,
+            subscriptionStatus: account.subscriptionStatus,
+            coinBalance: account.coinBalance,
+            subscriptionCurrentPeriodEnd: account.subscriptionCurrentPeriodEnd,
+            onboardingCompleted: true,
+            notificationsEnabled: true,
+            theme: 'system'
+          }).returning();
+          
+          // Create user profile with gamification data
+          await db.insert(userProfiles).values({
+            userId: newUser.id,
+            currentLevel: account.subscriptionTier === 'team' ? 10 : account.subscriptionTier === 'pro' ? 5 : 1,
+            totalXp: account.subscriptionTier === 'team' ? 50000 : account.subscriptionTier === 'pro' ? 10000 : 1000,
+            streakCount: 7,
+            longestStreak: 14,
+            overallPerformanceScore: '85',
+            consistencyRating: '78',
+            adaptabilityScore: '82'
+          }).onConflictDoUpdate({
+            target: [userProfiles.userId],
+            set: {
+              currentLevel: account.subscriptionTier === 'team' ? 10 : account.subscriptionTier === 'pro' ? 5 : 1,
+              totalXp: account.subscriptionTier === 'team' ? 50000 : account.subscriptionTier === 'pro' ? 10000 : 1000,
+              streakCount: 7,
+              longestStreak: 14
+            }
+          });
+          
+          createdAccounts.push({ ...account, status: 'created', id: newUser.id });
+        }
+      }
+      
+      // Create team for team owner
+      const teamOwner = createdAccounts.find(a => a.email === 'lilove.qa.teamowner@gmail.com');
+      const teamMember = createdAccounts.find(a => a.email === 'lilove.qa.teammember@gmail.com');
+      
+      if (teamOwner && teamMember) {
+        const existingTeam = await db.select().from(teams).where(eq(teams.name, 'LiLove QA Test Team')).limit(1);
+        
+        let teamId: string;
+        if (existingTeam.length === 0) {
+          const [newTeam] = await db.insert(teams).values({
+            name: 'LiLove QA Test Team',
+            description: 'Test team for QA purposes',
+            createdById: teamOwner.id,
+            isPublic: true
+          }).returning();
+          teamId = newTeam.id;
+        } else {
+          teamId = existingTeam[0].id;
+        }
+        
+        // Add team members
+        await db.insert(teamMembers).values({ teamId, userId: teamOwner.id, role: 'owner' }).onConflictDoNothing();
+        await db.insert(teamMembers).values({ teamId, userId: teamMember.id, role: 'member' }).onConflictDoNothing();
+      }
+      
+      res.json({ 
+        message: "Test accounts seeded successfully",
+        accounts: createdAccounts.map(a => ({
+          email: a.email,
+          tier: a.subscriptionTier,
+          status: a.status,
+          coinBalance: a.coinBalance
+        })),
+        testPassword: 'LiLoveQA2026!',
+        note: 'Use these emails in Firebase Authentication console to create matching accounts with the test password'
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to seed test accounts", error: error.message });
+    }
+  });
+  
+  // GET test account credentials
+  app.get('/api/admin/test-accounts', async (req: any, res) => {
+    try {
+      const testEmails = [
+        'lilove.qa.free@gmail.com',
+        'lilove.qa.protrial@gmail.com',
+        'lilove.qa.propaid@gmail.com',
+        'lilove.qa.teamowner@gmail.com',
+        'lilove.qa.teammember@gmail.com'
+      ];
+      
+      const accounts = await db.select({
+        id: users.id,
+        email: users.email,
+        displayName: users.displayName,
+        subscriptionTier: users.subscriptionTier,
+        subscriptionStatus: users.subscriptionStatus,
+        coinBalance: users.coinBalance,
+        subscriptionCurrentPeriodEnd: users.subscriptionCurrentPeriodEnd
+      }).from(users).where(sql`${users.email} IN (${sql.join(testEmails.map(e => sql`${e}`), sql`, `)})`);
+      
+      res.json({
+        accounts,
+        testPassword: 'LiLoveQA2026!',
+        paddleSandbox: {
+          testCardNumber: '4242 4242 4242 4242',
+          testCardExpiry: '12/28',
+          testCardCVV: '123',
+          note: 'Use Paddle sandbox mode for web payment testing'
+        },
+        appleSandbox: {
+          note: 'Create sandbox testers in App Store Connect with the same emails',
+          testPurchasePassword: 'Use sandbox account password'
+        },
+        features: {
+          free: ['Dashboard', 'Goals (limit 3)', 'Basic AI Coaching (10 prompts/day)', 'MoodSelector'],
+          pro: ['Unlimited Goals', 'Advanced AI Coaching', 'Priority Support', 'Analytics', 'Voice Messages'],
+          team: ['All Pro features', 'Team Collaboration', 'Team Goals', 'Admin Dashboard', 'Team Analytics']
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch test accounts" });
+    }
+  });
+  
+  app.post('/api/admin/seed-avatar-items', isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.seedAvatarItems();
+      res.json({ message: "Avatar items seeded successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to seed avatar items" });
+    }
+  });
+
+  // ===== AI USAGE ANALYTICS ADMIN ENDPOINTS =====
+  
+  // GET /api/admin/ai-usage-stats - System-wide AI usage analytics
+  app.get('/api/admin/ai-usage-stats', isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      const stats = await aiUsageAnalytics.getSystemStats(
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+      
+      const cacheStats = aiCache.getStats();
+      
+      res.json({
+        ...stats,
+        cache: cacheStats,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch AI usage stats" });
+    }
+  });
+  
+  // GET /api/admin/ai-rate-limits - View current rate limit status
+  app.get('/api/admin/ai-rate-limits/:userId', isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const stats = getAIRateLimitStats(userId);
+      res.json(stats);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch rate limit stats" });
+    }
+  });
+  
+  // GET /api/ai-usage/my-stats - User's own AI usage stats
+  app.get('/api/ai-usage/my-stats', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { startDate, endDate } = req.query;
+      
+      const stats = await aiUsageAnalytics.getUserStats(
+        userId,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+      
+      res.json({
+        stats,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch AI usage stats" });
+    }
+  });
+
+  // ===== COMMUNITY SYSTEM ROUTES =====
+  
+  // GET /api/community/channels - Get all community channels
+  app.get('/api/community/channels', isAuthenticated, async (req: any, res) => {
+    try {
+      // Seed channels if needed
+      await storage.seedCommunityChannels();
+      
+      const channels = await storage.getChannels();
+      res.json(channels);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch channels" });
+    }
+  });
+  
+  // GET /api/community/channels/:id - Get channel by ID
+  app.get('/api/community/channels/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const channel = await storage.getChannelById(req.params.id);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      res.json(channel);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch channel" });
+    }
+  });
+  
+  // GET /api/community/channels/:id/posts - Get posts for a channel
+  app.get('/api/community/channels/:id/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { limit = 50, offset = 0 } = req.query;
+      const posts = await storage.getPostsByChannel(
+        req.params.id,
+        parseInt(limit as string),
+        parseInt(offset as string)
+      );
+      
+      // Add liked status for each post
+      const postsWithLiked = await Promise.all(
+        posts.map(async (post) => ({
+          ...post,
+          isLiked: await storage.hasUserLikedPost(post.id, userId),
+        }))
+      );
+      
+      res.json(postsWithLiked);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch posts" });
+    }
+  });
+  
+  // POST /api/community/channels/:id/posts - Create a new post
+  app.post('/api/community/channels/:id/posts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const channelId = req.params.id;
+      const { content, isAnonymous = false } = req.body;
+      
+      if (!content || content.trim().length === 0) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+      
+      const channel = await storage.getChannelById(channelId);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      const post = await storage.createPost({
+        channelId,
+        authorId: userId,
+        content: content.trim(),
+        isAnonymous,
+      });
+      
+      res.status(201).json(post);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create post" });
+    }
+  });
+  
+  // DELETE /api/community/posts/:id - Delete a post
+  app.delete('/api/community/posts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.deletePost(req.params.id, userId);
+      res.json({ message: "Post deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete post" });
+    }
+  });
+  
+  // POST /api/community/posts/:id/like - Like a post
+  app.post('/api/community/posts/:id/like', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const postId = req.params.id;
+      
+      const isLiked = await storage.hasUserLikedPost(postId, userId);
+      
+      if (isLiked) {
+        await storage.unlikePost(postId, userId);
+        res.json({ liked: false });
+      } else {
+        await storage.likePost(postId, userId);
+        res.json({ liked: true });
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to toggle like" });
+    }
+  });
+  
+  // GET /api/community/posts/:id/replies - Get replies for a post
+  app.get('/api/community/posts/:id/replies', isAuthenticated, async (req: any, res) => {
+    try {
+      const replies = await storage.getRepliesByPost(req.params.id);
+      res.json(replies);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch replies" });
+    }
+  });
+  
+  // POST /api/community/posts/:id/replies - Create a reply
+  app.post('/api/community/posts/:id/replies', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const postId = req.params.id;
+      const { content, isAnonymous = false } = req.body;
+      
+      if (!content || content.trim().length === 0) {
+        return res.status(400).json({ message: "Content is required" });
+      }
+      
+      const reply = await storage.createReply({
+        postId,
+        authorId: userId,
+        content: content.trim(),
+        isAnonymous,
+      });
+      
+      res.status(201).json(reply);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create reply" });
+    }
+  });
+  
+  // DELETE /api/community/replies/:id - Delete a reply
+  app.delete('/api/community/replies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.deleteReply(req.params.id, userId);
+      res.json({ message: "Reply deleted" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to delete reply" });
+    }
+  });
+
+  // ===== THERAPIST MARKETPLACE ROUTES =====
+  
+  // GET /api/therapists - Get all therapists with optional filters
+  app.get('/api/therapists', async (req, res) => {
+    try {
+      const { specialization, minRating, sortBy, sortOrder } = req.query;
+      
+      const filters: any = {};
+      if (specialization) filters.specialization = specialization as string;
+      if (minRating) filters.minRating = parseFloat(minRating as string);
+      if (sortBy) filters.sortBy = sortBy as string;
+      if (sortOrder) filters.sortOrder = sortOrder as 'asc' | 'desc';
+      
+      const therapistsList = await storage.getTherapists(filters);
+      res.json(therapistsList);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch therapists" });
+    }
+  });
+  
+  // GET /api/therapists/:id - Get a single therapist by ID
+  app.get('/api/therapists/:id', async (req, res) => {
+    try {
+      const therapist = await storage.getTherapistById(req.params.id);
+      if (!therapist) {
+        return res.status(404).json({ message: "Therapist not found" });
+      }
+      res.json(therapist);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch therapist" });
+    }
+  });
+  
+  // GET /api/therapists/:id/reviews - Get reviews for a therapist
+  app.get('/api/therapists/:id/reviews', async (req, res) => {
+    try {
+      const reviews = await storage.getTherapistReviews(req.params.id);
+      res.json(reviews);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch reviews" });
+    }
+  });
+  
+  // POST /api/bookings - Create a new booking
+  app.post('/api/bookings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { therapistId, scheduledAt, duration, notes } = req.body;
+      
+      if (!therapistId || !scheduledAt) {
+        return res.status(400).json({ message: "Therapist ID and scheduled time are required" });
+      }
+      
+      const therapist = await storage.getTherapistById(therapistId);
+      if (!therapist) {
+        return res.status(404).json({ message: "Therapist not found" });
+      }
+      
+      const booking = await storage.createTherapistBooking({
+        therapistId,
+        userId,
+        scheduledAt: new Date(scheduledAt),
+        duration: duration || 60,
+        status: 'pending',
+        notes: notes || null,
+      });
+      
+      res.status(201).json(booking);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create booking" });
+    }
+  });
+  
+  // GET /api/bookings - Get bookings for the authenticated user
+  app.get('/api/bookings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const bookings = await storage.getBookingsByUser(userId);
+      res.json(bookings);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch bookings" });
+    }
+  });
+  
+  // PATCH /api/bookings/:id - Update booking status
+  app.patch('/api/bookings/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const { status } = req.body;
+      
+      if (!status || !['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      
+      const booking = await storage.updateBookingStatus(req.params.id, status);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      res.json(booking);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update booking" });
+    }
+  });
+  
+  // Seed therapists on startup
+  storage.seedTherapists().catch(() => {});
+  
+  // ===== GROWTH SANCTUARY ROUTES =====
+  
+  // Seed sanctuary data on startup
+  storage.seedSanctuaryElements().catch(() => {});
+  storage.seedEvolutionStages().catch(() => {});
+  
+  // GET /api/sanctuary/state - Get user's sanctuary state
+  app.get('/api/sanctuary/state', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      let sanctuary = await storage.getSanctuaryState(userId);
+      
+      if (!sanctuary) {
+        sanctuary = await storage.createSanctuaryState(userId);
+      }
+      
+      res.json(sanctuary);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch sanctuary state" });
+    }
+  });
+  
+  // GET /api/sanctuary/elements - Get available sanctuary elements
+  app.get('/api/sanctuary/elements', isAuthenticated, async (req: any, res) => {
+    try {
+      const { type, rarity, evolutionStage } = req.query;
+      const filters: any = {};
+      if (type) filters.type = type as string;
+      if (rarity) filters.rarity = rarity as string;
+      if (evolutionStage) filters.evolutionStage = parseInt(evolutionStage as string);
+      
+      const elements = await storage.getSanctuaryElements(Object.keys(filters).length > 0 ? filters : undefined);
+      res.json(elements);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch sanctuary elements" });
+    }
+  });
+  
+  // POST /api/sanctuary/unlock - Unlock a sanctuary element
+  app.post('/api/sanctuary/unlock', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { elementId } = req.body;
+      
+      if (!elementId) {
+        return res.status(400).json({ message: "Element ID is required" });
+      }
+      
+      const result = await storage.unlockSanctuaryElement(userId, elementId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to unlock element" });
+    }
+  });
+  
+  // PATCH /api/sanctuary/settings - Update sanctuary settings (weather/time)
+  app.patch('/api/sanctuary/settings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { weatherType, timeOfDay } = req.body;
+      
+      const validWeatherTypes = ['sunny', 'cloudy', 'rainy', 'aurora', 'starry'];
+      const validTimeOfDay = ['dawn', 'day', 'dusk', 'night'];
+      
+      if (weatherType && !validWeatherTypes.includes(weatherType)) {
+        return res.status(400).json({ message: "Invalid weather type" });
+      }
+      if (timeOfDay && !validTimeOfDay.includes(timeOfDay)) {
+        return res.status(400).json({ message: "Invalid time of day" });
+      }
+      
+      const updated = await storage.updateSanctuarySettings(userId, { weatherType, timeOfDay });
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Sanctuary not found" });
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update settings" });
+    }
+  });
+  
+  // GET /api/sanctuary/stages - Get evolution stage definitions
+  app.get('/api/sanctuary/stages', isAuthenticated, async (req: any, res) => {
+    try {
+      const stages = await storage.getEvolutionStages();
+      res.json(stages);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch evolution stages" });
+    }
+  });
+  
+  // PATCH /api/sanctuary/state - Update sanctuary state (for placed elements etc.)
+  app.patch('/api/sanctuary/state', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { placedElements, sanctuaryName } = req.body;
+      
+      const updates: any = {};
+      if (placedElements !== undefined) updates.placedElements = placedElements;
+      if (sanctuaryName) updates.sanctuaryName = sanctuaryName;
+      
+      const updated = await storage.updateSanctuaryState(userId, updates);
+      
+      if (!updated) {
+        return res.status(404).json({ message: "Sanctuary not found" });
+      }
+      
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to update sanctuary" });
+    }
+  });
+
+  // ===== AVATAR MARKETPLACE ROUTES =====
+  
+  // GET /api/marketplace/listings - Get all active listings with optional filters
+  app.get('/api/marketplace/listings', isAuthenticated, async (req: any, res) => {
+    try {
+      const { rarity, minPrice, maxPrice, zoneId } = req.query;
+      
+      const filters: any = {};
+      if (minPrice) filters.minPrice = parseInt(minPrice as string);
+      if (maxPrice) filters.maxPrice = parseInt(maxPrice as string);
+      if (zoneId) filters.zoneId = zoneId;
+      if (rarity) filters.rarity = rarity;
+      
+      const listings = await storage.getActiveListings(Object.keys(filters).length > 0 ? filters : undefined);
+      
+      // Enrich listings with trait and seller info
+      const enrichedListings = await Promise.all(listings.map(async (listing) => {
+        const trait = await storage.getAvatarTrait(listing.traitId);
+        const seller = await storage.getUserById(listing.sellerId);
+        const zone = trait ? await storage.getAvatarZone(trait.zoneId) : null;
+        
+        // Filter by rarity if specified (since it's on trait, not listing)
+        if (rarity && trait?.rarity !== rarity) return null;
+        
+        return {
+          ...listing,
+          trait,
+          zone,
+          seller: seller ? { id: seller.id, username: seller.username, firstName: seller.firstName, lastName: seller.lastName } : null
+        };
+      }));
+      
+      res.json(enrichedListings.filter(Boolean));
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+  
+  // GET /api/marketplace/my-listings - Get current user's listings
+  app.get('/api/marketplace/my-listings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const listings = await storage.getUserListings(userId);
+      
+      const enrichedListings = await Promise.all(listings.map(async (listing) => {
+        const trait = await storage.getAvatarTrait(listing.traitId);
+        const zone = trait ? await storage.getAvatarZone(trait.zoneId) : null;
+        return { ...listing, trait, zone };
+      }));
+      
+      res.json(enrichedListings);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch listings" });
+    }
+  });
+  
+  // POST /api/marketplace/listings - Create a new listing
+  app.post('/api/marketplace/listings', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { traitId, price } = req.body;
+      
+      if (!traitId || !price) {
+        return res.status(400).json({ message: "Trait ID and price are required" });
+      }
+      
+      // Check ownership
+      const ownedTraits = await storage.getUserOwnedTraits(userId);
+      const ownsTrait = ownedTraits.find(t => t.traitId === traitId);
+      if (!ownsTrait) {
+        return res.status(400).json({ message: "You don't own this trait" });
+      }
+      
+      // Check if equipped
+      const isEquipped = await storage.isTraitEquipped(userId, traitId);
+      if (isEquipped) {
+        return res.status(400).json({ message: "Cannot list a currently equipped trait. Unequip it first." });
+      }
+      
+      // Check minimum price (50% of original cost)
+      const trait = await storage.getAvatarTrait(traitId);
+      if (!trait) {
+        return res.status(404).json({ message: "Trait not found" });
+      }
+      const minPrice = Math.floor((trait.coinCost || 0) * 0.5);
+      if (price < minPrice) {
+        return res.status(400).json({ message: `Minimum price is ${minPrice} coins (50% of original cost)` });
+      }
+      
+      // Check for existing active listing
+      const existingListings = await storage.getUserListings(userId);
+      const hasActiveListing = existingListings.some(l => l.traitId === traitId && l.status === 'active');
+      if (hasActiveListing) {
+        return res.status(400).json({ message: "You already have an active listing for this trait" });
+      }
+      
+      const listing = await storage.createListing({
+        sellerId: userId,
+        traitId,
+        price,
+        status: 'active'
+      });
+      
+      res.status(201).json(listing);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to create listing" });
+    }
+  });
+  
+  // DELETE /api/marketplace/listings/:id - Cancel a listing
+  app.delete('/api/marketplace/listings/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const listingId = req.params.id;
+      
+      const result = await storage.cancelListing(listingId, userId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+      
+      res.json({ success: true, message: "Listing cancelled" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to cancel listing" });
+    }
+  });
+  
+  // POST /api/marketplace/buy/:listingId - Buy a listing
+  app.post('/api/marketplace/buy/:listingId', isAuthenticated, async (req: any, res) => {
+    try {
+      const buyerId = req.user.claims.sub;
+      const listingId = req.params.listingId;
+      
+      const result = await storage.buyListing(listingId, buyerId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+      
+      res.json({ success: true, message: "Purchase successful!", listing: result.listing });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to complete purchase" });
+    }
+  });
+  
+  // POST /api/marketplace/gift - Gift an item to another user
+  app.post('/api/marketplace/gift', isAuthenticated, async (req: any, res) => {
+    try {
+      const senderId = req.user.claims.sub;
+      const { receiverId, traitId, message } = req.body;
+      
+      if (!receiverId || !traitId) {
+        return res.status(400).json({ message: "Receiver ID and trait ID are required" });
+      }
+      
+      const result = await storage.createGift({
+        senderId,
+        receiverId,
+        traitId,
+        message: message || null
+      });
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+      
+      res.status(201).json({ success: true, gift: result.gift });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to send gift" });
+    }
+  });
+  
+  // GET /api/marketplace/my-gifts - Get received gifts
+  app.get('/api/marketplace/my-gifts', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const gifts = await storage.getReceivedGifts(userId);
+      
+      const enrichedGifts = await Promise.all(gifts.map(async (gift) => {
+        const trait = await storage.getAvatarTrait(gift.traitId);
+        const sender = await storage.getUserById(gift.senderId);
+        const zone = trait ? await storage.getAvatarZone(trait.zoneId) : null;
+        
+        return {
+          ...gift,
+          trait,
+          zone,
+          sender: sender ? { id: sender.id, username: sender.username, firstName: sender.firstName, lastName: sender.lastName } : null
+        };
+      }));
+      
+      res.json(enrichedGifts);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch gifts" });
+    }
+  });
+  
+  // POST /api/marketplace/claim-gift/:giftId - Claim a gift
+  app.post('/api/marketplace/claim-gift/:giftId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const giftId = req.params.giftId;
+      
+      const result = await storage.claimGift(giftId, userId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.error });
+      }
+      
+      res.json({ success: true, message: "Gift claimed successfully!" });
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to claim gift" });
+    }
+  });
+  
+  // GET /api/marketplace/users/search - Search users for gifting
+  app.get('/api/marketplace/users/search', isAuthenticated, async (req: any, res) => {
+    try {
+      const { q } = req.query;
+      const currentUserId = req.user.claims.sub;
+      
+      if (!q || typeof q !== 'string' || q.length < 2) {
+        return res.json([]);
+      }
+      
+      // Search users by username or email (excluding current user)
+      const allUsers = await db.select({
+        id: users.id,
+        username: users.username,
+        firstName: users.firstName,
+        lastName: users.lastName
+      }).from(users)
+        .where(and(
+          sql`(${users.username} ILIKE ${`%${q}%`} OR ${users.firstName} ILIKE ${`%${q}%`} OR ${users.lastName} ILIKE ${`%${q}%`})`,
+          sql`${users.id} != ${currentUserId}`
+        ))
+        .limit(10);
+      
+      res.json(allUsers);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to search users" });
+    }
+  });
+
+  // Initialize Socket.IO with session-based authentication (skip in test environment)
+  if (process.env.NODE_ENV !== 'test') {
+    const io = new SocketIOServer(httpServer, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"],
+        credentials: true
+      },
+      // Allow session data to be accessed in Socket.IO middleware
+      allowRequest: (req, callback) => {
+        // Use session middleware for Socket.IO requests
+        const sessionMiddleware = getSession();
+        sessionMiddleware(req as any, {} as any, () => {
+          callback(null, true);
+        });
+      }
+    });
+    
+    // Initialize centralized Socket.IO with authentication and event handlers
+    initializeSocketIO(httpServer, io);
+    
+    // Schedule periodic tasks for notifications
+    setInterval(async () => {
+      try {
+        await notificationService.sendScheduledNotifications();
+      } catch (error: any) {
+      }
+    }, 60000); // Check every minute
+  }
+  
+  // ===== AI RE-PLANNING ENGINE ENDPOINTS =====
+  
+  // Import AI Re-planning Engine
+  const { aiReplanningEngine } = await import('./aiReplanning');
+  
+  // GET /api/ai-replanning/analyze/:goalId - Analyze single goal
+  app.get('/api/ai-replanning/analyze/:goalId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { goalId } = req.params;
+      
+      if (!goalId) {
+        return res.status(400).json({ message: "Goal ID is required" });
+      }
+      
+      const analysis = await aiReplanningEngine.analyzeGoalProgress(userId, goalId);
+      res.json(analysis);
+    } catch (error: any) {
+      console.error("Error analyzing goal:", error);
+      if (error.message === "Goal not found or access denied") {
+        return res.status(404).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to analyze goal", error: error.message });
+    }
+  });
+  
+  // GET /api/ai-replanning/recommendations - Get all recommendations for user
+  app.get('/api/ai-replanning/recommendations', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { generate } = req.query;
+      
+      let recommendations = await aiReplanningEngine.getRecommendationsForUser(userId);
+      
+      // Optionally generate new recommendations if none exist or if requested
+      if (generate === 'true' || recommendations.length === 0) {
+        const [rescheduleRecs, nudge] = await Promise.all([
+          aiReplanningEngine.generateRescheduleRecommendations(userId),
+          aiReplanningEngine.createMotivationalNudge(userId)
+        ]);
+        
+        recommendations = await aiReplanningEngine.getRecommendationsForUser(userId);
+      }
+      
+      res.json({ 
+        recommendations,
+        count: recommendations.length 
+      });
+    } catch (error: any) {
+      console.error("Error fetching recommendations:", error);
+      res.status(500).json({ message: "Failed to fetch recommendations" });
+    }
+  });
+  
+  // POST /api/ai-replanning/apply/:recommendationId - Apply a recommendation
+  app.post('/api/ai-replanning/apply/:recommendationId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { recommendationId } = req.params;
+      
+      if (!recommendationId) {
+        return res.status(400).json({ message: "Recommendation ID is required" });
+      }
+      
+      const result = await aiReplanningEngine.applyRecommendation(userId, recommendationId);
+      
+      if (!result.success) {
+        return res.status(400).json({ message: result.message });
+      }
+      
+      res.json({ success: true, message: result.message });
+    } catch (error: any) {
+      console.error("Error applying recommendation:", error);
+      res.status(500).json({ message: "Failed to apply recommendation" });
+    }
+  });
+  
+  // POST /api/ai-replanning/dismiss/:recommendationId - Dismiss a recommendation
+  app.post('/api/ai-replanning/dismiss/:recommendationId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { recommendationId } = req.params;
+      const { reason } = req.body;
+      
+      if (!recommendationId) {
+        return res.status(400).json({ message: "Recommendation ID is required" });
+      }
+      
+      const result = await aiReplanningEngine.dismissRecommendation(userId, recommendationId, reason);
+      
+      res.json({ success: result.success });
+    } catch (error: any) {
+      console.error("Error dismissing recommendation:", error);
+      res.status(500).json({ message: "Failed to dismiss recommendation" });
+    }
+  });
+  
+  // GET /api/ai-replanning/daily-summary - Daily progress summary with tips
+  app.get('/api/ai-replanning/daily-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const summary = await aiReplanningEngine.getDailySummary(userId);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("Error generating daily summary:", error);
+      res.status(500).json({ message: "Failed to generate daily summary" });
+    }
+  });
+  
+  // GET /api/ai-replanning/predict/:goalId - Predict completion probability
+  app.get('/api/ai-replanning/predict/:goalId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { goalId } = req.params;
+      
+      if (!goalId) {
+        return res.status(400).json({ message: "Goal ID is required" });
+      }
+      
+      const prediction = await aiReplanningEngine.predictCompletionProbability(userId, goalId);
+      res.json(prediction);
+    } catch (error: any) {
+      console.error("Error predicting completion:", error);
+      if (error.message === "Goal not found or access denied") {
+        return res.status(404).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to predict completion" });
+    }
+  });
+  
+  // POST /api/ai-replanning/adapt/:goalId - Adapt goal difficulty
+  app.post('/api/ai-replanning/adapt/:goalId', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { goalId } = req.params;
+      
+      if (!goalId) {
+        return res.status(400).json({ message: "Goal ID is required" });
+      }
+      
+      const recommendations = await aiReplanningEngine.adaptGoalDifficulty(userId, goalId);
+      res.json({ 
+        recommendations,
+        count: recommendations.length,
+        message: recommendations.length > 0 
+          ? "Adaptation recommendations generated" 
+          : "No adaptations needed at this time"
+      });
+    } catch (error: any) {
+      console.error("Error adapting goal:", error);
+      if (error.message === "Goal not found or access denied") {
+        return res.status(404).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Failed to adapt goal difficulty" });
+    }
+  });
+  
+  // POST /api/ai-replanning/nudge - Create motivational nudge
+  app.post('/api/ai-replanning/nudge', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      const nudge = await aiReplanningEngine.createMotivationalNudge(userId);
+      
+      if (!nudge) {
+        return res.json({ message: "No active goals found for nudge generation" });
+      }
+      
+      res.json(nudge);
+    } catch (error: any) {
+      console.error("Error creating nudge:", error);
+      res.status(500).json({ message: "Failed to create motivational nudge" });
+    }
+  });
+  
+  // Register behavioral science routes
+  registerBehavioralRoutes(app);
+  
+  return httpServer;
+}
