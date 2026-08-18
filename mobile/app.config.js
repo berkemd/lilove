@@ -36,7 +36,7 @@ export default {
       icon: "./assets/icon.png",
       color: "#8B5CF6"
     },
-    plugins: ["expo-iap"],
+    plugins: ["expo-iap", "./plugins/withFmtXcode26"],
     extra: {
       eas: {
         projectId: "ab7bb029-eeb4-4407-a810-a9b27462f0ae"

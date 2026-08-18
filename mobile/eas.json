@@ -37,7 +37,8 @@
       "autoIncrement": true,
       "distribution": "store",
       "ios": {
-        "simulator": false
+        "simulator": false,
+        "image": "macos-tahoe-26.5-xcode-26.6"
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://lilove.org",
