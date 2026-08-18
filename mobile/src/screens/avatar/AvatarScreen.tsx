@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import LivingForest from '../../components/LivingForest';
+import { t } from '../../i18n';
 
 interface AvatarZone {
   id: string;
@@ -88,11 +89,11 @@ interface UserStats {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ZONE_CATEGORIES = [
-  { id: 'appearance', name: 'Appearance', icon: 'person-outline', zones: ['skin', 'body', 'face_shape', 'eyes', 'eyebrows', 'nose', 'mouth', 'ears'] },
-  { id: 'hair_face', name: 'Hair & Face', icon: 'happy-outline', zones: ['hair', 'hair_color', 'facial_hair', 'makeup', 'glasses'] },
-  { id: 'clothing', name: 'Clothing', icon: 'shirt-outline', zones: ['clothing_top', 'clothing_bottom', 'shoes'] },
-  { id: 'accessories', name: 'Accessories', icon: 'diamond-outline', zones: ['hat', 'jewelry', 'tattoo', 'scars'] },
-  { id: 'effects', name: 'Effects', icon: 'sparkles-outline', zones: ['wings', 'aura', 'pet', 'background', 'frame'] },
+  { id: 'appearance', name: t('appearance'), icon: 'person-outline', zones: ['skin', 'body', 'face_shape', 'eyes', 'eyebrows', 'nose', 'mouth', 'ears'] },
+  { id: 'hair_face', name: t('hair_face'), icon: 'happy-outline', zones: ['hair', 'hair_color', 'facial_hair', 'makeup', 'glasses'] },
+  { id: 'clothing', name: t('clothing'), icon: 'shirt-outline', zones: ['clothing_top', 'clothing_bottom', 'shoes'] },
+  { id: 'accessories', name: t('accessories'), icon: 'diamond-outline', zones: ['hat', 'jewelry', 'tattoo', 'scars'] },
+  { id: 'effects', name: t('effects'), icon: 'sparkles-outline', zones: ['wings', 'aura', 'pet', 'background', 'frame'] },
 ];
 
 const RARITY_COLORS: Record<string, string> = {
@@ -200,7 +201,7 @@ export default function AvatarScreen() {
       }).start();
     } catch (err: any) {
       console.error('[AvatarScreen] Error loading data:', err);
-      setError(err?.message || 'Failed to load avatar data');
+      setError(err?.message || t('failed_to_load_avatar_data'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -297,7 +298,7 @@ export default function AvatarScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#8B5CF6" />
-          <Text style={styles.loadingText}>Loading avatar...</Text>
+          <Text style={styles.loadingText}>{t('loading_avatar')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -308,11 +309,11 @@ export default function AvatarScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
-          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorTitle}>{t('something_went_wrong')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadData} data-testid="button-retry">
             <Ionicons name="refresh" size={20} color="#FFFFFF" />
-            <Text style={styles.retryButtonText}>Try Again</Text>
+            <Text style={styles.retryButtonText}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -323,7 +324,7 @@ export default function AvatarScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle} data-testid="text-avatar-title">My Avatar</Text>
+          <Text style={styles.headerTitle} data-testid="text-avatar-title">{t('my_avatar')}</Text>
           {/* Rozet artık bir yol: jeton harcanan ekranda jetonun nereden
               alınacağı görünmüyordu. Uygulama jeton istiyor ama satın
               alma yolu hiç yoktu. */}
@@ -350,7 +351,7 @@ export default function AvatarScreen() {
         >
           <View style={styles.previewCard}>
             <View style={styles.previewHeader}>
-              <Text style={styles.previewTitle}>Preview</Text>
+              <Text style={styles.previewTitle}>{t('preview')}</Text>
               <View style={styles.levelBadge}>
                 <Ionicons name="leaf" size={14} color="#10B981" />
                 <Text style={styles.levelText}>Level {currentLevel}</Text>
@@ -384,7 +385,7 @@ export default function AvatarScreen() {
                 <View style={styles.statRow}>
                   <View style={styles.statLabel}>
                     <Ionicons name="heart" size={16} color="#EF4444" />
-                    <Text style={styles.statText}>Health</Text>
+                    <Text style={styles.statText}>{t('health')}</Text>
                   </View>
                   <Text style={styles.statValue} data-testid="text-health">{avatar.health}/{avatar.maxHealth}</Text>
                 </View>
@@ -393,7 +394,7 @@ export default function AvatarScreen() {
                 <View style={styles.statRow}>
                   <View style={styles.statLabel}>
                     <Ionicons name="sparkles" size={16} color="#3B82F6" />
-                    <Text style={styles.statText}>Mana</Text>
+                    <Text style={styles.statText}>{t('mana')}</Text>
                   </View>
                   <Text style={styles.statValue} data-testid="text-mana">{avatar.mana}/{avatar.maxMana}</Text>
                 </View>
@@ -405,7 +406,7 @@ export default function AvatarScreen() {
           </View>
 
           <View style={styles.traitSection}>
-            <Text style={styles.sectionTitle}>Trait Selection</Text>
+            <Text style={styles.sectionTitle}>{t('trait_selection')}</Text>
 
             <ScrollView
               horizontal
@@ -480,7 +481,7 @@ export default function AvatarScreen() {
                     })}
                   </View>
                 ) : (
-                  <Text style={styles.noTraitsText}>No traits available</Text>
+                  <Text style={styles.noTraitsText}>{t('no_traits_available')}</Text>
                 )}
               </View>
             ))}
@@ -488,7 +489,7 @@ export default function AvatarScreen() {
             {currentCategoryZones.length === 0 && (
               <View style={styles.emptyState}>
                 <Ionicons name="folder-open-outline" size={48} color="#9CA3AF" />
-                <Text style={styles.emptyText}>No zones in this category</Text>
+                <Text style={styles.emptyText}>{t('no_zones_in_this_category')}</Text>
               </View>
             )}
           </View>
@@ -517,19 +518,19 @@ export default function AvatarScreen() {
             {selectedTrait?.unlockType === 'achievement' ? (
               <View style={styles.achievementRequired}>
                 <Ionicons name="lock-closed" size={24} color="#F59E0B" />
-                <Text style={styles.achievementText}>Achievement Required</Text>
+                <Text style={styles.achievementText}>{t('achievement_required')}</Text>
               </View>
             ) : (
               <View style={styles.priceRow}>
                 <View>
-                  <Text style={styles.priceLabel}>Cost</Text>
+                  <Text style={styles.priceLabel}>{t('cost')}</Text>
                   <View style={styles.priceValue}>
                     <Ionicons name="wallet" size={20} color="#F59E0B" />
                     <Text style={styles.priceText}>{selectedTrait?.coinCost?.toLocaleString()}</Text>
                   </View>
                 </View>
                 <View>
-                  <Text style={styles.priceLabel}>Your Balance</Text>
+                  <Text style={styles.priceLabel}>{t('your_balance')}</Text>
                   <Text style={[styles.balanceText, coinBalance >= (selectedTrait?.coinCost || 0) ? styles.balanceGreen : styles.balanceRed]}>
                     {coinBalance.toLocaleString()}
                   </Text>
@@ -543,7 +544,7 @@ export default function AvatarScreen() {
                       accessibilityRole="button"
                       data-testid="button-need-coins"
                     >
-                      <Text style={styles.getCoinsLink}>Get coins</Text>
+                      <Text style={styles.getCoinsLink}>{t('get_coins')}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -556,7 +557,7 @@ export default function AvatarScreen() {
                 onPress={() => setPurchaseModalOpen(false)}
                 data-testid="button-cancel-purchase"
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
               
               {selectedTrait?.unlockType !== 'achievement' && (
@@ -569,7 +570,7 @@ export default function AvatarScreen() {
                   {isPurchasing ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Text style={styles.purchaseButtonText}>Purchase</Text>
+                    <Text style={styles.purchaseButtonText}>{t('purchase')}</Text>
                   )}
                 </TouchableOpacity>
               )}

@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { tokenManager } from '../services/tokenManager';
 import { DEMO_TOKEN, demoCevap, demoDisi } from './demoData';
+import { t } from '../i18n';
 
 interface ApiError {
   status: number;
@@ -42,7 +43,7 @@ class ApiClient {
     if (error.request) {
       return {
         status: 0,
-        message: 'Network error - no response received',
+        message: t('network_error_no_response_received'),
         code: 'NETWORK_ERROR',
       };
     }
@@ -91,7 +92,7 @@ class ApiClient {
       }
       const cevap = demoCevap(method, endpoint, data);
       if (cevap !== undefined) return cevap as T;
-      throw { status: 501, message: 'Not available in demo mode.', code: 'DEMO_MODE' };
+      throw { status: 501, message: t('not_available_in_demo_mode'), code: 'DEMO_MODE' };
     }
 
     const url = `${this.baseURL}${endpoint}`;
@@ -150,7 +151,7 @@ class ApiClient {
         if (error.name === 'AbortError') {
           lastError = {
             status: 408,
-            message: 'Request timeout',
+            message: t('request_timeout'),
             code: 'TIMEOUT',
           };
         } else if (error.status) {
@@ -170,7 +171,7 @@ class ApiClient {
       }
     }
 
-    throw lastError || new Error('Max retries exceeded');
+    throw lastError || new Error(t('max_retries_exceeded'));
   }
 
   async get<T>(endpoint: string, options?: any): Promise<T> {

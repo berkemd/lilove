@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, Button } from 'react-native';
+import { t } from '../i18n';
 
 interface Props {
   children: ReactNode;
@@ -33,12 +34,12 @@ export class ErrorBoundary extends Component<Props, State> {
       return (
         <View style={styles.container}>
           <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
+            <Text style={styles.errorTitle}>{t('oops_something_went_wrong')}</Text>
             <Text style={styles.errorMessage}>
               {this.state.error?.message || 'An unexpected error occurred'}
             </Text>
             <Button 
-              title="Try Again" 
+              title={t('try_again')} 
               onPress={this.handleReset}
               color="#9333EA"
             />

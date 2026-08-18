@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
+import { t } from '../../i18n';
 
 interface Message {
   id: string;
@@ -164,7 +165,7 @@ export default function CoachScreen() {
         <View style={styles.insightCard}>
           <View style={styles.insightHeader}>
             <Ionicons name="bulb" size={20} color="#F59E0B" />
-            <Text style={styles.insightTitle}>Loading Today's Insight...</Text>
+            <Text style={styles.insightTitle}>{t('loading_today_s_insight')}</Text>
           </View>
           <View style={styles.insightSkeletonContainer}>
             <View style={styles.skeletonLine} />
@@ -179,7 +180,7 @@ export default function CoachScreen() {
         <TouchableOpacity style={styles.insightCard} onPress={loadDailyInsight} activeOpacity={0.7}>
           <View style={styles.insightHeader}>
             <Ionicons name="refresh" size={20} color="#6B7280" />
-            <Text style={[styles.insightTitle, { color: '#6B7280' }]}>Tap to load today's insight</Text>
+            <Text style={[styles.insightTitle, { color: '#6B7280' }]}>{t('tap_to_load_today_s_insight')}</Text>
           </View>
         </TouchableOpacity>
       );
@@ -190,7 +191,7 @@ export default function CoachScreen() {
         <View style={styles.insightCard}>
           <View style={styles.insightHeader}>
             <Ionicons name="bulb" size={20} color="#F59E0B" />
-            <Text style={styles.insightTitle}>Today's Insight</Text>
+            <Text style={styles.insightTitle}>{t('today_s_insight')}</Text>
           </View>
           <Text style={styles.insightText}>{dailyInsight.insight}</Text>
           {dailyInsight.motivation && <Text style={styles.insightMotivation}>"{dailyInsight.motivation}"</Text>}
@@ -215,7 +216,7 @@ export default function CoachScreen() {
             </View>
             <View>
               <Text style={styles.headerTitle}>LiLove</Text>
-              <Text style={styles.headerSubtitle}>Your personal growth companion</Text>
+              <Text style={styles.headerSubtitle}>{t('your_personal_growth_companion')}</Text>
             </View>
           </View>
         </View>
@@ -240,7 +241,7 @@ export default function CoachScreen() {
               </View>
               <View style={styles.typingBubble}>
                 <ActivityIndicator size="small" color="#8B5CF6" />
-                <Text style={styles.typingText}>Lily is thinking...</Text>
+                <Text style={styles.typingText}>{t('lily_is_thinking')}</Text>
               </View>
             </View>
           )}
@@ -252,7 +253,7 @@ export default function CoachScreen() {
               style={styles.input}
               value={inputMessage}
               onChangeText={setInputMessage}
-              placeholder="Type your message..."
+              placeholder={t('type_your_message')}
               placeholderTextColor="#9CA3AF"
               multiline
               maxLength={500}

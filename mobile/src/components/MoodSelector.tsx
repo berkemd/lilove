@@ -7,6 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { t } from '../i18n';
 
 interface MoodOption {
   id: string;
@@ -20,75 +21,75 @@ interface MoodOption {
 const moods: MoodOption[] = [
   { 
     id: 'energized', 
-    name: 'Energized', 
+    name: t('energized'), 
     icon: 'flash',
     color: '#EAB308',
     bgColor: '#FEF9C3',
-    description: 'Ready to take on the world'
+    description: t('ready_to_take_on_the_world')
   },
   { 
     id: 'happy', 
-    name: 'Happy', 
+    name: t('happy'), 
     icon: 'sunny',
     color: '#F97316',
     bgColor: '#FED7AA',
-    description: 'Feeling great today'
+    description: t('feeling_great_today')
   },
   { 
     id: 'peaceful', 
-    name: 'Peaceful', 
+    name: t('peaceful'), 
     icon: 'moon',
     color: '#6366F1',
     bgColor: '#E0E7FF',
-    description: 'Calm and centered'
+    description: t('calm_and_centered')
   },
   { 
     id: 'focused', 
-    name: 'Focused', 
+    name: t('focused'), 
     icon: 'sparkles',
     color: '#A855F7',
     bgColor: '#F3E8FF',
-    description: 'In the zone'
+    description: t('in_the_zone')
   },
   { 
     id: 'motivated', 
-    name: 'Motivated', 
+    name: t('motivated'), 
     icon: 'flame',
     color: '#EF4444',
     bgColor: '#FEE2E2',
-    description: 'Fired up and ready'
+    description: t('fired_up_and_ready')
   },
   { 
     id: 'grateful', 
-    name: 'Grateful', 
+    name: t('grateful'), 
     icon: 'heart',
     color: '#EC4899',
     bgColor: '#FCE7F3',
-    description: 'Appreciating the moment'
+    description: t('appreciating_the_moment')
   },
   { 
     id: 'neutral', 
-    name: 'Neutral', 
+    name: t('neutral'), 
     icon: 'cloud',
     color: '#6B7280',
     bgColor: '#F3F4F6',
-    description: 'Just being'
+    description: t('just_being')
   },
   { 
     id: 'tired', 
-    name: 'Tired', 
+    name: t('tired'), 
     icon: 'rainy',
     color: '#3B82F6',
     bgColor: '#DBEAFE',
-    description: 'Need some rest'
+    description: t('need_some_rest')
   },
   { 
     id: 'calm', 
-    name: 'Calm', 
+    name: t('calm'), 
     icon: 'snow',
     color: '#06B6D4',
     bgColor: '#CFFAFE',
-    description: 'Cool and collected'
+    description: t('cool_and_collected')
   }
 ];
 
@@ -159,7 +160,7 @@ export default function MoodSelector({
       {showTitle && (
         <View style={styles.header}>
           <Ionicons name="heart" size={20} color="#EC4899" />
-          <Text style={styles.title}>How are you feeling today?</Text>
+          <Text style={styles.title}>{t('how_are_you_feeling_today')}</Text>
         </View>
       )}
       <View style={styles.grid}>
@@ -187,9 +188,7 @@ export default function MoodSelector({
       </View>
       {selectedMood && (
         <View style={styles.confirmationBanner}>
-          <Text style={styles.confirmationText}>
-            Your mood has been saved!
-          </Text>
+          <Text style={styles.confirmationText}>{t('your_mood_has_been_saved')}</Text>
         </View>
       )}
     </View>

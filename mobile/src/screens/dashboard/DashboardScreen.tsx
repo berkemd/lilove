@@ -14,6 +14,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
 import MoodSelector from '../../components/MoodSelector';
+import { t } from '../../i18n';
 
 interface Goal {
   id: string;
@@ -137,7 +138,7 @@ export default function DashboardScreen() {
     } catch (err: any) {
       console.error('[DashboardScreen] Error loading dashboard:', err);
       console.error('[DashboardScreen] Error details:', JSON.stringify(err, null, 2));
-      setError(`Unable to load dashboard: ${err?.message || 'Unknown error'}`);
+      setError(`Unable to load dashboard: ${err?.message || t('unknown_error')}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -193,7 +194,7 @@ export default function DashboardScreen() {
           <View style={styles.errorIconContainer}>
             <Ionicons name="cloud-offline-outline" size={48} color="#9CA3AF" />
           </View>
-          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorTitle}>{t('something_went_wrong')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
           <TouchableOpacity
             style={styles.retryButton}
@@ -201,7 +202,7 @@ export default function DashboardScreen() {
             data-testid="button-retry-dashboard"
           >
             <Ionicons name="refresh" size={20} color="#FFFFFF" />
-            <Text style={styles.retryButtonText}>Try Again</Text>
+            <Text style={styles.retryButtonText}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -224,7 +225,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.greeting}>Welcome back</Text>
+          <Text style={styles.greeting}>{t('welcome_back')}</Text>
           <Text style={styles.username}>{userProfile?.displayName || user?.displayName || (user as any)?.firstName || (user as any)?.lastName || 'there'}</Text>
         </View>
 
@@ -233,7 +234,7 @@ export default function DashboardScreen() {
             style={styles.coinBadge}
             onPress={() => (navigation as any).navigate('Coins')}
             accessibilityRole="button"
-            accessibilityLabel="Coin balance. Get more coins."
+            accessibilityLabel={t('coin_balance_get_more_coins')}
             data-testid="button-coins"
           >
             <Ionicons name="wallet" size={18} color="#92400E" />
@@ -257,7 +258,7 @@ export default function DashboardScreen() {
               <Ionicons name="flag" size={24} color="#8B5CF6" />
             </View>
             <Text style={styles.statValue}>{stats?.activeGoals || 0}</Text>
-            <Text style={styles.statLabel}>Active Goals</Text>
+            <Text style={styles.statLabel}>{t('active_goals')}</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -265,7 +266,7 @@ export default function DashboardScreen() {
               <Ionicons name="checkmark-circle" size={24} color="#10B981" />
             </View>
             <Text style={styles.statValue}>{stats?.completedTasks || 0}</Text>
-            <Text style={styles.statLabel}>Completed</Text>
+            <Text style={styles.statLabel}>{t('completed')}</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -273,7 +274,7 @@ export default function DashboardScreen() {
               <Ionicons name="flame" size={24} color="#F59E0B" />
             </View>
             <Text style={styles.statValue}>{stats?.streaks || 0}</Text>
-            <Text style={styles.statLabel}>Total Streaks</Text>
+            <Text style={styles.statLabel}>{t('total_streaks')}</Text>
           </View>
 
           <View style={styles.statCard}>
@@ -281,12 +282,12 @@ export default function DashboardScreen() {
               <Ionicons name="repeat" size={24} color="#6366F1" />
             </View>
             <Text style={styles.statValue}>{stats?.totalHabits || 0}</Text>
-            <Text style={styles.statLabel}>Habits</Text>
+            <Text style={styles.statLabel}>{t('habits')}</Text>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
           
           <TouchableOpacity
             style={styles.actionButton}
@@ -298,8 +299,8 @@ export default function DashboardScreen() {
               <Ionicons name="add-circle" size={22} color="#8B5CF6" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionText}>Add New Goal</Text>
-              <Text style={styles.actionSubtext}>Set a new target to achieve</Text>
+              <Text style={styles.actionText}>{t('add_new_goal')}</Text>
+              <Text style={styles.actionSubtext}>{t('set_a_new_target_to_achieve')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
@@ -314,8 +315,8 @@ export default function DashboardScreen() {
               <Ionicons name="flag" size={22} color="#8B5CF6" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionText}>View My Goals</Text>
-              <Text style={styles.actionSubtext}>Track your progress</Text>
+              <Text style={styles.actionText}>{t('view_my_goals')}</Text>
+              <Text style={styles.actionSubtext}>{t('track_your_progress')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
@@ -330,8 +331,8 @@ export default function DashboardScreen() {
               <Ionicons name="sparkles" size={22} color="#8B5CF6" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionText}>Talk to LiLove</Text>
-              <Text style={styles.actionSubtext}>Get personalized guidance</Text>
+              <Text style={styles.actionText}>{t('talk_to_lilove')}</Text>
+              <Text style={styles.actionSubtext}>{t('get_personalized_guidance')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>

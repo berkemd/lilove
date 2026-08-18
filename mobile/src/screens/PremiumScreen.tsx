@@ -15,14 +15,15 @@ import { useAuthStore } from '../store/authStore';
 import { loadSubscriptionProducts, buySubscription, restore, type StoreProduct } from '../services/iap';
 import { periodOf, tierOf } from '../config/products';
 import { api } from '../lib/api';
+import { t } from '../i18n';
 
 const features = [
-  { icon: 'sparkles', title: 'Advanced AI Coaching', description: 'Personalized guidance from our AI mentor' },
-  { icon: 'infinite', title: 'Unlimited Goals & Habits', description: 'Track as many goals and habits as you want' },
-  { icon: 'analytics', title: 'Advanced Analytics', description: 'Deep insights into your progress' },
-  { icon: 'trophy', title: 'Premium Challenges', description: 'Access exclusive challenges and rewards' },
-  { icon: 'people', title: 'Priority Support', description: 'Get help when you need it' },
-  { icon: 'color-palette', title: 'Custom Themes', description: 'Personalize your experience' },
+  { icon: 'sparkles', title: t('advanced_ai_coaching'), description: t('personalized_guidance_from_our_ai_mentor') },
+  { icon: 'infinite', title: t('unlimited_goals_habits'), description: t('track_as_many_goals_and_habits_as_you_want') },
+  { icon: 'analytics', title: t('advanced_analytics'), description: t('deep_insights_into_your_progress') },
+  { icon: 'trophy', title: t('premium_challenges'), description: t('access_exclusive_challenges_and_rewards') },
+  { icon: 'people', title: t('priority_support'), description: t('get_help_when_you_need_it') },
+  { icon: 'color-palette', title: t('custom_themes'), description: t('personalize_your_experience') },
 ];
 
 export default function PremiumScreen({ navigation }: any) {
@@ -74,7 +75,7 @@ export default function PremiumScreen({ navigation }: any) {
 
   const handlePurchase = async () => {
     if (!selectedPackage) {
-      Alert.alert('Please select a subscription plan');
+      Alert.alert(t('please_select_a_subscription_plan'));
       return;
     }
 
@@ -86,8 +87,8 @@ export default function PremiumScreen({ navigation }: any) {
       await checkSubscriptionStatus();
       updateUser({ subscriptionTier: tierOf(selectedPackage.id) });
       Alert.alert(
-        'Welcome to Premium!',
-        'You now have access to all premium features.',
+        t('welcome_to_premium'),
+        t('you_now_have_access_to_all_premium_features'),
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error: any) {
@@ -97,7 +98,7 @@ export default function PremiumScreen({ navigation }: any) {
         kod.includes('E_USER_CANCELLED') ||
         /cancel/i.test(String(error?.message ?? ''));
       if (!iptal) {
-        Alert.alert('Purchase Failed', error?.message || 'Please try again');
+        Alert.alert(t('purchase_failed'), error?.message || t('please_try_again'));
       }
     } finally {
       setIsPurchasing(false);
@@ -112,12 +113,12 @@ export default function PremiumScreen({ navigation }: any) {
       const sayi = await restore();
       await checkSubscriptionStatus();
       if (sayi > 0) {
-        Alert.alert('Subscription Restored', 'Your subscription has been restored.');
+        Alert.alert(t('subscription_restored'), t('your_subscription_has_been_restored'));
       } else {
-        Alert.alert('No Subscription Found', 'No active subscription found to restore.');
+        Alert.alert(t('no_subscription_found'), t('no_active_subscription_found_to_restore'));
       }
     } catch (error) {
-      Alert.alert('Restore Failed', 'Failed to restore purchases. Please try again.');
+      Alert.alert(t('restore_failed'), t('failed_to_restore_purchases_please_try_again'));
     } finally {
       setIsPurchasing(false);
     }
@@ -138,7 +139,7 @@ export default function PremiumScreen({ navigation }: any) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8B5CF6" />
-        <Text style={styles.loadingText}>Loading subscription options...</Text>
+        <Text style={styles.loadingText}>{t('loading_subscription_options')}</Text>
       </View>
     );
   }
@@ -163,10 +164,8 @@ export default function PremiumScreen({ navigation }: any) {
             <View style={styles.crownIcon}>
               <Ionicons name="trophy" size={48} color="#8B5CF6" />
             </View>
-            <Text style={styles.premiumActiveTitle}>You're a Premium Member!</Text>
-            <Text style={styles.premiumActiveSubtitle}>
-              Thank you for supporting LiLove. Enjoy all premium features!
-            </Text>
+            <Text style={styles.premiumActiveTitle}>{t('you_re_a_premium_member')}</Text>
+            <Text style={styles.premiumActiveSubtitle}>{t('thank_you_for_supporting_lilove_enjoy_all_pr')}</Text>
 
             <View style={styles.featuresContainer}>
               {features.map((feature, index) => (
@@ -182,9 +181,9 @@ export default function PremiumScreen({ navigation }: any) {
 
             <TouchableOpacity 
               style={styles.manageButton}
-              onPress={() => Alert.alert('Manage Subscription', 'Please go to Settings > Subscriptions on your device')}
+              onPress={() => Alert.alert(t('manage_subscription'), t('please_go_to_settings_subscriptions_on_your'))}
             >
-              <Text style={styles.manageButtonText}>Manage Subscription</Text>
+              <Text style={styles.manageButtonText}>{t('manage_subscription')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -208,10 +207,8 @@ export default function PremiumScreen({ navigation }: any) {
           <View style={styles.premiumBadge}>
             <Ionicons name="star" size={32} color="#F59E0B" />
           </View>
-          <Text style={styles.heroTitle}>Unlock Your Full Potential</Text>
-          <Text style={styles.heroSubtitle}>
-            Get unlimited access to all premium features
-          </Text>
+          <Text style={styles.heroTitle}>{t('unlock_your_full_potential')}</Text>
+          <Text style={styles.heroSubtitle}>{t('get_unlimited_access_to_all_premium_features')}</Text>
         </View>
 
         <View style={styles.featuresContainer}>
@@ -230,7 +227,7 @@ export default function PremiumScreen({ navigation }: any) {
 
         {packages.length > 0 ? (
           <View style={styles.plansContainer}>
-            <Text style={styles.plansTitle}>Choose Your Plan</Text>
+            <Text style={styles.plansTitle}>{t('choose_your_plan')}</Text>
             
             {/* TASARRUF ROZETİ KALDIRILDI.
                 Eskiden yıllık planın üstünde sabit "Save 25%" yazıyordu.
@@ -267,15 +264,13 @@ export default function PremiumScreen({ navigation }: any) {
         ) : (
           <View style={styles.noPackagesContainer}>
             <Ionicons name="cloud-offline-outline" size={48} color="#9CA3AF" />
-            <Text style={styles.noPackagesTitle}>Subscription Not Available</Text>
-            <Text style={styles.noPackagesText}>
-              In-app purchases are being configured. Please try again later or contact support.
-            </Text>
+            <Text style={styles.noPackagesTitle}>{t('subscription_not_available')}</Text>
+            <Text style={styles.noPackagesText}>{t('in_app_purchases_are_being_configured_please')}</Text>
             <TouchableOpacity 
               style={styles.retryButton}
               onPress={loadOfferings}
             >
-              <Text style={styles.retryButtonText}>Retry</Text>
+              <Text style={styles.retryButtonText}>{t('retry')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -291,7 +286,7 @@ export default function PremiumScreen({ navigation }: any) {
           {isPurchasing ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.purchaseButtonText}>Subscribe</Text>
+            <Text style={styles.purchaseButtonText}>{t('subscribe')}</Text>
           )}
         </TouchableOpacity>
 
@@ -300,7 +295,7 @@ export default function PremiumScreen({ navigation }: any) {
           onPress={handleRestore}
           disabled={isPurchasing}
         >
-          <Text style={styles.restoreButtonText}>Restore Purchases</Text>
+          <Text style={styles.restoreButtonText}>{t('restore_purchases')}</Text>
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>

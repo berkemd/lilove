@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { api } from '../../lib/api';
+import { t } from '../../i18n';
 
 interface Habit {
   id: string;
@@ -54,7 +55,7 @@ export default function HabitsScreen() {
       setHabits(Array.isArray(data) ? data : []);
     } catch (error: any) {
       console.error('Failed to load habits:', error);
-      Alert.alert('Error', 'Could not load habits. Please try again.');
+      Alert.alert(t('error'), t('could_not_load_habits_please_try_again'));
     } finally {
       setIsLoading(false);
     }
@@ -76,7 +77,7 @@ export default function HabitsScreen() {
 
   const handleSaveHabit = async () => {
     if (!title.trim()) {
-      Alert.alert('Error', 'Please enter a habit name');
+      Alert.alert(t('error'), t('please_enter_a_habit_name'));
       return;
     }
 
@@ -92,10 +93,10 @@ export default function HabitsScreen() {
       });
 
       setIsModalVisible(false);
-      Alert.alert('Success', 'Habit created successfully!');
+      Alert.alert(t('success'), t('habit_created_successfully'));
       loadHabits();
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to create habit. Please try again.');
+      Alert.alert(t('error'), t('failed_to_create_habit_please_try_again'));
     }
   };
 
@@ -103,9 +104,9 @@ export default function HabitsScreen() {
     try {
       await api.trackHabit(habitId);
       loadHabits();
-      Alert.alert('✅ Great Job!', 'Habit tracked successfully. Keep it up!');
+      Alert.alert(t('great_job'), t('habit_tracked_successfully_keep_it_up'));
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to track habit. Please try again.');
+      Alert.alert(t('error'), t('failed_to_track_habit_please_try_again'));
     }
   };
 
@@ -152,15 +153,15 @@ export default function HabitsScreen() {
         <View style={styles.habitStats}>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{habit.currentStreak}</Text>
-            <Text style={styles.statLabel}>Streak</Text>
+            <Text style={styles.statLabel}>{t('streak')}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{habit.totalCompletions}</Text>
-            <Text style={styles.statLabel}>Total</Text>
+            <Text style={styles.statLabel}>{t('total')}</Text>
           </View>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{habit.longestStreak}</Text>
-            <Text style={styles.statLabel}>Best</Text>
+            <Text style={styles.statLabel}>{t('best')}</Text>
           </View>
         </View>
 
@@ -180,7 +181,7 @@ export default function HabitsScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Habits</Text>
+        <Text style={styles.headerTitle}>{t('my_habits')}</Text>
         <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
           <Text style={styles.addButtonText}>+ New Habit</Text>
         </TouchableOpacity>
@@ -197,7 +198,7 @@ export default function HabitsScreen() {
         {isLoading && !isRefreshing ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#10B981" />
-            <Text style={styles.loadingText}>Loading your habits...</Text>
+            <Text style={styles.loadingText}>{t('loading_your_habits')}</Text>
           </View>
         ) : (
           <>
@@ -218,12 +219,10 @@ export default function HabitsScreen() {
             {habits.length === 0 && !isLoading && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateEmoji}>🌱</Text>
-                <Text style={styles.emptyStateTitle}>No habits yet</Text>
-                <Text style={styles.emptyStateText}>
-                  Create your first habit and start building a better you!
-                </Text>
+                <Text style={styles.emptyStateTitle}>{t('no_habits_yet')}</Text>
+                <Text style={styles.emptyStateText}>{t('create_your_first_habit_and_start_building_a')}</Text>
                 <TouchableOpacity style={styles.emptyStateButton} onPress={openCreateModal}>
-                  <Text style={styles.emptyStateButtonText}>Create Habit</Text>
+                  <Text style={styles.emptyStateButtonText}>{t('create_habit')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -240,7 +239,7 @@ export default function HabitsScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Habit</Text>
+            <Text style={styles.modalTitle}>{t('create_new_habit')}</Text>
 
             <View style={styles.emojiSelector}>
               {emojis.map((emoji) => (
@@ -259,7 +258,7 @@ export default function HabitsScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Habit name *"
+              placeholder={t('habit_name')}
               value={title}
               onChangeText={setTitle}
               maxLength={100}
@@ -267,7 +266,7 @@ export default function HabitsScreen() {
 
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Description (optional)"
+              placeholder={t('description_optional')}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -303,13 +302,13 @@ export default function HabitsScreen() {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setIsModalVisible(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={handleSaveHabit}
               >
-                <Text style={styles.saveButtonText}>Create</Text>
+                <Text style={styles.saveButtonText}>{t('create')}</Text>
               </TouchableOpacity>
             </View>
           </View>

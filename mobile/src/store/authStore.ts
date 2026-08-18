@@ -14,6 +14,7 @@ import {
 } from '../lib/firebase';
 import type { User } from 'firebase/auth';
 import { tokenManager } from '../services/tokenManager';
+import { t } from '../i18n';
 
 interface AuthState {
   user: User | null;
@@ -192,7 +193,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateUser: async (updates) => {
     const { user } = get();
-    if (!user) throw new Error('No user signed in');
+    if (!user) throw new Error(t('no_user_signed_in'));
     
     try {
       await updateUserProfile(user.uid, updates);
@@ -205,7 +206,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateMood: async (mood) => {
     const { user } = get();
-    if (!user) throw new Error('No user signed in');
+    if (!user) throw new Error(t('no_user_signed_in'));
     
     try {
       await updateUserMood(user.uid, mood);

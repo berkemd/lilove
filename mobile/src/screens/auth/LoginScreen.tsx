@@ -18,6 +18,7 @@ import appleAuth from '../../services/appleAuth';
 import { useGoogleAuth, getIdTokenFromResponse } from '../../services/googleAuth';
 import { Ionicons } from '@expo/vector-icons';
 import Logo from '../../assets/Logo';
+import { t } from '../../i18n';
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -54,20 +55,20 @@ export default function LoginScreen({ navigation }: any) {
         
         if (!idToken) {
           console.error('[Google Auth] No ID token in response');
-          throw new Error('Google authentication did not return an ID token. Please try again.');
+          throw new Error(t('google_authentication_did_not_return_an_id_t'));
         }
         
         await googleLogin({ idToken });
         
       } catch (error: any) {
         console.error('[Google Auth] Error:', error);
-        Alert.alert('Google Sign In Failed', error.message || 'Please try again');
+        Alert.alert(t('google_sign_in_failed'), error.message || t('please_try_again'));
       } finally {
         setIsGoogleLoading(false);
       }
     } else if (googleResponse?.type === 'error') {
       console.error('[Google Auth] Error response:', googleResponse.error);
-      Alert.alert('Google Sign In Failed', googleResponse.error?.message || 'Authentication failed');
+      Alert.alert(t('google_sign_in_failed'), googleResponse.error?.message || t('authentication_failed'));
     } else if (googleResponse?.type === 'cancel') {
       console.log('[Google Auth] User cancelled');
     }
@@ -78,7 +79,7 @@ export default function LoginScreen({ navigation }: any) {
       clearError();
       await googlePromptAsync();
     } catch (error: any) {
-      Alert.alert('Google Sign In Failed', error.message || 'Please try again');
+      Alert.alert(t('google_sign_in_failed'), error.message || t('please_try_again'));
     }
   };
 
@@ -99,7 +100,7 @@ export default function LoginScreen({ navigation }: any) {
       userProfile: demoProfil(),
     });
     } catch (e: any) {
-      Alert.alert('Could not start the tour', String(e?.message ?? e));
+      Alert.alert(t('could_not_start_the_tour'), String(e?.message ?? e));
     }
   };
 
@@ -108,7 +109,7 @@ export default function LoginScreen({ navigation }: any) {
       clearError();
       await login(email, password);
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.error || 'Please check your credentials');
+      Alert.alert(t('login_failed'), error.response?.data?.error || t('please_check_your_credentials'));
     }
   };
 
@@ -119,7 +120,7 @@ export default function LoginScreen({ navigation }: any) {
       await appleLogin(response);
     } catch (error: any) {
       if (error.message !== 'Sign in was canceled') {
-        Alert.alert('Apple Sign In Failed', error.message || 'Please try again');
+        Alert.alert(t('apple_sign_in_failed'), error.message || t('please_try_again'));
       }
     }
   };
@@ -134,12 +135,12 @@ export default function LoginScreen({ navigation }: any) {
           <Logo width={96} height={96} />
         </View>
         <Text style={styles.title}>LiLove</Text>
-        <Text style={styles.subtitle}>Love Your Growth, Live Your Peak</Text>
+        <Text style={styles.subtitle}>{t('love_your_growth_live_your_peak')}</Text>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder={t('email')}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -149,7 +150,7 @@ export default function LoginScreen({ navigation }: any) {
 
           <TextInput
             style={styles.input}
-            placeholder="Password"
+            placeholder={t('password')}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -164,7 +165,7 @@ export default function LoginScreen({ navigation }: any) {
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Login</Text>
+              <Text style={styles.buttonText}>{t('login')}</Text>
             )}
           </TouchableOpacity>
 
@@ -181,7 +182,7 @@ export default function LoginScreen({ navigation }: any) {
               disabled={isLoading || isGoogleLoading}
             >
               <Ionicons name="logo-apple" size={20} color="#000" />
-              <Text style={styles.appleButtonText}>Continue with Apple</Text>
+              <Text style={styles.appleButtonText}>{t('continue_with_apple')}</Text>
             </TouchableOpacity>
           )}
 
@@ -200,7 +201,7 @@ export default function LoginScreen({ navigation }: any) {
                 <View style={styles.googleIconContainer}>
                   <Text style={styles.googleIcon}>G</Text>
                 </View>
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
+                <Text style={styles.googleButtonText}>{t('continue_with_google')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -209,8 +210,7 @@ export default function LoginScreen({ navigation }: any) {
             style={styles.linkButton}
             onPress={() => navigation.navigate('Register')}
           >
-            <Text style={styles.linkText}>
-              Don't have an account? <Text style={styles.linkTextBold}>Sign Up</Text>
+            <Text style={styles.linkText}>{t('don_t_have_an_account')}<Text style={styles.linkTextBold}>{t('sign_up')}</Text>
             </Text>
           </TouchableOpacity>
 
@@ -223,11 +223,11 @@ export default function LoginScreen({ navigation }: any) {
             style={styles.demoButton}
             onPress={demoBaslat}
             accessibilityRole="button"
-            accessibilityLabel="Look around without an account, with sample data"
+            accessibilityLabel={t('look_around_without_an_account_with_sample_d')}
             data-testid="button-demo"
           >
-            <Text style={styles.demoButtonText}>Look around without an account</Text>
-            <Text style={styles.demoButtonHint}>Sample data · nothing is saved to your account</Text>
+            <Text style={styles.demoButtonText}>{t('look_around_without_an_account')}</Text>
+            <Text style={styles.demoButtonHint}>{t('sample_data_nothing_is_saved_to_your_account')}</Text>
           </TouchableOpacity>
         </View>
       </View>

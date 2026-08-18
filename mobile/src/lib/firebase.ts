@@ -32,6 +32,7 @@ import {
 } from 'firebase/firestore';
 import type { Timestamp } from 'firebase/firestore';
 import Constants from 'expo-constants';
+import { t } from '../i18n';
 
 const extra = Constants.expoConfig?.extra;
 
@@ -141,7 +142,7 @@ export async function resendVerificationEmail(): Promise<void> {
   if (auth.currentUser) {
     return sendEmailVerification(auth.currentUser);
   }
-  throw new Error('No user signed in');
+  throw new Error(t('no_user_signed_in'));
 }
 
 export async function signInWithAppleCredential(identityToken: string, nonce: string, fullName?: { givenName?: string | null; familyName?: string | null }): Promise<UserCredential> {

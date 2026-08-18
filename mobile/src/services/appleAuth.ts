@@ -1,6 +1,7 @@
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
+import { t } from '../i18n';
 
 class AppleAuthService {
   async isAvailable(): Promise<boolean> {
@@ -40,7 +41,7 @@ class AppleAuthService {
       });
 
       if (!credential.identityToken) {
-        throw new Error('Apple Sign In did not return an identity token');
+        throw new Error(t('apple_sign_in_did_not_return_an_identity_tok'));
       }
 
       return {
@@ -54,11 +55,11 @@ class AppleAuthService {
     } catch (e: any) {
       console.error('[Apple Auth] Error:', e);
       if (e.code === 'ERR_REQUEST_CANCELED') {
-        throw new Error('Sign in was canceled');
+        throw new Error(t('sign_in_was_canceled'));
       } else if (e.message) {
         throw new Error(e.message);
       } else {
-        throw new Error('Apple Sign In failed');
+        throw new Error(t('apple_sign_in_failed_2'));
       }
     }
   }

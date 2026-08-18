@@ -12,6 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
+import { t } from '../../i18n';
 
 export default function RegisterScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -22,12 +23,12 @@ export default function RegisterScreen({ navigation }: any) {
 
   const handleRegister = async () => {
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('error'), t('passwords_do_not_match'));
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert(t('error'), t('password_must_be_at_least_6_characters'));
       return;
     }
 
@@ -35,7 +36,7 @@ export default function RegisterScreen({ navigation }: any) {
       clearError();
       await register(email, password, displayName || email.split('@')[0]);
     } catch (error: any) {
-      Alert.alert('Registration Failed', error.message || 'Please try again');
+      Alert.alert(t('registration_failed'), error.message || t('please_try_again'));
     }
   };
 
@@ -47,13 +48,13 @@ export default function RegisterScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
           <Text style={styles.logo}>🎯</Text>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join LiLove Today</Text>
+          <Text style={styles.title}>{t('create_account')}</Text>
+          <Text style={styles.subtitle}>{t('join_lilove_today')}</Text>
 
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Display Name"
+              placeholder={t('display_name')}
               value={displayName}
               onChangeText={setDisplayName}
               autoCapitalize="words"
@@ -61,7 +62,7 @@ export default function RegisterScreen({ navigation }: any) {
 
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t('email')}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -71,7 +72,7 @@ export default function RegisterScreen({ navigation }: any) {
 
             <TextInput
               style={styles.input}
-              placeholder="Password (min 8 characters)"
+              placeholder={t('password_min_8_characters')}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -80,7 +81,7 @@ export default function RegisterScreen({ navigation }: any) {
 
             <TextInput
               style={styles.input}
-              placeholder="Confirm Password"
+              placeholder={t('confirm_password')}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -95,7 +96,7 @@ export default function RegisterScreen({ navigation }: any) {
               {isLoading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
+                <Text style={styles.buttonText}>{t('create_account')}</Text>
               )}
             </TouchableOpacity>
 
@@ -103,8 +104,7 @@ export default function RegisterScreen({ navigation }: any) {
               style={styles.linkButton}
               onPress={() => navigation.navigate('Login')}
             >
-              <Text style={styles.linkText}>
-                Already have an account? <Text style={styles.linkTextBold}>Login</Text>
+              <Text style={styles.linkText}>{t('already_have_an_account')}<Text style={styles.linkTextBold}>{t('login')}</Text>
               </Text>
             </TouchableOpacity>
           </View>

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LiLoveTheme, useThemedColors } from '../theme/LiLoveTheme';
+import { t } from '../i18n';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -45,11 +46,11 @@ interface SanctuaryState {
 }
 
 const EVOLUTION_STAGES: EvolutionStage[] = [
-  { stage: 1, name: 'Seedling', xpRequired: 0, description: 'Your journey begins with a single seed of hope' },
-  { stage: 2, name: 'Sapling', xpRequired: 500, description: 'Young growth stretches toward the light' },
-  { stage: 3, name: 'Young Forest', xpRequired: 1500, description: 'A vibrant ecosystem begins to form' },
-  { stage: 4, name: 'Mature Forest', xpRequired: 4000, description: 'Life flourishes in abundance' },
-  { stage: 5, name: 'Ancient Grove', xpRequired: 10000, description: 'A magical sanctuary of wisdom and wonder' },
+  { stage: 1, name: t('seedling'), xpRequired: 0, description: t('your_journey_begins_with_a_single_seed_of_ho') },
+  { stage: 2, name: t('sapling'), xpRequired: 500, description: t('young_growth_stretches_toward_the_light') },
+  { stage: 3, name: t('young_forest'), xpRequired: 1500, description: t('a_vibrant_ecosystem_begins_to_form') },
+  { stage: 4, name: t('mature_forest'), xpRequired: 4000, description: t('life_flourishes_in_abundance') },
+  { stage: 5, name: t('ancient_grove'), xpRequired: 10000, description: t('a_magical_sanctuary_of_wisdom_and_wonder') },
 ];
 
 const WEATHER_CONFIGS = {
@@ -509,7 +510,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
   const renderElementsTab = () => (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Unlocked Elements</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('unlocked_elements')}</Text>
       
       <View style={styles.elementsGrid}>
         {sanctuary.unlockedElements.map((elementId) => (
@@ -532,15 +533,13 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
         ))}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}>
-        Available to Unlock
-      </Text>
+      <Text style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}>{t('available_to_unlock')}</Text>
       
       <View style={styles.unlockList}>
         {[
-          { id: 'tree-cherry', name: 'Cherry Blossom', cost: 150, rarity: 'uncommon' as const },
-          { id: 'creature-rabbit', name: 'Forest Rabbit', cost: 100, rarity: 'uncommon' as const },
-          { id: 'decor-pond', name: 'Peaceful Pond', cost: 120, rarity: 'uncommon' as const },
+          { id: 'tree-cherry', name: t('cherry_blossom'), cost: 150, rarity: 'uncommon' as const },
+          { id: 'creature-rabbit', name: t('forest_rabbit'), cost: 100, rarity: 'uncommon' as const },
+          { id: 'decor-pond', name: t('peaceful_pond'), cost: 120, rarity: 'uncommon' as const },
         ].map((element) => (
           <TouchableOpacity
             key={element.id}
@@ -563,7 +562,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
   const renderSettingsTab = () => (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Weather</Text>
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('weather')}</Text>
       
       <View style={styles.weatherGrid}>
         {Object.entries(WEATHER_CONFIGS).map(([key, config]) => (
@@ -592,9 +591,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
         ))}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}>
-        Time of Day
-      </Text>
+      <Text style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}>{t('time_of_day')}</Text>
       
       <View style={styles.timeGrid}>
         {['dawn', 'day', 'dusk', 'night'].map((time) => (
@@ -638,7 +635,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
         
         <View style={styles.headerCenter}>
           <Ionicons name="leaf" size={20} color={LiLoveTheme.colors.primary[500]} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Growth Sanctuary</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('growth_sanctuary')}</Text>
         </View>
         
         <TouchableOpacity
@@ -679,9 +676,9 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
       <View style={styles.tabBar}>
         {[
-          { key: 'view', icon: 'eye', label: 'View' },
-          { key: 'elements', icon: 'grid', label: 'Elements' },
-          { key: 'settings', icon: 'settings', label: 'Settings' },
+          { key: 'view', icon: 'eye', label: t('view') },
+          { key: 'elements', icon: 'grid', label: t('elements') },
+          { key: 'settings', icon: 'settings', label: t('settings') },
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -715,9 +712,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
       <View style={styles.gestureHint}>
         <Ionicons name="swap-horizontal" size={16} color={colors.textTertiary} />
-        <Text style={[styles.gestureHintText, { color: colors.textTertiary }]}>
-          Swipe to switch tabs
-        </Text>
+        <Text style={[styles.gestureHintText, { color: colors.textTertiary }]}>{t('swipe_to_switch_tabs')}</Text>
       </View>
     </SafeAreaView>
   );

@@ -29,6 +29,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COIN_AMOUNTS, type CoinId } from '../config/products';
 import { buyCoins, loadCoinProducts, type StoreProduct } from '../services/iap';
 import { api } from '../lib/api';
+import { t } from '../i18n';
 
 export default function CoinsScreen({ navigation }: any) {
   const [urunler, setUrunler] = useState<StoreProduct[]>([]);
@@ -73,7 +74,7 @@ export default function CoinsScreen({ navigation }: any) {
       await buyCoins(urun.id);
       await bakiyeOku();
       Alert.alert(
-        'Coins added',
+        t('coins_added'),
         `${COIN_AMOUNTS[urun.id as CoinId] ?? ''} coins are now in your balance.`
       );
     } catch (e: any) {
@@ -84,7 +85,7 @@ export default function CoinsScreen({ navigation }: any) {
         kod.includes('E_USER_CANCELLED') ||
         /cancel/i.test(String(e?.message ?? ''));
       if (!iptal) {
-        Alert.alert('Purchase failed', e?.message || 'Please try again.');
+        Alert.alert(t('purchase_failed_2'), e?.message || t('please_try_again_2'));
       }
     } finally {
       setAlinan(null);
@@ -97,7 +98,7 @@ export default function CoinsScreen({ navigation }: any) {
         <TouchableOpacity
           style={styles.closeButton}
           onPress={() => navigation.goBack()}
-          accessibilityLabel="Close"
+          accessibilityLabel={t('close')}
         >
           <Ionicons name="close" size={24} color="#1F2937" />
         </TouchableOpacity>
@@ -108,7 +109,7 @@ export default function CoinsScreen({ navigation }: any) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Coins</Text>
+        <Text style={styles.title}>{t('coins')}</Text>
         <Text style={styles.subtitle}>
           Coins unlock avatar traits and shop items. You also earn them by
           completing goals, habits and achievements — buying is never required.
@@ -123,7 +124,7 @@ export default function CoinsScreen({ navigation }: any) {
             <Ionicons name="cloud-offline-outline" size={28} color="#B45309" />
             <Text style={styles.hataMetin}>{hata}</Text>
             <TouchableOpacity style={styles.tekrarDugme} onPress={yukle}>
-              <Text style={styles.tekrarMetin}>Try again</Text>
+              <Text style={styles.tekrarMetin}>{t('try_again_2')}</Text>
             </TouchableOpacity>
           </View>
         ) : (

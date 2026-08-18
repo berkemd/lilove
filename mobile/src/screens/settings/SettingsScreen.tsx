@@ -12,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
+import { t } from '../../i18n';
+import Constants from 'expo-constants';
 
 export default function SettingsScreen({ navigation }: any) {
   const { userProfile, updateUser, logout } = useAuthStore();
@@ -30,7 +32,7 @@ export default function SettingsScreen({ navigation }: any) {
       });
     } catch (error) {
       setNotifications(!value);
-      Alert.alert('Error', 'Failed to update notification settings');
+      Alert.alert(t('error'), t('failed_to_update_notification_settings'));
     }
   };
 
@@ -46,23 +48,23 @@ export default function SettingsScreen({ navigation }: any) {
       });
     } catch (error) {
       setDarkMode(!value);
-      Alert.alert('Error', 'Failed to update theme settings');
+      Alert.alert(t('error'), t('failed_to_update_theme_settings'));
     }
   };
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      t('delete_account'),
+      t('are_you_sure_you_want_to_delete_your_account'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('delete'),
           style: 'destructive',
           onPress: async () => {
             Alert.alert(
-              'Contact Support',
-              'To delete your account, please contact support@lilove.org'
+              t('contact_support'),
+              t('to_delete_your_account_please_contact_suppor')
             );
           },
         },
@@ -71,10 +73,10 @@ export default function SettingsScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('log_out'), t('are_you_sure_you_want_to_log_out'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Log Out',
+        text: t('log_out'),
         onPress: async () => {
           await logout();
         },
@@ -85,7 +87,7 @@ export default function SettingsScreen({ navigation }: any) {
 
   const openURL = (url: string) => {
     Linking.openURL(url).catch(() => {
-      Alert.alert('Error', 'Could not open the link');
+      Alert.alert(t('error'), t('could_not_open_the_link'));
     });
   };
 
@@ -95,18 +97,18 @@ export default function SettingsScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{t('settings')}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
+          <Text style={styles.sectionTitle}>{t('preferences')}</Text>
           
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
               <Ionicons name="notifications-outline" size={22} color="#6B7280" />
-              <Text style={styles.settingText}>Push Notifications</Text>
+              <Text style={styles.settingText}>{t('push_notifications')}</Text>
             </View>
             <Switch
               value={notifications}
@@ -119,7 +121,7 @@ export default function SettingsScreen({ navigation }: any) {
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
               <Ionicons name="moon-outline" size={22} color="#6B7280" />
-              <Text style={styles.settingText}>Dark Mode</Text>
+              <Text style={styles.settingText}>{t('dark_mode')}</Text>
             </View>
             <Switch
               value={darkMode}
@@ -131,7 +133,7 @@ export default function SettingsScreen({ navigation }: any) {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={styles.sectionTitle}>{t('account')}</Text>
           
           <TouchableOpacity
             style={styles.settingItem}
@@ -139,7 +141,7 @@ export default function SettingsScreen({ navigation }: any) {
           >
             <View style={styles.settingLeft}>
               <Ionicons name="star-outline" size={22} color="#6B7280" />
-              <Text style={styles.settingText}>Subscription</Text>
+              <Text style={styles.settingText}>{t('subscription')}</Text>
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>
@@ -155,14 +157,14 @@ export default function SettingsScreen({ navigation }: any) {
           >
             <View style={styles.settingLeft}>
               <Ionicons name="mail-outline" size={22} color="#6B7280" />
-              <Text style={styles.settingText}>Contact Support</Text>
+              <Text style={styles.settingText}>{t('contact_support')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Legal</Text>
+          <Text style={styles.sectionTitle}>{t('legal')}</Text>
           
           <TouchableOpacity
             style={styles.settingItem}
@@ -170,7 +172,7 @@ export default function SettingsScreen({ navigation }: any) {
           >
             <View style={styles.settingLeft}>
               <Ionicons name="shield-outline" size={22} color="#6B7280" />
-              <Text style={styles.settingText}>Privacy Policy</Text>
+              <Text style={styles.settingText}>{t('privacy_policy')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
           </TouchableOpacity>
@@ -181,30 +183,30 @@ export default function SettingsScreen({ navigation }: any) {
           >
             <View style={styles.settingLeft}>
               <Ionicons name="document-text-outline" size={22} color="#6B7280" />
-              <Text style={styles.settingText}>Terms of Service</Text>
+              <Text style={styles.settingText}>{t('terms_of_service')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Danger Zone</Text>
+          <Text style={styles.sectionTitle}>{t('danger_zone')}</Text>
           
           <TouchableOpacity style={styles.dangerItem} onPress={handleDeleteAccount}>
             <View style={styles.settingLeft}>
               <Ionicons name="trash-outline" size={22} color="#EF4444" />
-              <Text style={styles.dangerText}>Delete Account</Text>
+              <Text style={styles.dangerText}>{t('delete_account')}</Text>
             </View>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={styles.logoutText}>{t('log_out')}</Text>
         </TouchableOpacity>
 
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>LiLove v1.0.0 (Build 126)</Text>
+          <Text style={styles.versionText}>{`LiLove v${Constants.expoConfig?.version ?? ''} (${Constants.expoConfig?.ios?.buildNumber ?? ''})`}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

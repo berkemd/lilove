@@ -17,6 +17,7 @@ import { useAuthStore } from '../../store/authStore';
 import storage from '../../services/storage';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../lib/api';
+import { t } from '../../i18n';
 
 interface UserStats {
   streak: number;
@@ -80,10 +81,10 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('log_out'), t('are_you_sure_you_want_to_log_out'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Log Out',
+        text: t('log_out'),
         onPress: async () => {
           await logout();
           await storage.clear();
@@ -97,7 +98,7 @@ export default function ProfileScreen({ navigation }: any) {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permissionResult.granted) {
-      Alert.alert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
+      Alert.alert(t('permission_required'), t('please_allow_access_to_your_photo_library_to'));
       return;
     }
 
@@ -118,9 +119,9 @@ export default function ProfileScreen({ navigation }: any) {
       setIsUploadingImage(true);
       const response = await api.uploadProfilePicture(uri);
       updateUser({ photoURL: response.profileImageUrl });
-      Alert.alert('Success', 'Profile picture updated successfully');
+      Alert.alert(t('success'), t('profile_picture_updated_successfully'));
     } catch (err) {
-      Alert.alert('Error', 'Failed to upload profile picture. Please try again.');
+      Alert.alert(t('error'), t('failed_to_upload_profile_picture_please_try'));
     } finally {
       setIsUploadingImage(false);
     }
@@ -133,12 +134,12 @@ export default function ProfileScreen({ navigation }: any) {
   const isPremium = userProfile?.subscriptionTier === 'premium' || userProfile?.isPremium;
 
   const menuItems = [
-    { icon: 'settings-outline', label: 'Settings', action: () => navigation.navigate('Settings') },
-    { icon: 'trophy-outline', label: 'Achievements', action: () => navigation.navigate('Achievements') },
-    { icon: 'bar-chart-outline', label: 'Analytics', action: () => navigation.navigate('Dashboard') },
-    { icon: 'notifications-outline', label: 'Notifications', action: () => navigation.navigate('Settings') },
-    { icon: 'help-circle-outline', label: 'Help & Support', action: () => Linking.openURL('mailto:support@lilove.org') },
-    { icon: 'document-text-outline', label: 'Privacy Policy', action: () => Linking.openURL('https://lilove.org/privacy') },
+    { icon: 'settings-outline', label: t('settings'), action: () => navigation.navigate('Settings') },
+    { icon: 'trophy-outline', label: t('achievements'), action: () => navigation.navigate('Achievements') },
+    { icon: 'bar-chart-outline', label: t('analytics'), action: () => navigation.navigate('Dashboard') },
+    { icon: 'notifications-outline', label: t('notifications'), action: () => navigation.navigate('Settings') },
+    { icon: 'help-circle-outline', label: t('help_support'), action: () => Linking.openURL('mailto:support@lilove.org') },
+    { icon: 'document-text-outline', label: t('privacy_policy'), action: () => Linking.openURL('https://lilove.org/privacy') },
   ];
 
   const renderStatsSection = () => {
@@ -167,7 +168,7 @@ export default function ProfileScreen({ navigation }: any) {
       return (
         <TouchableOpacity style={styles.statsErrorContainer} onPress={loadUserStats} activeOpacity={0.7}>
           <Ionicons name="refresh" size={20} color="#6B7280" />
-          <Text style={styles.statsErrorText}>Tap to load stats</Text>
+          <Text style={styles.statsErrorText}>{t('tap_to_load_stats')}</Text>
         </TouchableOpacity>
       );
     }
@@ -176,17 +177,17 @@ export default function ProfileScreen({ navigation }: any) {
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{userProfile?.coinBalance || 0}</Text>
-          <Text style={styles.statLabel}>Coins</Text>
+          <Text style={styles.statLabel}>{t('coins')}</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{userStats.streak}</Text>
-          <Text style={styles.statLabel}>Day Streak</Text>
+          <Text style={styles.statLabel}>{t('day_streak')}</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statValue}>{userStats.totalGoals}</Text>
-          <Text style={styles.statLabel}>Goals</Text>
+          <Text style={styles.statLabel}>{t('goals')}</Text>
         </View>
       </View>
     );
@@ -230,12 +231,12 @@ export default function ProfileScreen({ navigation }: any) {
           {isPremium ? (
             <View style={styles.premiumBadge}>
               <Ionicons name="star" size={16} color="#F59E0B" />
-              <Text style={styles.premiumText}>Premium Member</Text>
+              <Text style={styles.premiumText}>{t('premium_member')}</Text>
             </View>
           ) : (
             <TouchableOpacity style={styles.upgradeBadge} onPress={handlePremiumClick} activeOpacity={0.7} data-testid="button-upgrade-premium">
               <Ionicons name="sparkles" size={16} color="#8B5CF6" />
-              <Text style={styles.upgradeText}>Upgrade to Premium</Text>
+              <Text style={styles.upgradeText}>{t('upgrade_to_premium')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -250,8 +251,8 @@ export default function ProfileScreen({ navigation }: any) {
                   <Ionicons name="star" size={20} color="#F59E0B" />
                 </View>
                 <View>
-                  <Text style={styles.menuItemText}>Unlock Premium</Text>
-                  <Text style={styles.menuItemSubtext}>Get unlimited access</Text>
+                  <Text style={styles.menuItemText}>{t('unlock_premium')}</Text>
+                  <Text style={styles.menuItemSubtext}>{t('get_unlimited_access')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
@@ -279,12 +280,12 @@ export default function ProfileScreen({ navigation }: any) {
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7} data-testid="button-logout">
           <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>Log Out</Text>
+          <Text style={styles.logoutText}>{t('log_out')}</Text>
         </TouchableOpacity>
 
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>LiLove v1.0.0</Text>
-          <Text style={styles.copyrightText}>Made with love for your growth</Text>
+          <Text style={styles.copyrightText}>{t('made_with_love_for_your_growth')}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>

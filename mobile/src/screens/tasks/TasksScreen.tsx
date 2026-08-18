@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { api } from '../../lib/api';
+import { t } from '../../i18n';
 
 interface Task {
   id: string;
@@ -49,7 +50,7 @@ export default function TasksScreen() {
       setTasks(Array.isArray(data) ? data : []);
     } catch (error: any) {
       console.error('Failed to load tasks:', error);
-      Alert.alert('Error', 'Could not load tasks. Please try again.');
+      Alert.alert(t('error'), t('could_not_load_tasks_please_try_again'));
     } finally {
       setIsLoading(false);
     }
@@ -70,7 +71,7 @@ export default function TasksScreen() {
 
   const handleSaveTask = async () => {
     if (!title.trim()) {
-      Alert.alert('Error', 'Please enter a task title');
+      Alert.alert(t('error'), t('please_enter_a_task_title'));
       return;
     }
 
@@ -83,10 +84,10 @@ export default function TasksScreen() {
       });
 
       setIsModalVisible(false);
-      Alert.alert('Success', 'Task created successfully!');
+      Alert.alert(t('success'), t('task_created_successfully'));
       loadTasks();
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to create task. Please try again.');
+      Alert.alert(t('error'), t('failed_to_create_task_please_try_again'));
     }
   };
 
@@ -94,9 +95,9 @@ export default function TasksScreen() {
     try {
       await api.completeTask(taskId);
       loadTasks();
-      Alert.alert('✅ Well Done!', 'Task completed successfully!');
+      Alert.alert(t('well_done'), t('task_completed_successfully'));
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to complete task. Please try again.');
+      Alert.alert(t('error'), t('failed_to_complete_task_please_try_again'));
     }
   };
 
@@ -175,7 +176,7 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Tasks</Text>
+        <Text style={styles.headerTitle}>{t('my_tasks')}</Text>
         <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
           <Text style={styles.addButtonText}>+ New Task</Text>
         </TouchableOpacity>
@@ -192,7 +193,7 @@ export default function TasksScreen() {
         {isLoading && !isRefreshing ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.loadingText}>Loading your tasks...</Text>
+            <Text style={styles.loadingText}>{t('loading_your_tasks')}</Text>
           </View>
         ) : (
           <>
@@ -220,12 +221,10 @@ export default function TasksScreen() {
             {tasks.length === 0 && !isLoading && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateEmoji}>📋</Text>
-                <Text style={styles.emptyStateTitle}>No tasks yet</Text>
-                <Text style={styles.emptyStateText}>
-                  Create your first task and get things done!
-                </Text>
+                <Text style={styles.emptyStateTitle}>{t('no_tasks_yet')}</Text>
+                <Text style={styles.emptyStateText}>{t('create_your_first_task_and_get_things_done')}</Text>
                 <TouchableOpacity style={styles.emptyStateButton} onPress={openCreateModal}>
-                  <Text style={styles.emptyStateButtonText}>Create Task</Text>
+                  <Text style={styles.emptyStateButtonText}>{t('create_task')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -242,11 +241,11 @@ export default function TasksScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New Task</Text>
+            <Text style={styles.modalTitle}>{t('create_new_task')}</Text>
 
             <TextInput
               style={styles.input}
-              placeholder="Task title *"
+              placeholder={t('task_title')}
               value={title}
               onChangeText={setTitle}
               maxLength={200}
@@ -254,7 +253,7 @@ export default function TasksScreen() {
 
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Description (optional)"
+              placeholder={t('description_optional')}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -290,13 +289,13 @@ export default function TasksScreen() {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setIsModalVisible(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={handleSaveTask}
               >
-                <Text style={styles.saveButtonText}>Create</Text>
+                <Text style={styles.saveButtonText}>{t('create')}</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
+import { t } from '../../i18n';
 
 interface Goal {
   id: string;
@@ -84,7 +85,7 @@ export default function GoalsScreen() {
       setGoals(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error('Failed to load goals:', err);
-      setError('Unable to load your goals. Please try again.');
+      setError(t('unable_to_load_your_goals_please_try_again'));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -116,7 +117,7 @@ export default function GoalsScreen() {
 
   const handleSaveGoal = async () => {
     if (!title.trim()) {
-      Alert.alert('Missing Title', 'Please enter a goal title');
+      Alert.alert(t('missing_title'), t('please_enter_a_goal_title'));
       return;
     }
 
@@ -131,31 +132,31 @@ export default function GoalsScreen() {
 
       if (editingGoal) {
         await api.updateGoal(editingGoal.id, goalData);
-        Alert.alert('Success', 'Goal updated successfully');
+        Alert.alert(t('success'), t('goal_updated_successfully'));
       } else {
         await api.createGoal(goalData);
-        Alert.alert('Success', 'Goal created successfully');
+        Alert.alert(t('success'), t('goal_created_successfully'));
       }
 
       setIsModalVisible(false);
       loadGoals();
     } catch (err: any) {
-      Alert.alert('Error', 'Failed to save goal. Please try again.');
+      Alert.alert(t('error'), t('failed_to_save_goal_please_try_again'));
     }
   };
 
   const handleDeleteGoal = (goal: Goal) => {
-    Alert.alert('Delete Goal', `Are you sure you want to delete "${goal.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('delete_goal'), `Are you sure you want to delete "${goal.title}"?`, [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await api.deleteGoal(goal.id);
             loadGoals();
           } catch (err) {
-            Alert.alert('Error', 'Failed to delete goal');
+            Alert.alert(t('error'), t('failed_to_delete_goal'));
           }
         },
       },
@@ -254,13 +255,11 @@ export default function GoalsScreen() {
       <View style={styles.emptyIconContainer}>
         <Ionicons name="flag-outline" size={48} color="#8B5CF6" />
       </View>
-      <Text style={styles.emptyStateTitle}>No goals yet</Text>
-      <Text style={styles.emptyStateText}>
-        Start your journey by creating your first goal. What do you want to achieve?
-      </Text>
+      <Text style={styles.emptyStateTitle}>{t('no_goals_yet')}</Text>
+      <Text style={styles.emptyStateText}>{t('start_your_journey_by_creating_your_first_go')}</Text>
       <TouchableOpacity style={styles.emptyStateButton} onPress={openCreateModal} data-testid="button-create-first-goal">
         <Ionicons name="add" size={20} color="#FFFFFF" />
-        <Text style={styles.emptyStateButtonText}>Create Your First Goal</Text>
+        <Text style={styles.emptyStateButtonText}>{t('create_your_first_goal')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -270,11 +269,11 @@ export default function GoalsScreen() {
       <View style={styles.errorIconContainer}>
         <Ionicons name="cloud-offline-outline" size={48} color="#9CA3AF" />
       </View>
-      <Text style={styles.errorTitle}>Unable to load goals</Text>
+      <Text style={styles.errorTitle}>{t('unable_to_load_goals')}</Text>
       <Text style={styles.errorMessage}>{error}</Text>
       <TouchableOpacity style={styles.retryButton} onPress={loadGoals} data-testid="button-retry-goals">
         <Ionicons name="refresh" size={20} color="#FFFFFF" />
-        <Text style={styles.retryButtonText}>Try Again</Text>
+        <Text style={styles.retryButtonText}>{t('try_again')}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -282,10 +281,10 @@ export default function GoalsScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Goals</Text>
+        <Text style={styles.headerTitle}>{t('my_goals')}</Text>
         <TouchableOpacity style={styles.addButton} onPress={openCreateModal} data-testid="button-new-goal">
           <Ionicons name="add" size={20} color="#FFFFFF" />
-          <Text style={styles.addButtonText}>New Goal</Text>
+          <Text style={styles.addButtonText}>{t('new_goal')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -340,10 +339,10 @@ export default function GoalsScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Title</Text>
+              <Text style={styles.inputLabel}>{t('title')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="What do you want to achieve?"
+                placeholder={t('what_do_you_want_to_achieve')}
                 placeholderTextColor="#9CA3AF"
                 value={title}
                 onChangeText={setTitle}
@@ -351,10 +350,10 @@ export default function GoalsScreen() {
                 data-testid="input-goal-title"
               />
 
-              <Text style={styles.inputLabel}>Description</Text>
+              <Text style={styles.inputLabel}>{t('description')}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="Add more details about your goal..."
+                placeholder={t('add_more_details_about_your_goal')}
                 placeholderTextColor="#9CA3AF"
                 value={description}
                 onChangeText={setDescription}
@@ -364,10 +363,10 @@ export default function GoalsScreen() {
                 data-testid="input-goal-description"
               />
 
-              <Text style={styles.inputLabel}>Target Outcome</Text>
+              <Text style={styles.inputLabel}>{t('target_outcome')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="What does success look like?"
+                placeholder={t('what_does_success_look_like')}
                 placeholderTextColor="#9CA3AF"
                 value={targetOutcome}
                 onChangeText={setTargetOutcome}
@@ -375,7 +374,7 @@ export default function GoalsScreen() {
                 data-testid="input-goal-outcome"
               />
 
-              <Text style={styles.inputLabel}>Category</Text>
+              <Text style={styles.inputLabel}>{t('category')}</Text>
               <View style={styles.categorySelector}>
                 {['personal', 'career', 'health', 'finance', 'relationships', 'education'].map((cat) => {
                   const isSelected = category === cat;
@@ -402,7 +401,7 @@ export default function GoalsScreen() {
                   onPress={() => setIsModalVisible(false)}
                   data-testid="button-cancel-goal"
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.saveButton} onPress={handleSaveGoal} data-testid="button-save-goal">
                   <Text style={styles.saveButtonText}>{editingGoal ? 'Update' : 'Create'}</Text>

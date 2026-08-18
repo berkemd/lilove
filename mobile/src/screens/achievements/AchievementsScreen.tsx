@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../lib/api';
+import { t } from '../../i18n';
 
 interface Achievement {
   id: string;
@@ -60,7 +61,7 @@ export default function AchievementsScreen({ navigation }: any) {
       }
     } catch (err: any) {
       console.error('Failed to load achievements:', err);
-      setError('Failed to load achievements');
+      setError(t('failed_to_load_achievements'));
       setAchievements([]);
     } finally {
       setIsLoading(false);
@@ -140,7 +141,7 @@ export default function AchievementsScreen({ navigation }: any) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Achievements</Text>
+          <Text style={styles.headerTitle}>{t('achievements')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
@@ -156,7 +157,7 @@ export default function AchievementsScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Achievements</Text>
+        <Text style={styles.headerTitle}>{t('achievements')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -174,17 +175,17 @@ export default function AchievementsScreen({ navigation }: any) {
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{userProfile?.stats?.totalXP || 0}</Text>
-            <Text style={styles.statLabel}>Total XP</Text>
+            <Text style={styles.statLabel}>{t('total_xp')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{unlockedAchievements.length}</Text>
-            <Text style={styles.statLabel}>Unlocked</Text>
+            <Text style={styles.statLabel}>{t('unlocked')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>Level {userProfile?.stats?.level || 1}</Text>
-            <Text style={styles.statLabel}>Current</Text>
+            <Text style={styles.statLabel}>{t('current')}</Text>
           </View>
         </View>
 
@@ -192,15 +193,13 @@ export default function AchievementsScreen({ navigation }: any) {
           <TouchableOpacity style={styles.errorContainer} onPress={loadAchievements}>
             <Ionicons name="refresh" size={24} color="#6B7280" />
             <Text style={styles.errorText}>{error}</Text>
-            <Text style={styles.retryText}>Tap to retry</Text>
+            <Text style={styles.retryText}>{t('tap_to_retry')}</Text>
           </TouchableOpacity>
         ) : achievements.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="trophy-outline" size={64} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No Achievements Yet</Text>
-            <Text style={styles.emptyText}>
-              Complete goals and tasks to unlock achievements
-            </Text>
+            <Text style={styles.emptyTitle}>{t('no_achievements_yet')}</Text>
+            <Text style={styles.emptyText}>{t('complete_goals_and_tasks_to_unlock_achieveme')}</Text>
           </View>
         ) : (
           <>

@@ -19,8 +19,6 @@ export default {
       buildNumber: "125",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        NSLocationWhenInUseUsageDescription: "Konum bilginizi yakındaki kullanıcıları göstermek için kullanırız.",
-        NSCameraUsageDescription: "Profil fotoğrafı çekmek için kamera erişimi gerekir.",
         NSPhotoLibraryUsageDescription: "Fotoğraf seçmek için galeri erişimi gerekir.",
         UIBackgroundModes: ["remote-notification"],
         CFBundleURLTypes: [
@@ -36,7 +34,8 @@ export default {
       icon: "./assets/icon.png",
       color: "#8B5CF6"
     },
-    plugins: ["expo-iap", "./plugins/withFmtXcode26"],
+    plugins: [
+      "./plugins/withInfoPlistLocales","expo-iap", "./plugins/withFmtXcode26"],
     extra: {
       eas: {
         projectId: "ab7bb029-eeb4-4407-a810-a9b27462f0ae"
