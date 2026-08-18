@@ -29,7 +29,7 @@ export const fr = {
   available_to_unlock: 'Disponible à débloquer',
   best: 'Record',
   best_value_for_teams_save_17: 'Meilleure offre pour les équipes – 17 % d\'économie',
-  book_the_dentist: 'Prendre rendez-vous chez le dentiste',
+  book_the_dentist: 'Rendez-vous chez le dentiste',
   calm: 'Calme',
   calm_and_centered: 'Calme et centré',
   cancel: 'Annuler',

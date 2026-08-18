@@ -225,7 +225,7 @@ export const it = {
   run_3k_without_stopping: 'Correre 3 km senza fermarsi',
   run_5k_under_30_min: 'Correre 5 km sotto i 30 minuti',
   run_8k: 'Correre 8 km',
-  run_a_10k: 'Completare una 10 km',
+  run_a_10k: 'Fare una 10 km',
   sample_data_nothing_is_saved_to_your_account: 'Dati di esempio · non viene salvato nulla nel tuo account',
   sapling: 'Alberello',
   save_17_with_annual_subscription: 'Risparmia il 17% con l\'abbonamento annuale',
