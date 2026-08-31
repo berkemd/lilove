@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#417F4A"/>
+      <stop offset="1" stop-color="#224E2D"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.38" r="0.60">
+      <stop offset="0" stop-color="#63A76B" stop-opacity="0.60"/>
+      <stop offset="1" stop-color="#63A76B" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vign" cx="0.5" cy="1.05" r="0.9">
+      <stop offset="0" stop-color="#153420" stop-opacity="0.45"/>
+      <stop offset="0.6" stop-color="#153420" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <rect width="1024" height="1024" fill="url(#vign)"/>
+
+  <!-- heart blooming from a seedling stem, one silhouette -->
+  <g transform="translate(3,-12)">
+<path fill="#F5F1E4" d="M 512 372
+    C 498 316 462 276 410 268
+    C 330 256 268 310 274 398
+    C 281 512 386 606 490 660
+    C 499 704 494 748 502 792
+    Q 512 808 522 792
+    C 530 748 525 704 532 661
+    C 638 606 743 512 750 398
+    C 756 310 694 256 614 268
+    C 562 276 526 316 512 372 Z"/>
+
+  <!-- first leaf on the stem -->
+  <path fill="#F5F1E4" d="M 506 716
+    C 462 714 422 690 410 648
+    C 456 640 496 664 508 706 Z"/>
+
+  <!-- seam: the two leaves of the heart part here (tapered lens) -->
+  <path fill="#2A5A35" d="M 512 396
+    C 503 468 503 542 512 614
+    C 521 542 521 468 512 396 Z"/>
+</g>
+</svg>

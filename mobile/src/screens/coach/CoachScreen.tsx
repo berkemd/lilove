@@ -41,17 +41,35 @@ export default function CoachScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    const welcomeMessage: Message = {
-      id: '1',
-      type: 'ai',
-      content:
-        "Hi there! I'm Lily, your AI growth companion. I'm here to help you achieve your goals and support your personal development journey. What would you like to explore today?",
-      timestamp: new Date(),
-      suggestions: ['Help me with my goals', 'I need some motivation', 'Track my progress', 'Daily wellness check'],
-    };
-    setMessages([welcomeMessage]);
+    initConversation();
     loadDailyInsight();
   }, []);
+
+  // Gun-sifir anayasasi (LILOVE_KOC_GUN_SIFIR.md): veri yoksa tavsiye yok —
+  // koc ilk sayiyi yaratir. Kayit bos degilse (veya olculemezse) normal karsilama.
+  const initConversation = async () => {
+    let recordEmpty = false;
+    try {
+      const habits = await api.getHabits();
+      recordEmpty = Array.isArray(habits) && habits.length === 0;
+    } catch {
+      recordEmpty = false;
+    }
+    if (recordEmpty) {
+      setMessages([
+        { id: '1', type: 'ai', content: t('coach_d0_intro'), timestamp: new Date() },
+        { id: '2', type: 'ai', content: t('coach_d0_ask_habit'), timestamp: new Date() },
+      ]);
+      return;
+    }
+    setMessages([{
+      id: '1',
+      type: 'ai',
+      content: t('coach_welcome_message'),
+      timestamp: new Date(),
+      suggestions: [t('coach_suggestion_goals'), t('coach_suggestion_motivation'), t('coach_suggestion_progress'), t('coach_suggestion_wellness')],
+    }]);
+  };
 
   useEffect(() => {
     setTimeout(() => {
