@@ -330,4 +330,6 @@ export const fr = {
   your_subscription_has_been_restored: 'Votre abonnement a été restauré.',
   great_job: '✅ Bravo !',
   well_done: '✅ Bien joué !',
+  purchase_needs_account_title: "Créez d'abord un compte gratuit",
+  purchase_needs_account_body: "Votre abonnement est lié à votre compte LiLove : votre coach et votre historique vous suivent sur tous vos appareils. Vous êtes dans la visite d'exemple ; rien n'a été facturé.",
 } as const;

@@ -330,4 +330,6 @@ export const en = {
   your_subscription_has_been_restored: 'Your subscription has been restored.',
   great_job: '✅ Great Job!',
   well_done: '✅ Well Done!',
+  purchase_needs_account_title: "Create a free account first",
+  purchase_needs_account_body: "Your subscription is linked to your LiLove account, so your coach and your history follow you to every device. You're in the sample tour, and nothing has been charged.",
 } as const;

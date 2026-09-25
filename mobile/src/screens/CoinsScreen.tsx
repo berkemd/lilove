@@ -30,6 +30,7 @@ import { COIN_AMOUNTS, type CoinId } from '../config/products';
 import { buyCoins, loadCoinProducts, type StoreProduct } from '../services/iap';
 import { api } from '../lib/api';
 import { t } from '../i18n';
+import { purchaseBlockedInDemo } from '../lib/accountGate';
 
 export default function CoinsScreen({ navigation }: any) {
   const [urunler, setUrunler] = useState<StoreProduct[]>([]);
@@ -69,6 +70,7 @@ export default function CoinsScreen({ navigation }: any) {
   }, [yukle, bakiyeOku]);
 
   const satinAl = async (urun: StoreProduct) => {
+    if (purchaseBlockedInDemo()) return;
     try {
       setAlinan(urun.id);
       await buyCoins(urun.id);

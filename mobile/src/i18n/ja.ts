@@ -330,4 +330,6 @@ export const ja = {
   your_subscription_has_been_restored: 'サブスクリプションを復元しました。',
   great_job: '✅ よくできました！',
   well_done: '✅ お見事！',
+  purchase_needs_account_title: "まず無料アカウントを作成してください",
+  purchase_needs_account_body: "サブスクリプションはLiLoveアカウントに紐づくため、コーチと記録はどのデバイスにも引き継がれます。現在はサンプルツアー中で、料金は発生していません。",
 } as const;

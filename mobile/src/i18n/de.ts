@@ -330,4 +330,6 @@ export const de = {
   your_subscription_has_been_restored: 'Dein Abo wurde wiederhergestellt.',
   great_job: '✅ Stark gemacht!',
   well_done: '✅ Gut gemacht!',
+  purchase_needs_account_title: "Erstelle zuerst ein kostenloses Konto",
+  purchase_needs_account_body: "Dein Abo ist mit deinem LiLove-Konto verknüpft, damit Coach und Verlauf dir auf jedes Gerät folgen. Du bist gerade in der Beispieltour – es wurde nichts berechnet.",
 } as const;

@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ import { loadSubscriptionProducts, buySubscription, restore, type StoreProduct }
 import { periodOf, tierOf } from '../config/products';
 import { api } from '../lib/api';
 import { t } from '../i18n';
+import { purchaseBlockedInDemo } from '../lib/accountGate';
 
 const features = [
   { icon: 'sparkles', title: t('advanced_ai_coaching'), description: t('personalized_guidance_from_our_ai_mentor') },
@@ -74,6 +76,7 @@ export default function PremiumScreen({ navigation }: any) {
   };
 
   const handlePurchase = async () => {
+    if (purchaseBlockedInDemo()) return;
     if (!selectedPackage) {
       Alert.alert(t('please_select_a_subscription_plan'));
       return;
@@ -108,6 +111,7 @@ export default function PremiumScreen({ navigation }: any) {
   // GERİ YÜKLEME GERÇEKTEN GERİ YÜKLER: cihazdaki her abonelik işlemi
   // sunucuya yeniden doğrulatılır, sonra yetki sunucudan okunur.
   const handleRestore = async () => {
+    if (purchaseBlockedInDemo()) return;
     try {
       setIsPurchasing(true);
       const sayi = await restore();
@@ -127,11 +131,11 @@ export default function PremiumScreen({ navigation }: any) {
   // FİYAT MAĞAZANIN BİÇİMLENDİRDİĞİ HÂLİYLE GÖSTERİLİR.
   // Kendimiz para birimi ya da ayraç seçmiyoruz: 175 bölgede farklı.
   const formatPrice = (pkg: StoreProduct) =>
-    `${pkg.displayPrice}${periodOf(pkg.id) === 'yearly' ? '/year' : '/month'}`;
+    `${pkg.displayPrice}${periodOf(pkg.id) === 'yearly' ? t('per_year') : t('per_month')}`;
 
   const planName = (pkg: StoreProduct) => {
     const katman = tierOf(pkg.id) === 'team' ? 'Team' : 'Pro';
-    const donem = periodOf(pkg.id) === 'yearly' ? 'Annual' : 'Monthly';
+    const donem = periodOf(pkg.id) === 'yearly' ? t('annual') : t('monthly');
     return `${katman} ${donem}`;
   };
 
@@ -299,10 +303,20 @@ export default function PremiumScreen({ navigation }: any) {
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          • Cancel anytime in Settings{'\n'}
-          • Subscription auto-renews unless cancelled at least 24 hours before the end of the period{'\n'}
-          • Payment is charged to your Apple Account at confirmation of purchase
+          • {t('sub_cancel_anytime')}{'\n'}
+          • {t('sub_auto_renews')}{'\n'}
+          • {t('sub_charged_apple')}
         </Text>
+
+        <View style={styles.legalRow}>
+          <TouchableOpacity onPress={() => Linking.openURL('https://lilove.org/legal/privacy')}>
+            <Text style={styles.legalLink}>{t('privacy_policy')}</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalDot}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://lilove.org/legal/terms')}>
+            <Text style={styles.legalLink}>{t('terms_of_service')}</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -475,6 +489,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 32,
     lineHeight: 18,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  legalLink: {
+    fontSize: 13,
+    color: '#8B5CF6',
+    textDecorationLine: 'underline',
+  },
+  legalDot: {
+    fontSize: 13,
+    color: '#9CA3AF',
   },
   premiumActiveContainer: {
     padding: 24,

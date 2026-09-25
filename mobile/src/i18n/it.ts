@@ -330,4 +330,6 @@ export const it = {
   your_subscription_has_been_restored: 'Il tuo abbonamento è stato ripristinato.',
   great_job: '✅ Ottimo lavoro!',
   well_done: '✅ Ben fatto!',
+  purchase_needs_account_title: "Prima crea un account gratuito",
+  purchase_needs_account_body: "Il tuo abbonamento è collegato al tuo account LiLove, così coach e cronologia ti seguono su ogni dispositivo. Sei nel tour di esempio e non ti è stato addebitato nulla.",
 } as const;

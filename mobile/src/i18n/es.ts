@@ -330,4 +330,6 @@ export const es = {
   your_subscription_has_been_restored: 'Se ha restaurado tu suscripción.',
   great_job: '✅ ¡Muy bien!',
   well_done: '✅ ¡Bien hecho!',
+  purchase_needs_account_title: "Primero crea una cuenta gratuita",
+  purchase_needs_account_body: "Tu suscripción se vincula a tu cuenta de LiLove, para que tu coach y tu historial te acompañen en todos tus dispositivos. Estás en el recorrido de ejemplo y no se ha cobrado nada.",
 } as const;

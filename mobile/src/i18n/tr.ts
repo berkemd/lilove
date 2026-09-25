@@ -330,4 +330,6 @@ export const tr = {
   your_subscription_has_been_restored: 'Aboneliğin geri yüklendi.',
   great_job: '✅ Harika iş!',
   well_done: '✅ Aferin!',
+  purchase_needs_account_title: "Önce ücretsiz bir hesap aç",
+  purchase_needs_account_body: "Aboneliğin LiLove hesabına bağlanır; böylece koçun ve geçmişin her cihazda seninle olur. Şu an örnek turdasın, hiçbir ücret alınmadı.",
 } as const;

@@ -49,6 +49,22 @@ import { Platform } from 'react-native';
 // bağlanmak, iki ayrı yeniden deneme ve hata politikası demek olurdu.
 import { api } from '../lib/api';
 import { COIN_IDS, SUBSCRIPTION_IDS, isCoinProduct } from '../config/products';
+import { tokenManager } from './tokenManager';
+import { DEMO_TOKEN } from '../lib/demoData';
+
+/**
+ * No purchase or restore is ever STARTED in the demo tour.
+ *
+ * The screens already stop and explain (lib/accountGate.ts). This is the
+ * second lock, for any future screen that forgets. Without it, Apple
+ * takes the payment and our server refuses to verify it: paid, and
+ * nothing received.
+ */
+async function hesapGerekir(): Promise<void> {
+  if ((await tokenManager.getToken()) === DEMO_TOKEN) {
+    throw Object.assign(new Error('Purchases need an account.'), { code: 'ACCOUNT_REQUIRED' });
+  }
+}
 
 export type StoreProduct = {
   id: string;
@@ -215,7 +231,8 @@ export async function loadSubscriptionProducts(): Promise<StoreProduct[]> {
  * sonsuza kadar dönmesi kabul edilemez; işlem askıda kalır ve bir
  * sonraki açılışta dinleyici onu tamamlar.
  */
-function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
+async function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
+  await hesapGerekir();
   return new Promise<void>((coz, reddet) => {
     const zamanlayici = setTimeout(() => {
       bekleyenler.delete(productId);
@@ -250,6 +267,7 @@ export function buySubscription(productId: string): Promise<void> {
  * @returns sunucunun kabul ettiği abonelik işlemi sayısı
  */
 export async function restore(): Promise<number> {
+  await hesapGerekir();
   const mevcut: any[] = (await getAvailablePurchases()) ?? [];
   let sayi = 0;
   for (const p of mevcut) {
