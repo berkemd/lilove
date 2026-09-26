@@ -18,6 +18,8 @@ import storage from '../../services/storage';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../lib/api';
 import { t } from '../../i18n';
+import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface UserStats {
   streak: number;
@@ -25,14 +27,24 @@ interface UserStats {
   completedTasks: number;
 }
 
-function SkeletonBox({ width, height, style }: { width: number | string; height: number; style?: any }) {
+function SkeletonBox({
+  width,
+  height,
+  style,
+}: {
+  width: number | string;
+  height: number;
+  style?: any;
+}) {
+  const { color: themeColor } = useTheme();
+
   return (
     <View
       style={[
         {
           width,
           height,
-          backgroundColor: '#E5E7EB',
+          backgroundColor: themeColor('#E5E7EB', 'background'),
           borderRadius: 8,
         },
         style,
@@ -42,7 +54,11 @@ function SkeletonBox({ width, height, style }: { width: number | string; height:
 }
 
 export default function ProfileScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const { user, userProfile, logout, updateUser } = useAuthStore();
+  const subscription = useSubscription();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -131,15 +147,47 @@ export default function ProfileScreen({ navigation }: any) {
     navigation.navigate('Premium');
   };
 
-  const isPremium = userProfile?.subscriptionTier === 'premium' || userProfile?.isPremium;
+  const isPremium =
+    subscription.status === 'verified' && subscription.subscription?.isPremium === true;
+  const isFree =
+    subscription.status === 'verified' && subscription.subscription?.isPremium === false;
 
   const menuItems = [
-    { icon: 'settings-outline', label: t('settings'), action: () => navigation.navigate('Settings') },
-    { icon: 'trophy-outline', label: t('achievements'), action: () => navigation.navigate('Achievements') },
-    { icon: 'bar-chart-outline', label: t('analytics'), action: () => navigation.navigate('Dashboard') },
-    { icon: 'notifications-outline', label: t('notifications'), action: () => navigation.navigate('Settings') },
-    { icon: 'help-circle-outline', label: t('help_support'), action: () => Linking.openURL('mailto:support@lilove.org') },
-    { icon: 'document-text-outline', label: t('privacy_policy'), action: () => Linking.openURL('https://lilove.org/privacy') },
+    {
+      icon: 'person-circle-outline',
+      label: t('my_avatar'),
+      action: () => navigation.navigate('Avatar'),
+    },
+    {
+      icon: 'settings-outline',
+      label: t('settings'),
+      action: () => navigation.navigate('Settings'),
+    },
+    {
+      icon: 'trophy-outline',
+      label: t('achievements'),
+      action: () => navigation.navigate('Achievements'),
+    },
+    {
+      icon: 'bar-chart-outline',
+      label: t('analytics'),
+      action: () => navigation.navigate('Dashboard'),
+    },
+    {
+      icon: 'notifications-outline',
+      label: t('notifications'),
+      action: () => navigation.navigate('Settings'),
+    },
+    {
+      icon: 'help-circle-outline',
+      label: t('help_support'),
+      action: () => Linking.openURL('mailto:support@lilove.org'),
+    },
+    {
+      icon: 'document-text-outline',
+      label: t('privacy_policy'),
+      action: () => Linking.openURL('https://lilove.org/privacy'),
+    },
   ];
 
   const renderStatsSection = () => {
@@ -166,8 +214,12 @@ export default function ProfileScreen({ navigation }: any) {
 
     if (statsError) {
       return (
-        <TouchableOpacity style={styles.statsErrorContainer} onPress={loadUserStats} activeOpacity={0.7}>
-          <Ionicons name="refresh" size={20} color="#6B7280" />
+        <TouchableOpacity
+          style={styles.statsErrorContainer}
+          onPress={loadUserStats}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="refresh" size={20} color={themeColor('#6B7280', 'text')} />
           <Text style={styles.statsErrorText}>{t('tap_to_load_stats')}</Text>
         </TouchableOpacity>
       );
@@ -198,7 +250,12 @@ export default function ProfileScreen({ navigation }: any) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#8B5CF6" colors={['#8B5CF6']} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#8B5CF6"
+            colors={['#8B5CF6']}
+          />
         }
       >
         <View style={styles.header}>
@@ -211,17 +268,19 @@ export default function ProfileScreen({ navigation }: any) {
           >
             {isUploadingImage ? (
               <View style={styles.avatarPlaceholder}>
-                <ActivityIndicator color="#8B5CF6" size="large" />
+                <ActivityIndicator color={themeColor('#8B5CF6', 'text')} size="large" />
               </View>
             ) : userProfile?.photoURL ? (
               <Image source={{ uri: userProfile.photoURL }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>{userProfile?.displayName?.[0]?.toUpperCase() || '?'}</Text>
+                <Text style={styles.avatarText}>
+                  {userProfile?.displayName?.[0]?.toUpperCase() || '?'}
+                </Text>
               </View>
             )}
             <View style={styles.editBadge}>
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+              <Ionicons name="camera" size={14} color={themeColor('#FFFFFF', 'text')} />
             </View>
           </TouchableOpacity>
 
@@ -230,13 +289,37 @@ export default function ProfileScreen({ navigation }: any) {
 
           {isPremium ? (
             <View style={styles.premiumBadge}>
-              <Ionicons name="star" size={16} color="#F59E0B" />
-              <Text style={styles.premiumText}>{t('premium_member')}</Text>
+              <Ionicons name="star" size={16} color={themeColor('#F59E0B', 'text')} />
+              <Text style={styles.premiumText}>
+                {subscription.subscription?.subscriptionTier === 'team' ? 'Team' : 'Pro'}
+              </Text>
             </View>
-          ) : (
-            <TouchableOpacity style={styles.upgradeBadge} onPress={handlePremiumClick} activeOpacity={0.7} data-testid="button-upgrade-premium">
-              <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+          ) : isFree ? (
+            <TouchableOpacity
+              style={styles.upgradeBadge}
+              onPress={handlePremiumClick}
+              activeOpacity={0.7}
+              data-testid="button-upgrade-premium"
+            >
+              <Ionicons name="sparkles" size={16} color={themeColor('#8B5CF6', 'text')} />
               <Text style={styles.upgradeText}>{t('upgrade_to_premium')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.upgradeBadge}
+              onPress={() => subscription.refresh(true)}
+              disabled={subscription.status === 'loading'}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('subscription_unverified')}. ${t('subscription_check_again')}`}
+            >
+              <Ionicons name="refresh" size={16} color={themeColor('#8B5CF6', 'text')} />
+              <Text style={[styles.upgradeText, { flexShrink: 1 }]}>
+                {subscription.status === 'loading'
+                  ? t('subscription_checking')
+                  : subscription.status === 'error'
+                    ? t('subscription_unavailable')
+                    : t('subscription_unverified')}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -245,17 +328,31 @@ export default function ProfileScreen({ navigation }: any) {
 
         <View style={styles.menuContainer}>
           {!isPremium && (
-            <TouchableOpacity style={styles.premiumMenuItem} onPress={handlePremiumClick} activeOpacity={0.7} data-testid="button-unlock-premium">
+            <TouchableOpacity
+              style={styles.premiumMenuItem}
+              onPress={handlePremiumClick}
+              activeOpacity={0.7}
+              data-testid="button-unlock-premium"
+            >
               <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="star" size={20} color="#F59E0B" />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: themeColor('#FEF3C7', 'background') },
+                  ]}
+                >
+                  <Ionicons name="star" size={20} color={themeColor('#F59E0B', 'text')} />
                 </View>
                 <View>
-                  <Text style={styles.menuItemText}>{t('unlock_premium')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('get_unlimited_access')}</Text>
+                  <Text style={styles.menuItemText}>
+                    {isFree ? t('unlock_premium') : t('subscription')}
+                  </Text>
+                  <Text style={styles.menuItemSubtext}>
+                    {isFree ? t('get_unlimited_access') : t('subscription_unverified')}
+                  </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+              <Ionicons name="chevron-forward" size={20} color={themeColor('#F59E0B', 'text')} />
             </TouchableOpacity>
           )}
 
@@ -269,17 +366,26 @@ export default function ProfileScreen({ navigation }: any) {
             >
               <View style={styles.menuItemLeft}>
                 <View style={styles.menuIconContainer}>
-                  <Ionicons name={item.icon as any} size={20} color="#6B7280" />
+                  <Ionicons
+                    name={item.icon as any}
+                    size={20}
+                    color={themeColor('#6B7280', 'text')}
+                  />
                 </View>
                 <Text style={styles.menuItemText}>{item.label}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+              <Ionicons name="chevron-forward" size={20} color={themeColor('#D1D5DB', 'text')} />
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7} data-testid="button-logout">
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+          data-testid="button-logout"
+        >
+          <Ionicons name="log-out-outline" size={20} color={themeColor('#EF4444', 'text')} />
           <Text style={styles.logoutText}>{t('log_out')}</Text>
         </TouchableOpacity>
 
@@ -292,7 +398,7 @@ export default function ProfileScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

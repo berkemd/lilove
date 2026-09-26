@@ -30,8 +30,13 @@ import { COIN_AMOUNTS, type CoinId } from '../config/products';
 import { buyCoins, loadCoinProducts, type StoreProduct } from '../services/iap';
 import { api } from '../lib/api';
 import { t } from '../i18n';
+import { purchaseBlockedInDemo } from '../lib/accountGate';
+import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
 
 export default function CoinsScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [urunler, setUrunler] = useState<StoreProduct[]>([]);
   const [bakiye, setBakiye] = useState<number | null>(null);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -69,6 +74,7 @@ export default function CoinsScreen({ navigation }: any) {
   }, [yukle, bakiyeOku]);
 
   const satinAl = async (urun: StoreProduct) => {
+    if (purchaseBlockedInDemo()) return;
     try {
       setAlinan(urun.id);
       await buyCoins(urun.id);
@@ -100,10 +106,10 @@ export default function CoinsScreen({ navigation }: any) {
           onPress={() => navigation.goBack()}
           accessibilityLabel={t('close')}
         >
-          <Ionicons name="close" size={24} color="#1F2937" />
+          <Ionicons name="close" size={24} color={themeColor('#1F2937', 'text')} />
         </TouchableOpacity>
         <View style={styles.coinBadge}>
-          <Ionicons name="wallet" size={16} color="#92400E" />
+          <Ionicons name="wallet" size={16} color={themeColor('#92400E', 'text')} />
           <Text style={styles.coinText}>{bakiye ?? '—'}</Text>
         </View>
       </View>
@@ -111,17 +117,21 @@ export default function CoinsScreen({ navigation }: any) {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t('coins')}</Text>
         <Text style={styles.subtitle}>
-          Coins unlock avatar traits and shop items. You also earn them by
-          completing goals, habits and achievements — buying is never required.
+          Coins unlock avatar traits and shop items. You also earn them by completing goals, habits
+          and achievements — buying is never required.
         </Text>
 
         {yukleniyor ? (
           <View style={styles.merkez}>
-            <ActivityIndicator size="large" color="#8B5CF6" />
+            <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
           </View>
         ) : hata ? (
           <View style={styles.hataKutu}>
-            <Ionicons name="cloud-offline-outline" size={28} color="#B45309" />
+            <Ionicons
+              name="cloud-offline-outline"
+              size={28}
+              color={themeColor('#B45309', 'text')}
+            />
             <Text style={styles.hataMetin}>{hata}</Text>
             <TouchableOpacity style={styles.tekrarDugme} onPress={yukle}>
               <Text style={styles.tekrarMetin}>{t('try_again_2')}</Text>
@@ -142,17 +152,15 @@ export default function CoinsScreen({ navigation }: any) {
               >
                 <View style={styles.paketSol}>
                   <View style={styles.paketIkon}>
-                    <Ionicons name="wallet" size={20} color="#92400E" />
+                    <Ionicons name="wallet" size={20} color={themeColor('#92400E', 'text')} />
                   </View>
                   <View>
-                    <Text style={styles.paketMiktar}>
-                      {miktar?.toLocaleString() ?? u.title}
-                    </Text>
+                    <Text style={styles.paketMiktar}>{miktar?.toLocaleString() ?? u.title}</Text>
                     <Text style={styles.paketAlt}>coins</Text>
                   </View>
                 </View>
                 {alinan === u.id ? (
-                  <ActivityIndicator color="#8B5CF6" />
+                  <ActivityIndicator color={themeColor('#8B5CF6', 'text')} />
                 ) : (
                   <Text style={styles.paketFiyat}>{u.displayPrice}</Text>
                 )}
@@ -162,16 +170,15 @@ export default function CoinsScreen({ navigation }: any) {
         )}
 
         <Text style={styles.kucukMetin}>
-          Coins are a one-time purchase, consumed inside LiLove. They do not
-          expire and are not transferable. Payment is charged to your Apple
-          Account at confirmation.
+          Coins are a one-time purchase, consumed inside LiLove. They do not expire and are not
+          transferable. Payment is charged to your Apple Account at confirmation.
         </Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFFFFF' },
   header: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState, useSyncExternalStore } from 'react';
 import {
   View,
   Text,
@@ -7,35 +7,36 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  SafeAreaView,
+  AppState,
   ActivityIndicator,
   RefreshControl,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../lib/api';
+import { HabitTracker, type Habit } from '../../lib/habits';
 import { t } from '../../i18n';
-
-interface Habit {
-  id: string;
-  title: string;
-  description?: string;
-  icon: string;
-  color: string;
-  category: string;
-  frequency: string;
-  currentStreak: number;
-  longestStreak: number;
-  totalCompletions: number;
-  completedToday?: boolean;
-  createdAt: string;
-}
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 export default function HabitsScreen() {
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
+  const [tracker] = useState(() => new HabitTracker(api));
+  const {
+    habits,
+    loading: isLoading,
+    saving,
+    checkingId,
+    error,
+  } = useSyncExternalStore(tracker.subscribe, tracker.getSnapshot);
+  const busy = isLoading || saving || checkingId !== null;
   const [isModalVisible, setIsModalVisible] = useState(false);
-  
+
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -44,28 +45,27 @@ export default function HabitsScreen() {
 
   const emojis = ['🎯', '💪', '📚', '🧘', '🏃', '💧', '🥗', '😴', '🧠', '❤️'];
 
-  React.useEffect(() => {
-    loadHabits();
-  }, []);
-
-  const loadHabits = async () => {
-    setIsLoading(true);
-    try {
-      const data = await api.getHabits();
-      setHabits(Array.isArray(data) ? data : []);
-    } catch (error: any) {
-      console.error('Failed to load habits:', error);
-      Alert.alert(t('error'), t('could_not_load_habits_please_try_again'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await loadHabits();
-    setIsRefreshing(false);
-  };
+  useFocusEffect(
+    useCallback(() => {
+      void tracker.refresh();
+      const dayKey = () => `${new Date().toDateString()}/${new Date().toISOString().slice(0, 10)}`;
+      let previousDay = dayKey();
+      const clock = setInterval(() => {
+        const today = dayKey();
+        if (today !== previousDay) {
+          previousDay = today;
+          void tracker.refresh();
+        }
+      }, 30_000);
+      const foreground = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void tracker.refresh();
+      });
+      return () => {
+        clearInterval(clock);
+        foreground.remove();
+      };
+    }, [tracker])
+  );
 
   const openCreateModal = () => {
     setTitle('');
@@ -81,32 +81,19 @@ export default function HabitsScreen() {
       return;
     }
 
-    try {
-      await api.createHabit({
-        title: title.trim(),
-        description: description.trim(),
-        category,
-        icon: selectedEmoji,
-        color: getCategoryColor(category),
-        frequency: 'daily',
-        difficulty: 'medium',
-      });
-
+    const created = await tracker.create({
+      title: title.trim(),
+      description: description.trim(),
+      category,
+      icon: selectedEmoji,
+      color: getCategoryColor(category),
+      frequency: 'daily',
+      difficulty: 'medium',
+    });
+    if (created) {
       setIsModalVisible(false);
-      Alert.alert(t('success'), t('habit_created_successfully'));
-      loadHabits();
-    } catch (error: any) {
+    } else if (tracker.getSnapshot().error === 'create') {
       Alert.alert(t('error'), t('failed_to_create_habit_please_try_again'));
-    }
-  };
-
-  const handleTrackHabit = async (habitId: string) => {
-    try {
-      await api.trackHabit(habitId);
-      loadHabits();
-      Alert.alert(t('great_job'), t('habit_tracked_successfully_keep_it_up'));
-    } catch (error: any) {
-      Alert.alert(t('error'), t('failed_to_track_habit_please_try_again'));
     }
   };
 
@@ -121,19 +108,29 @@ export default function HabitsScreen() {
     return colors[category] || '#6B7280';
   };
 
+  const getCategoryLabel = (category: string): string =>
+    category === 'health' ? t('health') : category;
+
   const renderHabitCard = (habit: Habit) => {
     const categoryColor = getCategoryColor(habit.category);
 
     return (
-      <TouchableOpacity
+      <View
         key={habit.id}
         style={[styles.habitCard, { borderLeftColor: categoryColor }]}
-        onPress={() => handleTrackHabit(habit.id)}
-        disabled={habit.completedToday}
+        testID={`habit-${habit.id}`}
       >
         <View style={styles.habitHeader}>
           <View style={styles.habitIcon}>
-            <Text style={styles.habitEmoji}>{habit.icon || '🎯'}</Text>
+            {['walk', 'book', 'moon', 'star'].includes(habit.icon || '') ? (
+              <Ionicons
+                name={habit.icon as 'walk' | 'book' | 'moon' | 'star'}
+                size={26}
+                color={themeColor('#047857', 'text')}
+              />
+            ) : (
+              <Text style={styles.habitEmoji}>{habit.icon || '🎯'}</Text>
+            )}
           </View>
           <View style={styles.habitInfo}>
             <Text style={styles.habitTitle}>{habit.title}</Text>
@@ -143,47 +140,83 @@ export default function HabitsScreen() {
               </Text>
             )}
           </View>
-          {habit.completedToday && (
-            <View style={styles.checkMark}>
-              <Text style={styles.checkMarkText}>✓</Text>
-            </View>
+          {checkingId === habit.id ? (
+            <ActivityIndicator color={themeColor('#10B981', 'text')} />
+          ) : (
+            habit.completedToday && (
+              <View style={styles.checkMark}>
+                <Text style={styles.checkMarkText}>✓</Text>
+              </View>
+            )
           )}
         </View>
 
         <View style={styles.habitStats}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{habit.currentStreak}</Text>
+            <Text style={styles.statValue}>{habit.currentStreak ?? 0}</Text>
             <Text style={styles.statLabel}>{t('streak')}</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{habit.totalCompletions}</Text>
+            <Text style={styles.statValue}>{habit.totalCompletions ?? 0}</Text>
             <Text style={styles.statLabel}>{t('total')}</Text>
           </View>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{habit.longestStreak}</Text>
+            <Text style={styles.statValue}>{habit.longestStreak ?? 0}</Text>
             <Text style={styles.statLabel}>{t('best')}</Text>
           </View>
         </View>
 
+        {habit.completedToday ? (
+          <Text
+            style={styles.checkLabel}
+            accessibilityLabel={`${habit.title}. ${t('habits_completed_today')}`}
+          >
+            {t('habits_completed_today')}
+          </Text>
+        ) : (
+          <TouchableOpacity
+            style={[styles.checkButton, (busy || !!error) && styles.checkButtonDisabled]}
+            onPress={() => void tracker.check(habit.id)}
+            disabled={busy || !!error}
+            accessibilityRole="button"
+            accessibilityLabel={`${habit.title}. ${checkingId === habit.id ? t('habits_checking') : t('habits_check')}`}
+            accessibilityState={{ disabled: busy || !!error, busy: checkingId === habit.id }}
+            testID={`check-habit-${habit.id}`}
+          >
+            <Text
+              style={[styles.checkButtonText, (busy || !!error) && styles.checkButtonTextDisabled]}
+            >
+              {checkingId === habit.id ? t('habits_checking') : t('habits_check')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '20' }]}>
-          <Text style={[styles.categoryText, { color: categoryColor }]}>
-            {habit.category}
+          <Text style={[styles.categoryText, { color: themeColor(categoryColor, 'text') }]}>
+            {getCategoryLabel(habit.category)}
           </Text>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
-  const activeHabits = habits.filter(h => !h.completedToday);
-  const completedToday = habits.filter(h => h.completedToday);
+  const visibleHabits = habits.filter((h) => h.isActive !== false && !h.isPaused);
+  const activeHabits = visibleHabits.filter((h) => !h.completedToday);
+  const completedToday = visibleHabits.filter((h) => h.completedToday);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('my_habits')}</Text>
-        <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
-          <Text style={styles.addButtonText}>+ New Habit</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={openCreateModal}
+          disabled={busy}
+          accessibilityRole="button"
+          testID="new-habit"
+        >
+          <Text style={styles.addButtonText}>+ {t('create_habit')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -192,35 +225,63 @@ export default function HabitsScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={isLoading && habits.length > 0}
+            onRefresh={() => void tracker.refresh()}
+          />
         }
       >
-        {isLoading && !isRefreshing ? (
+        {error && (
+          <View style={styles.errorBox} accessibilityRole="alert">
+            <Text style={styles.errorText}>
+              {error === 'check'
+                ? t('habits_check_failed')
+                : error === 'create'
+                  ? t('failed_to_create_habit_please_try_again')
+                  : t('habits_load_failed')}
+            </Text>
+            <TouchableOpacity
+              onPress={() => void tracker.refresh()}
+              disabled={busy}
+              accessibilityRole="button"
+              testID="retry-habits"
+            >
+              <Text style={styles.checkLabel}>{t('try_again')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {isLoading && habits.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#10B981" />
+            <ActivityIndicator size="large" color={themeColor('#10B981', 'text')} />
             <Text style={styles.loadingText}>{t('loading_your_habits')}</Text>
           </View>
         ) : (
           <>
             {activeHabits.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Today's Habits ({activeHabits.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('habits_today')} ({activeHabits.length})
+                </Text>
                 {activeHabits.map(renderHabitCard)}
               </View>
             )}
 
             {completedToday.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Completed Today ({completedToday.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('habits_completed_today')} ({completedToday.length})
+                </Text>
                 {completedToday.map(renderHabitCard)}
               </View>
             )}
 
-            {habits.length === 0 && !isLoading && (
+            {visibleHabits.length === 0 && !isLoading && !error && (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateEmoji}>🌱</Text>
                 <Text style={styles.emptyStateTitle}>{t('no_habits_yet')}</Text>
-                <Text style={styles.emptyStateText}>{t('create_your_first_habit_and_start_building_a')}</Text>
+                <Text style={styles.emptyStateText}>
+                  {t('create_your_first_habit_and_start_building_a')}
+                </Text>
                 <TouchableOpacity style={styles.emptyStateButton} onPress={openCreateModal}>
                   <Text style={styles.emptyStateButtonText}>{t('create_habit')}</Text>
                 </TouchableOpacity>
@@ -235,10 +296,15 @@ export default function HabitsScreen() {
         visible={isModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={() => {
+          if (!saving) setIsModalVisible(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>{t('create_new_habit')}</Text>
 
             <View style={styles.emojiSelector}>
@@ -247,7 +313,7 @@ export default function HabitsScreen() {
                   key={emoji}
                   style={[
                     styles.emojiOption,
-                    selectedEmoji === emoji && styles.emojiOptionSelected
+                    selectedEmoji === emoji && styles.emojiOptionSelected,
                   ]}
                   onPress={() => setSelectedEmoji(emoji)}
                 >
@@ -257,21 +323,25 @@ export default function HabitsScreen() {
             </View>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('habit_name')}
               value={title}
               onChangeText={setTitle}
               maxLength={100}
+              testID="habit-title"
+              accessibilityLabel={t('habit_name')}
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[[styles.input, styles.textArea], { color: themeColor('#111827', 'text') }]}
               placeholder={t('description_optional')}
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={2}
               maxLength={200}
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <View style={styles.categorySelector}>
@@ -281,17 +351,17 @@ export default function HabitsScreen() {
                   style={[
                     styles.categoryOption,
                     category === cat && styles.categoryOptionSelected,
-                    { borderColor: getCategoryColor(cat) }
+                    { borderColor: getCategoryColor(cat) },
                   ]}
                   onPress={() => setCategory(cat)}
                 >
                   <Text
                     style={[
                       styles.categoryOptionText,
-                      category === cat && { color: getCategoryColor(cat) }
+                      category === cat && { color: themeColor(getCategoryColor(cat), 'text') },
                     ]}
                   >
-                    {cat}
+                    {getCategoryLabel(cat)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -301,24 +371,64 @@ export default function HabitsScreen() {
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setIsModalVisible(false)}
+                disabled={saving}
               >
                 <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={handleSaveHabit}
+                disabled={busy}
+                testID="save-habit"
               >
-                <Text style={styles.saveButtonText}>{t('create')}</Text>
+                <Text style={styles.saveButtonText}>
+                  {saving ? t('habits_checking') : t('create')}
+                </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
+  checkButton: {
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  checkButtonDisabled: {
+    backgroundColor: '#D1FAE5',
+  },
+  checkButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  checkButtonTextDisabled: {
+    color: '#065F46',
+  },
+  checkLabel: {
+    color: '#047857',
+    fontSize: 14,
+    fontWeight: '600',
+    paddingVertical: 8,
+  },
+  errorBox: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    marginBottom: 16,
+  },
+  errorText: { color: '#991B1B', fontSize: 15 },
   container: {
     flex: 1,
     backgroundColor: '#F0FDF4',
@@ -333,17 +443,21 @@ const styles = StyleSheet.create({
     borderBottomColor: '#D1FAE5',
   },
   headerTitle: {
-    fontSize: 28,
+    flex: 1,
+    marginRight: 12,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1F2937',
   },
   addButton: {
+    maxWidth: '46%',
     backgroundColor: '#10B981',
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 20,
   },
   addButtonText: {
+    textAlign: 'center',
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LiLoveTheme, useThemedColors } from '../theme/LiLoveTheme';
 import { t } from '../i18n';
+import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -46,11 +47,36 @@ interface SanctuaryState {
 }
 
 const EVOLUTION_STAGES: EvolutionStage[] = [
-  { stage: 1, name: t('seedling'), xpRequired: 0, description: t('your_journey_begins_with_a_single_seed_of_ho') },
-  { stage: 2, name: t('sapling'), xpRequired: 500, description: t('young_growth_stretches_toward_the_light') },
-  { stage: 3, name: t('young_forest'), xpRequired: 1500, description: t('a_vibrant_ecosystem_begins_to_form') },
-  { stage: 4, name: t('mature_forest'), xpRequired: 4000, description: t('life_flourishes_in_abundance') },
-  { stage: 5, name: t('ancient_grove'), xpRequired: 10000, description: t('a_magical_sanctuary_of_wisdom_and_wonder') },
+  {
+    stage: 1,
+    name: t('seedling'),
+    xpRequired: 0,
+    description: t('your_journey_begins_with_a_single_seed_of_ho'),
+  },
+  {
+    stage: 2,
+    name: t('sapling'),
+    xpRequired: 500,
+    description: t('young_growth_stretches_toward_the_light'),
+  },
+  {
+    stage: 3,
+    name: t('young_forest'),
+    xpRequired: 1500,
+    description: t('a_vibrant_ecosystem_begins_to_form'),
+  },
+  {
+    stage: 4,
+    name: t('mature_forest'),
+    xpRequired: 4000,
+    description: t('life_flourishes_in_abundance'),
+  },
+  {
+    stage: 5,
+    name: t('ancient_grove'),
+    xpRequired: 10000,
+    description: t('a_magical_sanctuary_of_wisdom_and_wonder'),
+  },
 ];
 
 const WEATHER_CONFIGS = {
@@ -102,10 +128,13 @@ interface TreeProps {
 }
 
 const AnimatedTree = ({ index, stage, animValue }: TreeProps) => {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const treeHeight = 40 + stage * 15 + (index % 3) * 8;
   const canopySize = 30 + stage * 12 + (index % 2) * 8;
   const trunkWidth = 6 + Math.floor(stage / 2) * 2;
-  
+
   const swayAnim = animValue.interpolate({
     inputRange: [0, 1],
     outputRange: ['-2deg', '2deg'],
@@ -115,7 +144,7 @@ const AnimatedTree = ({ index, stage, animValue }: TreeProps) => {
     <Animated.View
       style={[
         styles.tree,
-        { 
+        {
           left: `${8 + index * (75 / (stage + 2))}%`,
           transform: [{ rotate: swayAnim }],
         },
@@ -133,7 +162,7 @@ const AnimatedTree = ({ index, stage, animValue }: TreeProps) => {
       >
         {stage >= 4 && (
           <View style={styles.sparkleContainer}>
-            <Ionicons name="sparkles" size={8} color="#FDE047" />
+            <Ionicons name="sparkles" size={8} color={themeColor('#FDE047', 'text')} />
           </View>
         )}
       </View>
@@ -143,7 +172,7 @@ const AnimatedTree = ({ index, stage, animValue }: TreeProps) => {
           {
             width: trunkWidth,
             height: treeHeight,
-            backgroundColor: '#92400E',
+            backgroundColor: themeColor('#92400E', 'background'),
           },
         ]}
       />
@@ -158,11 +187,13 @@ interface CreatureProps {
 }
 
 const AnimatedCreature = ({ type, index, animValue }: CreatureProps) => {
+  const styles = useThemedStyles(baseStyles);
+
   const translateX = animValue.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0, 20, 0],
   });
-  
+
   const translateY = animValue.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0, -15, 0],
@@ -207,11 +238,13 @@ interface ParticleProps {
 }
 
 const FireflyParticle = ({ index, animValue }: ParticleProps) => {
+  const styles = useThemedStyles(baseStyles);
+
   const opacity = animValue.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0.3, 1, 0.3],
   });
-  
+
   const translateY = animValue.interpolate({
     inputRange: [0, 1],
     outputRange: [0, -20],
@@ -238,6 +271,9 @@ interface WeatherEffectProps {
 }
 
 const WeatherEffect = ({ type, animValue }: WeatherEffectProps) => {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   if (type === 'rainy') {
     return (
       <View style={styles.weatherContainer}>
@@ -303,7 +339,7 @@ const WeatherEffect = ({ type, animValue }: WeatherEffectProps) => {
           />
         ))}
         <View style={styles.moon}>
-          <Ionicons name="moon" size={32} color="#FEF3C7" />
+          <Ionicons name="moon" size={32} color={themeColor('#FEF3C7', 'text')} />
         </View>
       </View>
     );
@@ -326,7 +362,7 @@ const WeatherEffect = ({ type, animValue }: WeatherEffectProps) => {
           },
         ]}
       >
-        <Ionicons name="sunny" size={48} color="#FDE047" />
+        <Ionicons name="sunny" size={48} color={themeColor('#FDE047', 'text')} />
       </Animated.View>
     );
   }
@@ -339,9 +375,11 @@ interface GrowthSanctuaryMobileProps {
 }
 
 export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMobileProps) {
-  const isDark = false;
+  const styles = useThemedStyles(baseStyles);
+
+  const { isDark } = useTheme();
   const colors = useThemedColors(isDark);
-  
+
   const [sanctuary, setSanctuary] = useState<SanctuaryState>({
     evolutionStage: 3,
     sanctuaryXp: 2500,
@@ -353,12 +391,12 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
   });
 
   const [selectedTab, setSelectedTab] = useState<'view' | 'elements' | 'settings'>('view');
-  
+
   const treeAnimValue = useRef(new Animated.Value(0)).current;
   const creatureAnimValue = useRef(new Animated.Value(0)).current;
   const particleAnimValue = useRef(new Animated.Value(0)).current;
   const weatherAnimValue = useRef(new Animated.Value(0)).current;
-  
+
   const panX = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -446,8 +484,9 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
     })
   ).current;
 
-  const currentStage = EVOLUTION_STAGES.find(s => s.stage === sanctuary.evolutionStage) || EVOLUTION_STAGES[0];
-  const nextStage = EVOLUTION_STAGES.find(s => s.stage === sanctuary.evolutionStage + 1);
+  const currentStage =
+    EVOLUTION_STAGES.find((s) => s.stage === sanctuary.evolutionStage) || EVOLUTION_STAGES[0];
+  const nextStage = EVOLUTION_STAGES.find((s) => s.stage === sanctuary.evolutionStage + 1);
   const xpProgress = nextStage ? (sanctuary.sanctuaryXp / sanctuary.xpToNextStage) * 100 : 100;
   const gradients = getStageGradients(sanctuary.evolutionStage, isDark);
 
@@ -457,10 +496,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
   const renderSanctuaryView = () => (
     <View style={styles.sanctuaryContainer} {...panResponder.panHandlers}>
-      <LinearGradient
-        colors={gradients.sky as [string, string, ...string[]]}
-        style={styles.sky}
-      >
+      <LinearGradient colors={gradients.sky as [string, string, ...string[]]} style={styles.sky}>
         <WeatherEffect type={sanctuary.weatherType} animValue={weatherAnimValue} />
       </LinearGradient>
 
@@ -474,7 +510,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
               key={i}
               style={[
                 styles.grass,
-                { 
+                {
                   height: 8 + Math.random() * 16,
                   marginHorizontal: Math.random() * 4,
                 },
@@ -486,7 +522,12 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
       <View style={styles.elementsLayer}>
         {Array.from({ length: Math.min(sanctuary.evolutionStage + 2, 6) }).map((_, i) => (
-          <AnimatedTree key={i} index={i} stage={sanctuary.evolutionStage} animValue={treeAnimValue} />
+          <AnimatedTree
+            key={i}
+            index={i}
+            stage={sanctuary.evolutionStage}
+            animValue={treeAnimValue}
+          />
         ))}
 
         {creatureTypes.map((type, i) => (
@@ -511,7 +552,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
   const renderElementsTab = () => (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
       <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('unlocked_elements')}</Text>
-      
+
       <View style={styles.elementsGrid}>
         {sanctuary.unlockedElements.map((elementId) => (
           <TouchableOpacity
@@ -519,26 +560,46 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
             style={[styles.elementCard, { backgroundColor: colors.surfaceElevated }]}
             activeOpacity={0.7}
           >
-            <View style={[styles.elementIcon, { backgroundColor: LiLoveTheme.colors.primary[100] }]}>
-              <Ionicons 
-                name={elementId.includes('tree') ? 'leaf' : elementId.includes('creature') ? 'paw' : 'flower'} 
-                size={20} 
-                color={LiLoveTheme.colors.primary[500]} 
+            <View
+              style={[styles.elementIcon, { backgroundColor: LiLoveTheme.colors.primary[100] }]}
+            >
+              <Ionicons
+                name={
+                  elementId.includes('tree')
+                    ? 'leaf'
+                    : elementId.includes('creature')
+                      ? 'paw'
+                      : 'flower'
+                }
+                size={20}
+                color={LiLoveTheme.colors.primary[500]}
               />
             </View>
             <Text style={[styles.elementName, { color: colors.text }]}>
-              {elementId.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+              {elementId
+                .split('-')
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(' ')}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}>{t('available_to_unlock')}</Text>
-      
+      <Text
+        style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}
+      >
+        {t('available_to_unlock')}
+      </Text>
+
       <View style={styles.unlockList}>
         {[
           { id: 'tree-cherry', name: t('cherry_blossom'), cost: 150, rarity: 'uncommon' as const },
-          { id: 'creature-rabbit', name: t('forest_rabbit'), cost: 100, rarity: 'uncommon' as const },
+          {
+            id: 'creature-rabbit',
+            name: t('forest_rabbit'),
+            cost: 100,
+            rarity: 'uncommon' as const,
+          },
           { id: 'decor-pond', name: t('peaceful_pond'), cost: 120, rarity: 'uncommon' as const },
         ].map((element) => (
           <TouchableOpacity
@@ -547,7 +608,9 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
             activeOpacity={0.7}
           >
             <View style={styles.unlockInfo}>
-              <View style={[styles.rarityDot, { backgroundColor: RARITY_COLORS[element.rarity] }]} />
+              <View
+                style={[styles.rarityDot, { backgroundColor: RARITY_COLORS[element.rarity] }]}
+              />
               <Text style={[styles.unlockName, { color: colors.text }]}>{element.name}</Text>
             </View>
             <View style={styles.unlockCost}>
@@ -563,7 +626,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
   const renderSettingsTab = () => (
     <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
       <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('weather')}</Text>
-      
+
       <View style={styles.weatherGrid}>
         {Object.entries(WEATHER_CONFIGS).map(([key, config]) => (
           <TouchableOpacity
@@ -573,26 +636,41 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
               { backgroundColor: colors.surfaceElevated },
               sanctuary.weatherType === key && styles.weatherOptionActive,
             ]}
-            onPress={() => setSanctuary(prev => ({ ...prev, weatherType: key }))}
+            onPress={() => setSanctuary((prev) => ({ ...prev, weatherType: key }))}
             activeOpacity={0.7}
           >
-            <Ionicons 
-              name={config.icon as any} 
-              size={24} 
-              color={sanctuary.weatherType === key ? LiLoveTheme.colors.primary[500] : colors.textSecondary} 
+            <Ionicons
+              name={config.icon as any}
+              size={24}
+              color={
+                sanctuary.weatherType === key
+                  ? LiLoveTheme.colors.primary[500]
+                  : colors.textSecondary
+              }
             />
-            <Text style={[
-              styles.weatherLabel,
-              { color: sanctuary.weatherType === key ? LiLoveTheme.colors.primary[500] : colors.textSecondary }
-            ]}>
+            <Text
+              style={[
+                styles.weatherLabel,
+                {
+                  color:
+                    sanctuary.weatherType === key
+                      ? LiLoveTheme.colors.primary[500]
+                      : colors.textSecondary,
+                },
+              ]}
+            >
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}>{t('time_of_day')}</Text>
-      
+      <Text
+        style={[styles.sectionTitle, { color: colors.text, marginTop: LiLoveTheme.spacing.xl }]}
+      >
+        {t('time_of_day')}
+      </Text>
+
       <View style={styles.timeGrid}>
         {['dawn', 'day', 'dusk', 'night'].map((time) => (
           <TouchableOpacity
@@ -602,18 +680,35 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
               { backgroundColor: colors.surfaceElevated },
               sanctuary.timeOfDay === time && styles.timeOptionActive,
             ]}
-            onPress={() => setSanctuary(prev => ({ ...prev, timeOfDay: time }))}
+            onPress={() => setSanctuary((prev) => ({ ...prev, timeOfDay: time }))}
             activeOpacity={0.7}
           >
-            <Ionicons 
-              name={time === 'night' ? 'moon' : time === 'dawn' || time === 'dusk' ? 'partly-sunny' : 'sunny'} 
-              size={20} 
-              color={sanctuary.timeOfDay === time ? LiLoveTheme.colors.primary[500] : colors.textSecondary} 
+            <Ionicons
+              name={
+                time === 'night'
+                  ? 'moon'
+                  : time === 'dawn' || time === 'dusk'
+                    ? 'partly-sunny'
+                    : 'sunny'
+              }
+              size={20}
+              color={
+                sanctuary.timeOfDay === time
+                  ? LiLoveTheme.colors.primary[500]
+                  : colors.textSecondary
+              }
             />
-            <Text style={[
-              styles.timeLabel,
-              { color: sanctuary.timeOfDay === time ? LiLoveTheme.colors.primary[500] : colors.textSecondary }
-            ]}>
+            <Text
+              style={[
+                styles.timeLabel,
+                {
+                  color:
+                    sanctuary.timeOfDay === time
+                      ? LiLoveTheme.colors.primary[500]
+                      : colors.textSecondary,
+                },
+              ]}
+            >
               {time.charAt(0).toUpperCase() + time.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -632,12 +727,12 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerCenter}>
           <Ionicons name="leaf" size={20} color={LiLoveTheme.colors.primary[500]} />
           <Text style={[styles.headerTitle, { color: colors.text }]}>{t('growth_sanctuary')}</Text>
         </View>
-        
+
         <TouchableOpacity
           style={styles.infoButton}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -661,7 +756,7 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
             <Text style={styles.xpText}>{sanctuary.sanctuaryXp} XP</Text>
           </View>
         </View>
-        
+
         <View style={styles.progressBarContainer}>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${xpProgress}%` }]} />
@@ -682,22 +777,28 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
         ].map((tab) => (
           <TouchableOpacity
             key={tab.key}
-            style={[
-              styles.tabButton,
-              selectedTab === tab.key && styles.tabButtonActive,
-            ]}
+            style={[styles.tabButton, selectedTab === tab.key && styles.tabButtonActive]}
             onPress={() => setSelectedTab(tab.key as any)}
             activeOpacity={0.7}
           >
-            <Ionicons 
-              name={tab.icon as any} 
-              size={20} 
-              color={selectedTab === tab.key ? LiLoveTheme.colors.primary[500] : colors.textSecondary} 
+            <Ionicons
+              name={tab.icon as any}
+              size={20}
+              color={
+                selectedTab === tab.key ? LiLoveTheme.colors.primary[500] : colors.textSecondary
+              }
             />
-            <Text style={[
-              styles.tabLabel,
-              { color: selectedTab === tab.key ? LiLoveTheme.colors.primary[500] : colors.textSecondary }
-            ]}>
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color:
+                    selectedTab === tab.key
+                      ? LiLoveTheme.colors.primary[500]
+                      : colors.textSecondary,
+                },
+              ]}
+            >
               {tab.label}
             </Text>
           </TouchableOpacity>
@@ -712,13 +813,15 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
 
       <View style={styles.gestureHint}>
         <Ionicons name="swap-horizontal" size={16} color={colors.textTertiary} />
-        <Text style={[styles.gestureHintText, { color: colors.textTertiary }]}>{t('swipe_to_switch_tabs')}</Text>
+        <Text style={[styles.gestureHintText, { color: colors.textTertiary }]}>
+          {t('swipe_to_switch_tabs')}
+        </Text>
       </View>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
   },

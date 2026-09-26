@@ -1,51 +1,50 @@
 export default {
   expo: {
-    name: "LiLove",
-    slug: "lilove",
-    version: "1.2",
-    orientation: "portrait",
-    icon: "./assets/icon.png",
-    userInterfaceStyle: "light",
-    owner: "berkekahraman",
+    name: 'LiLove',
+    slug: 'lilove',
+    version: '1.2',
+    orientation: 'portrait',
+    icon: './assets/icon.png',
+    userInterfaceStyle: 'automatic',
+    owner: 'berkekahraman',
     splash: {
-      image: "./assets/splash.png",
-      resizeMode: "contain",
-      backgroundColor: "#9333EA"
+      image: './assets/splash.png',
+      resizeMode: 'contain',
+      backgroundColor: '#9333EA',
     },
-    scheme: "lilove",
+    scheme: 'lilove',
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "org.lilove.app",
-      buildNumber: "125",
+      bundleIdentifier: 'org.lilove.app',
+      buildNumber: '125',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
-        NSPhotoLibraryUsageDescription: "Fotoğraf seçmek için galeri erişimi gerekir.",
-        UIBackgroundModes: ["remote-notification"],
+        NSPhotoLibraryUsageDescription: 'Fotoğraf seçmek için galeri erişimi gerekir.',
+        UIBackgroundModes: ['remote-notification'],
         CFBundleURLTypes: [
           {
             CFBundleURLSchemes: [
-              "com.googleusercontent.apps.889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3"
-            ]
-          }
-        ]
-      }
+              'com.googleusercontent.apps.889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3',
+            ],
+          },
+        ],
+      },
     },
     notification: {
-      icon: "./assets/icon.png",
-      color: "#8B5CF6"
+      icon: './assets/icon.png',
+      color: '#8B5CF6',
     },
-    plugins: [
-      "./plugins/withInfoPlistLocales","expo-iap", "./plugins/withFmtXcode26"],
+    plugins: ['./plugins/withInfoPlistLocales', 'expo-iap', './plugins/withFmtXcode26'],
     extra: {
       eas: {
-        projectId: "ab7bb029-eeb4-4407-a810-a9b27462f0ae"
+        projectId: 'ab7bb029-eeb4-4407-a810-a9b27462f0ae',
       },
-      apiUrl: "https://lilove.org",
+      apiUrl: 'https://lilove.org',
       firebase: {
         apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDYkdHendqbURTk4FxjLnYNwmxtqPEYHfY',
         projectId: 'lilove-e8b3a',
         appId: process.env.FIREBASE_APP_ID || '1:135520108428:ios:6ca3ed8d2a492f8e5be0a9',
-      }
-    }
-  }
+      },
+    },
+  },
 };

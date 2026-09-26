@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 interface Message {
   id: string;
@@ -32,6 +33,9 @@ interface DailyInsight {
 }
 
 export default function CoachScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -62,13 +66,20 @@ export default function CoachScreen() {
       ]);
       return;
     }
-    setMessages([{
-      id: '1',
-      type: 'ai',
-      content: t('coach_welcome_message'),
-      timestamp: new Date(),
-      suggestions: [t('coach_suggestion_goals'), t('coach_suggestion_motivation'), t('coach_suggestion_progress'), t('coach_suggestion_wellness')],
-    }]);
+    setMessages([
+      {
+        id: '1',
+        type: 'ai',
+        content: t('coach_welcome_message'),
+        timestamp: new Date(),
+        suggestions: [
+          t('coach_suggestion_goals'),
+          t('coach_suggestion_motivation'),
+          t('coach_suggestion_progress'),
+          t('coach_suggestion_wellness'),
+        ],
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -111,7 +122,8 @@ export default function CoachScreen() {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: response.response || response.message || "I'm here to help! Let's work on this together.",
+        content:
+          response.response || response.message || "I'm here to help! Let's work on this together.",
         timestamp: new Date(),
         suggestions: response.suggestions,
       };
@@ -150,11 +162,13 @@ export default function CoachScreen() {
       <View key={message.id} style={styles.messageContainer}>
         {!isUser && (
           <View style={styles.aiAvatarContainer}>
-            <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+            <Ionicons name="sparkles" size={16} color={themeColor('#8B5CF6', 'text')} />
           </View>
         )}
         <View style={[styles.messageBubble, isUser ? styles.userBubble : styles.aiBubble]}>
-          <Text style={[styles.messageText, isUser ? styles.userText : styles.aiText]}>{message.content}</Text>
+          <Text style={[styles.messageText, isUser ? styles.userText : styles.aiText]}>
+            {message.content}
+          </Text>
         </View>
 
         {!isUser && message.suggestions && message.suggestions.length > 0 && (
@@ -182,7 +196,7 @@ export default function CoachScreen() {
       return (
         <View style={styles.insightCard}>
           <View style={styles.insightHeader}>
-            <Ionicons name="bulb" size={20} color="#F59E0B" />
+            <Ionicons name="bulb" size={20} color={themeColor('#F59E0B', 'text')} />
             <Text style={styles.insightTitle}>{t('loading_today_s_insight')}</Text>
           </View>
           <View style={styles.insightSkeletonContainer}>
@@ -197,8 +211,10 @@ export default function CoachScreen() {
       return (
         <TouchableOpacity style={styles.insightCard} onPress={loadDailyInsight} activeOpacity={0.7}>
           <View style={styles.insightHeader}>
-            <Ionicons name="refresh" size={20} color="#6B7280" />
-            <Text style={[styles.insightTitle, { color: '#6B7280' }]}>{t('tap_to_load_today_s_insight')}</Text>
+            <Ionicons name="refresh" size={20} color={themeColor('#6B7280', 'text')} />
+            <Text style={[styles.insightTitle, { color: themeColor('#6B7280', 'text') }]}>
+              {t('tap_to_load_today_s_insight')}
+            </Text>
           </View>
         </TouchableOpacity>
       );
@@ -208,11 +224,13 @@ export default function CoachScreen() {
       return (
         <View style={styles.insightCard}>
           <View style={styles.insightHeader}>
-            <Ionicons name="bulb" size={20} color="#F59E0B" />
+            <Ionicons name="bulb" size={20} color={themeColor('#F59E0B', 'text')} />
             <Text style={styles.insightTitle}>{t('today_s_insight')}</Text>
           </View>
           <Text style={styles.insightText}>{dailyInsight.insight}</Text>
-          {dailyInsight.motivation && <Text style={styles.insightMotivation}>"{dailyInsight.motivation}"</Text>}
+          {dailyInsight.motivation && (
+            <Text style={styles.insightMotivation}>"{dailyInsight.motivation}"</Text>
+          )}
         </View>
       );
     }
@@ -230,7 +248,7 @@ export default function CoachScreen() {
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <View style={styles.headerIconContainer}>
-              <Ionicons name="sparkles" size={24} color="#FFFFFF" />
+              <Ionicons name="sparkles" size={24} color={themeColor('#FFFFFF', 'text')} />
             </View>
             <View>
               <Text style={styles.headerTitle}>LiLove</Text>
@@ -244,7 +262,12 @@ export default function CoachScreen() {
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           refreshControl={
-            <RefreshControl refreshing={isLoadingInsight} onRefresh={loadDailyInsight} tintColor="#8B5CF6" colors={['#8B5CF6']} />
+            <RefreshControl
+              refreshing={isLoadingInsight}
+              onRefresh={loadDailyInsight}
+              tintColor="#8B5CF6"
+              colors={['#8B5CF6']}
+            />
           }
           showsVerticalScrollIndicator={false}
         >
@@ -255,10 +278,10 @@ export default function CoachScreen() {
           {isLoading && (
             <View style={styles.typingIndicator}>
               <View style={styles.aiAvatarContainer}>
-                <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+                <Ionicons name="sparkles" size={16} color={themeColor('#8B5CF6', 'text')} />
               </View>
               <View style={styles.typingBubble}>
-                <ActivityIndicator size="small" color="#8B5CF6" />
+                <ActivityIndicator size="small" color={themeColor('#8B5CF6', 'text')} />
                 <Text style={styles.typingText}>{t('lily_is_thinking')}</Text>
               </View>
             </View>
@@ -268,11 +291,11 @@ export default function CoachScreen() {
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               value={inputMessage}
               onChangeText={setInputMessage}
               placeholder={t('type_your_message')}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
               multiline
               maxLength={500}
               editable={!isLoading}
@@ -280,13 +303,16 @@ export default function CoachScreen() {
             />
           </View>
           <TouchableOpacity
-            style={[styles.sendButton, (!inputMessage.trim() || isLoading) && styles.sendButtonDisabled]}
+            style={[
+              styles.sendButton,
+              (!inputMessage.trim() || isLoading) && styles.sendButtonDisabled,
+            ]}
             onPress={() => sendMessage(inputMessage)}
             disabled={!inputMessage.trim() || isLoading}
             activeOpacity={0.7}
             data-testid="button-send-message"
           >
-            <Ionicons name="send" size={20} color="#FFFFFF" />
+            <Ionicons name="send" size={20} color={themeColor('#FFFFFF', 'text')} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -294,7 +320,7 @@ export default function CoachScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',

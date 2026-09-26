@@ -19,6 +19,7 @@ import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import LivingForest from '../../components/LivingForest';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 interface AvatarZone {
   id: string;
@@ -89,11 +90,36 @@ interface UserStats {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ZONE_CATEGORIES = [
-  { id: 'appearance', name: t('appearance'), icon: 'person-outline', zones: ['skin', 'body', 'face_shape', 'eyes', 'eyebrows', 'nose', 'mouth', 'ears'] },
-  { id: 'hair_face', name: t('hair_face'), icon: 'happy-outline', zones: ['hair', 'hair_color', 'facial_hair', 'makeup', 'glasses'] },
-  { id: 'clothing', name: t('clothing'), icon: 'shirt-outline', zones: ['clothing_top', 'clothing_bottom', 'shoes'] },
-  { id: 'accessories', name: t('accessories'), icon: 'diamond-outline', zones: ['hat', 'jewelry', 'tattoo', 'scars'] },
-  { id: 'effects', name: t('effects'), icon: 'sparkles-outline', zones: ['wings', 'aura', 'pet', 'background', 'frame'] },
+  {
+    id: 'appearance',
+    name: t('appearance'),
+    icon: 'person-outline',
+    zones: ['skin', 'body', 'face_shape', 'eyes', 'eyebrows', 'nose', 'mouth', 'ears'],
+  },
+  {
+    id: 'hair_face',
+    name: t('hair_face'),
+    icon: 'happy-outline',
+    zones: ['hair', 'hair_color', 'facial_hair', 'makeup', 'glasses'],
+  },
+  {
+    id: 'clothing',
+    name: t('clothing'),
+    icon: 'shirt-outline',
+    zones: ['clothing_top', 'clothing_bottom', 'shoes'],
+  },
+  {
+    id: 'accessories',
+    name: t('accessories'),
+    icon: 'diamond-outline',
+    zones: ['hat', 'jewelry', 'tattoo', 'scars'],
+  },
+  {
+    id: 'effects',
+    name: t('effects'),
+    icon: 'sparkles-outline',
+    zones: ['wings', 'aura', 'pet', 'background', 'frame'],
+  },
 ];
 
 const RARITY_COLORS: Record<string, string> = {
@@ -106,6 +132,8 @@ const RARITY_COLORS: Record<string, string> = {
 };
 
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
+  const styles = useThemedStyles(baseStyles);
+
   const percentage = Math.min((value / max) * 100, 100);
   return (
     <View style={styles.progressBarContainer}>
@@ -115,6 +143,9 @@ function ProgressBar({ value, max, color }: { value: number; max: number; color:
 }
 
 export default function AvatarScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const { userProfile } = useAuthStore();
   const navigation = useNavigation();
   const [activeCategory, setActiveCategory] = useState('appearance');
@@ -138,28 +169,26 @@ export default function AvatarScreen() {
 
   const ownedTraitIds = useMemo(() => {
     const owned = new Set<string>();
-    userTraits.forEach(ut => owned.add(ut.traitId));
+    userTraits.forEach((ut) => owned.add(ut.traitId));
     return owned;
   }, [userTraits]);
 
   const equippedTraitMap = useMemo(() => {
     const map = new Map<string, string>();
-    equippedTraits.forEach(eq => map.set(eq.zoneId, eq.traitId));
+    equippedTraits.forEach((eq) => map.set(eq.zoneId, eq.traitId));
     return map;
   }, [equippedTraits]);
 
   const zonesByKey = useMemo(() => {
     const map = new Map<string, AvatarZone>();
-    zones.forEach(z => map.set(z.key, z));
+    zones.forEach((z) => map.set(z.key, z));
     return map;
   }, [zones]);
 
   const currentCategoryZones = useMemo(() => {
-    const category = ZONE_CATEGORIES.find(c => c.id === activeCategory);
+    const category = ZONE_CATEGORIES.find((c) => c.id === activeCategory);
     if (!category) return [];
-    return category.zones
-      .map(key => zonesByKey.get(key))
-      .filter((z): z is AvatarZone => !!z);
+    return category.zones.map((key) => zonesByKey.get(key)).filter((z): z is AvatarZone => !!z);
   }, [activeCategory, zonesByKey]);
 
   const loadData = async () => {
@@ -187,13 +216,13 @@ export default function AvatarScreen() {
           return { profile: { currentLevel: 1, totalXp: 0, streakCount: 0 } };
         }) as Promise<UserStats>,
       ]);
-      
+
       setZones(Array.isArray(zonesData) ? zonesData : []);
       setUserTraits(Array.isArray(userTraitsData) ? userTraitsData : []);
       setEquippedTraits(Array.isArray(equippedData) ? equippedData : []);
       setAvatar(avatarData || null);
       setUserStats(statsData || { profile: { currentLevel: 1, totalXp: 0, streakCount: 0 } });
-      
+
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
@@ -210,15 +239,15 @@ export default function AvatarScreen() {
 
   const loadZoneTraits = async (zone: AvatarZone) => {
     if (zoneTraits[zone.id] || loadingZones.has(zone.id)) return;
-    
-    setLoadingZones(prev => new Set(prev).add(zone.id));
+
+    setLoadingZones((prev) => new Set(prev).add(zone.id));
     try {
-      const traits = await api.getTraitsByZone(zone.id) as AvatarTrait[];
-      setZoneTraits(prev => ({ ...prev, [zone.id]: Array.isArray(traits) ? traits : [] }));
+      const traits = (await api.getTraitsByZone(zone.id)) as AvatarTrait[];
+      setZoneTraits((prev) => ({ ...prev, [zone.id]: Array.isArray(traits) ? traits : [] }));
     } catch (err) {
       console.error(`[AvatarScreen] Error loading traits for zone ${zone.id}:`, err);
     } finally {
-      setLoadingZones(prev => {
+      setLoadingZones((prev) => {
         const next = new Set(prev);
         next.delete(zone.id);
         return next;
@@ -231,7 +260,7 @@ export default function AvatarScreen() {
   }, []);
 
   useEffect(() => {
-    currentCategoryZones.forEach(zone => {
+    currentCategoryZones.forEach((zone) => {
       loadZoneTraits(zone);
     });
   }, [currentCategoryZones]);
@@ -261,7 +290,7 @@ export default function AvatarScreen() {
     setIsEquipping(true);
     try {
       await api.equipTrait(zoneId, traitId);
-      const equippedData = await api.getMyEquipped() as EquippedTrait[];
+      const equippedData = (await api.getMyEquipped()) as EquippedTrait[];
       setEquippedTraits(Array.isArray(equippedData) ? equippedData : []);
     } catch (err: any) {
       console.error('[AvatarScreen] Error equipping trait:', err);
@@ -272,11 +301,11 @@ export default function AvatarScreen() {
 
   const purchaseTrait = async () => {
     if (!selectedTrait) return;
-    
+
     setIsPurchasing(true);
     try {
       await api.unlockTrait(selectedTrait.id);
-      const userTraitsData = await api.getMyTraits() as UserAvatarTrait[];
+      const userTraitsData = (await api.getMyTraits()) as UserAvatarTrait[];
       setUserTraits(Array.isArray(userTraitsData) ? userTraitsData : []);
       setPurchaseModalOpen(false);
       setSelectedTrait(null);
@@ -288,16 +317,17 @@ export default function AvatarScreen() {
   };
 
   const coinBalance = userProfile?.coinBalance || 0;
-  const canPurchase = selectedTrait && 
+  const canPurchase =
+    selectedTrait &&
     (selectedTrait.unlockType === 'purchase' || selectedTrait.isDefault) &&
-    (coinBalance >= selectedTrait.coinCost);
+    coinBalance >= selectedTrait.coinCost;
   const currentLevel = userStats?.profile?.currentLevel || 1;
 
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
           <Text style={styles.loadingText}>{t('loading_avatar')}</Text>
         </View>
       </SafeAreaView>
@@ -308,11 +338,15 @@ export default function AvatarScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color="#9CA3AF" />
+          <Ionicons name="alert-circle-outline" size={48} color={themeColor('#9CA3AF', 'text')} />
           <Text style={styles.errorTitle}>{t('something_went_wrong')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadData} data-testid="button-retry">
-            <Ionicons name="refresh" size={20} color="#FFFFFF" />
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={loadData}
+            data-testid="button-retry"
+          >
+            <Ionicons name="refresh" size={20} color={themeColor('#FFFFFF', 'text')} />
             <Text style={styles.retryButtonText}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
@@ -324,7 +358,9 @@ export default function AvatarScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle} data-testid="text-avatar-title">{t('my_avatar')}</Text>
+          <Text style={styles.headerTitle} data-testid="text-avatar-title">
+            {t('my_avatar')}
+          </Text>
           {/* Rozet artık bir yol: jeton harcanan ekranda jetonun nereden
               alınacağı görünmüyordu. Uygulama jeton istiyor ama satın
               alma yolu hiç yoktu. */}
@@ -335,9 +371,11 @@ export default function AvatarScreen() {
             accessibilityLabel={`${coinBalance} coins. Get more coins.`}
             data-testid="button-get-coins"
           >
-            <Ionicons name="wallet" size={16} color="#92400E" />
-            <Text style={styles.coinText} data-testid="text-coin-balance">{coinBalance}</Text>
-            <Ionicons name="add-circle" size={14} color="#92400E" />
+            <Ionicons name="wallet" size={16} color={themeColor('#92400E', 'text')} />
+            <Text style={styles.coinText} data-testid="text-coin-balance">
+              {coinBalance}
+            </Text>
+            <Ionicons name="add-circle" size={14} color={themeColor('#92400E', 'text')} />
           </TouchableOpacity>
         </View>
 
@@ -353,22 +391,27 @@ export default function AvatarScreen() {
             <View style={styles.previewHeader}>
               <Text style={styles.previewTitle}>{t('preview')}</Text>
               <View style={styles.levelBadge}>
-                <Ionicons name="leaf" size={14} color="#10B981" />
+                <Ionicons name="leaf" size={14} color={themeColor('#10B981', 'text')} />
                 <Text style={styles.levelText}>Level {currentLevel}</Text>
               </View>
             </View>
 
             <View style={styles.avatarPreview}>
               <View style={styles.avatarCircle}>
-                <Ionicons name="person" size={64} color="#8B5CF6" />
+                <Ionicons name="person" size={64} color={themeColor('#8B5CF6', 'text')} />
               </View>
-              
+
               {equippedTraits.length > 0 && (
                 <View style={styles.equippedList}>
                   {equippedTraits.slice(0, 3).map((eq) => (
                     <View key={eq.id} style={styles.equippedItem}>
                       <Text style={styles.equippedZone}>{eq.zone?.name}:</Text>
-                      <View style={[styles.equippedBadge, { borderColor: RARITY_COLORS[eq.trait?.rarity || 'common'] }]}>
+                      <View
+                        style={[
+                          styles.equippedBadge,
+                          { borderColor: RARITY_COLORS[eq.trait?.rarity || 'common'] },
+                        ]}
+                      >
                         <Text style={styles.equippedTrait}>{eq.trait?.name}</Text>
                       </View>
                     </View>
@@ -384,21 +427,33 @@ export default function AvatarScreen() {
               <View style={styles.statsContainer}>
                 <View style={styles.statRow}>
                   <View style={styles.statLabel}>
-                    <Ionicons name="heart" size={16} color="#EF4444" />
+                    <Ionicons name="heart" size={16} color={themeColor('#EF4444', 'text')} />
                     <Text style={styles.statText}>{t('health')}</Text>
                   </View>
-                  <Text style={styles.statValue} data-testid="text-health">{avatar.health}/{avatar.maxHealth}</Text>
+                  <Text style={styles.statValue} data-testid="text-health">
+                    {avatar.health}/{avatar.maxHealth}
+                  </Text>
                 </View>
-                <ProgressBar value={avatar.health} max={avatar.maxHealth} color="#EF4444" />
+                <ProgressBar
+                  value={avatar.health}
+                  max={avatar.maxHealth}
+                  color={themeColor('#EF4444', 'text')}
+                />
 
                 <View style={styles.statRow}>
                   <View style={styles.statLabel}>
-                    <Ionicons name="sparkles" size={16} color="#3B82F6" />
+                    <Ionicons name="sparkles" size={16} color={themeColor('#3B82F6', 'text')} />
                     <Text style={styles.statText}>{t('mana')}</Text>
                   </View>
-                  <Text style={styles.statValue} data-testid="text-mana">{avatar.mana}/{avatar.maxMana}</Text>
+                  <Text style={styles.statValue} data-testid="text-mana">
+                    {avatar.mana}/{avatar.maxMana}
+                  </Text>
                 </View>
-                <ProgressBar value={avatar.mana} max={avatar.maxMana} color="#3B82F6" />
+                <ProgressBar
+                  value={avatar.mana}
+                  max={avatar.maxMana}
+                  color={themeColor('#3B82F6', 'text')}
+                />
               </View>
             )}
 
@@ -417,16 +472,27 @@ export default function AvatarScreen() {
               {ZONE_CATEGORIES.map((category) => (
                 <TouchableOpacity
                   key={category.id}
-                  style={[styles.categoryTab, activeCategory === category.id && styles.categoryTabActive]}
+                  style={[
+                    styles.categoryTab,
+                    activeCategory === category.id && styles.categoryTabActive,
+                  ]}
                   onPress={() => setActiveCategory(category.id)}
                   data-testid={`tab-category-${category.id}`}
                 >
                   <Ionicons
                     name={category.icon as any}
                     size={18}
-                    color={activeCategory === category.id ? '#FFFFFF' : '#6B7280'}
+                    color={themeColor(
+                      activeCategory === category.id ? '#FFFFFF' : '#6B7280',
+                      'text'
+                    )}
                   />
-                  <Text style={[styles.categoryTabText, activeCategory === category.id && styles.categoryTabTextActive]}>
+                  <Text
+                    style={[
+                      styles.categoryTabText,
+                      activeCategory === category.id && styles.categoryTabTextActive,
+                    ]}
+                  >
                     {category.name}
                   </Text>
                 </TouchableOpacity>
@@ -435,45 +501,66 @@ export default function AvatarScreen() {
 
             {currentCategoryZones.map((zone) => (
               <View key={zone.id} style={styles.zoneSection}>
-                <Text style={styles.zoneName} data-testid={`text-zone-${zone.key}`}>{zone.name}</Text>
-                
+                <Text style={styles.zoneName} data-testid={`text-zone-${zone.key}`}>
+                  {zone.name}
+                </Text>
+
                 {loadingZones.has(zone.id) ? (
                   <View style={styles.zoneLoading}>
-                    <ActivityIndicator size="small" color="#8B5CF6" />
+                    <ActivityIndicator size="small" color={themeColor('#8B5CF6', 'text')} />
                   </View>
                 ) : zoneTraits[zone.id]?.length ? (
                   <View style={styles.traitGrid}>
                     {zoneTraits[zone.id].map((trait) => {
                       const isOwned = ownedTraitIds.has(trait.id) || trait.isDefault;
                       const isEquipped = equippedTraitMap.get(zone.id) === trait.id;
-                      
+
                       return (
                         <TouchableOpacity
                           key={trait.id}
                           style={[
                             styles.traitCard,
                             isEquipped && styles.traitCardEquipped,
-                            { borderColor: RARITY_COLORS[trait.rarity] }
+                            { borderColor: RARITY_COLORS[trait.rarity] },
                           ]}
                           onPress={() => handleTraitPress(trait, zone)}
                           disabled={isEquipping}
                           data-testid={`trait-card-${trait.id}`}
                         >
                           <View style={styles.traitIconContainer}>
-                            <Ionicons name="cube-outline" size={24} color={RARITY_COLORS[trait.rarity]} />
+                            <Ionicons
+                              name="cube-outline"
+                              size={24}
+                              color={RARITY_COLORS[trait.rarity]}
+                            />
                             {!isOwned && (
                               <View style={styles.lockOverlay}>
-                                <Ionicons name="lock-closed" size={14} color="#FFFFFF" />
+                                <Ionicons
+                                  name="lock-closed"
+                                  size={14}
+                                  color={themeColor('#FFFFFF', 'text')}
+                                />
                               </View>
                             )}
                             {isEquipped && (
                               <View style={styles.equippedOverlay}>
-                                <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                                <Ionicons
+                                  name="checkmark-circle"
+                                  size={14}
+                                  color={themeColor('#10B981', 'text')}
+                                />
                               </View>
                             )}
                           </View>
-                          <Text style={styles.traitName} numberOfLines={1}>{trait.name}</Text>
-                          <View style={[styles.rarityBadge, { backgroundColor: RARITY_COLORS[trait.rarity] }]}>
+                          <Text style={styles.traitName} numberOfLines={1}>
+                            {trait.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.rarityBadge,
+                              { backgroundColor: RARITY_COLORS[trait.rarity] },
+                            ]}
+                          >
                             <Text style={styles.rarityText}>{trait.rarity}</Text>
                           </View>
                         </TouchableOpacity>
@@ -488,7 +575,11 @@ export default function AvatarScreen() {
 
             {currentCategoryZones.length === 0 && (
               <View style={styles.emptyState}>
-                <Ionicons name="folder-open-outline" size={48} color="#9CA3AF" />
+                <Ionicons
+                  name="folder-open-outline"
+                  size={48}
+                  color={themeColor('#9CA3AF', 'text')}
+                />
                 <Text style={styles.emptyText}>{t('no_zones_in_this_category')}</Text>
               </View>
             )}
@@ -506,7 +597,12 @@ export default function AvatarScreen() {
           <View style={styles.modalContent} data-testid="modal-purchase">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{selectedTrait?.name}</Text>
-              <View style={[styles.modalRarityBadge, { backgroundColor: RARITY_COLORS[selectedTrait?.rarity || 'common'] }]}>
+              <View
+                style={[
+                  styles.modalRarityBadge,
+                  { backgroundColor: RARITY_COLORS[selectedTrait?.rarity || 'common'] },
+                ]}
+              >
                 <Text style={styles.modalRarityText}>{selectedTrait?.rarity}</Text>
               </View>
             </View>
@@ -517,7 +613,7 @@ export default function AvatarScreen() {
 
             {selectedTrait?.unlockType === 'achievement' ? (
               <View style={styles.achievementRequired}>
-                <Ionicons name="lock-closed" size={24} color="#F59E0B" />
+                <Ionicons name="lock-closed" size={24} color={themeColor('#F59E0B', 'text')} />
                 <Text style={styles.achievementText}>{t('achievement_required')}</Text>
               </View>
             ) : (
@@ -525,13 +621,22 @@ export default function AvatarScreen() {
                 <View>
                   <Text style={styles.priceLabel}>{t('cost')}</Text>
                   <View style={styles.priceValue}>
-                    <Ionicons name="wallet" size={20} color="#F59E0B" />
-                    <Text style={styles.priceText}>{selectedTrait?.coinCost?.toLocaleString()}</Text>
+                    <Ionicons name="wallet" size={20} color={themeColor('#F59E0B', 'text')} />
+                    <Text style={styles.priceText}>
+                      {selectedTrait?.coinCost?.toLocaleString()}
+                    </Text>
                   </View>
                 </View>
                 <View>
                   <Text style={styles.priceLabel}>{t('your_balance')}</Text>
-                  <Text style={[styles.balanceText, coinBalance >= (selectedTrait?.coinCost || 0) ? styles.balanceGreen : styles.balanceRed]}>
+                  <Text
+                    style={[
+                      styles.balanceText,
+                      coinBalance >= (selectedTrait?.coinCost || 0)
+                        ? styles.balanceGreen
+                        : styles.balanceRed,
+                    ]}
+                  >
                     {coinBalance.toLocaleString()}
                   </Text>
                   {/* Bakiye yetmiyorsa çıkmaz sokak değil, bir kapı. */}
@@ -559,7 +664,7 @@ export default function AvatarScreen() {
               >
                 <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
               </TouchableOpacity>
-              
+
               {selectedTrait?.unlockType !== 'achievement' && (
                 <TouchableOpacity
                   style={[styles.purchaseButton, !canPurchase && styles.purchaseButtonDisabled]}
@@ -568,7 +673,7 @@ export default function AvatarScreen() {
                   data-testid="button-confirm-purchase"
                 >
                   {isPurchasing ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color={themeColor('#FFFFFF', 'text')} />
                   ) : (
                     <Text style={styles.purchaseButtonText}>{t('purchase')}</Text>
                   )}
@@ -582,7 +687,7 @@ export default function AvatarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

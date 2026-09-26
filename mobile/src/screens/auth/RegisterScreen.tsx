@@ -13,8 +13,12 @@ import {
 } from 'react-native';
 import { useAuthStore } from '../../store/authStore';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 export default function RegisterScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -41,7 +45,7 @@ export default function RegisterScreen({ navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
@@ -53,58 +57,64 @@ export default function RegisterScreen({ navigation }: any) {
 
           <View style={styles.form}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('display_name')}
               value={displayName}
               onChangeText={setDisplayName}
               autoCapitalize="words"
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('email')}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('password_min_8_characters')}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               autoComplete="password"
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('confirm_password')}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
               autoComplete="password"
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
-            <TouchableOpacity 
-              style={[styles.button, isLoading && styles.buttonDisabled]} 
+            <TouchableOpacity
+              style={[styles.button, isLoading && styles.buttonDisabled]}
               onPress={handleRegister}
               disabled={isLoading}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={themeColor('#fff', 'text')} />
               ) : (
                 <Text style={styles.buttonText}>{t('create_account')}</Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.linkButton}
               onPress={() => navigation.navigate('Login')}
             >
-              <Text style={styles.linkText}>{t('already_have_an_account')}<Text style={styles.linkTextBold}>{t('login')}</Text>
+              <Text style={styles.linkText}>
+                {t('already_have_an_account')}
+                <Text style={styles.linkTextBold}>{t('login')}</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -114,7 +124,7 @@ export default function RegisterScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',

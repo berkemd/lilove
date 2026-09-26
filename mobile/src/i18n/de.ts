@@ -1,25 +1,34 @@
 // LiLove · de arayuz katalogu — URETILDI, elle duzenleme
 
 export const de = {
-  coach_d0_intro: "Ich halte keine Motivationsreden. Ich lese dein Protokoll und sage dir, was drinsteht. Gerade ist es leer — schreiben wir die erste Zeile?",
-  coach_d0_ask_habit: "Welche eine Sache, und zu welcher Tageszeit? Eine reicht für den Anfang.",
-  coach_d0_first_mark: "Erster Eintrag steht: {habit}, {time}. Das ist die ganze Methode — morgen habe ich etwas zum Vergleichen.",
-  coach_d1_compare: "Gestern war {habit} um {time_yesterday}; heute {time_today}. Gleiches Fenster oder driftet es?",
-  coach_d1_miss: "Gestern kein Eintrag. Kein Urteil — ein Datenpunkt. Was kam dir um {planned_time} dazwischen?",
-  coach_d3_pattern: "{done_count} von {day_count} Tagen, alle vor {latest_time}. Die Morgen tragen dich — soll die Erinnerung dorthin?",
-  coach_d7_readout: "Woche eins: {done_count}/7 bei {habit}, mittlere Zeit {median_time}, längste Serie {streak}. Das Protokoll sagt: {best_day} funktioniert. So lassen oder Plan ändern?",
-  coach_any_reset: "Der Zähler steht wieder auf 1. Die {streak_prev}-Tage-Serie bleibt in deinem Protokoll — sie beweist, dass der Plan funktioniert, wenn {best_condition}. Morgen derselbe Plan?",
-  coach_empty_habits: "Das Protokoll ist leer. Welche eine Sache hältst du durch — und wann?",
-  coach_empty_goals: "Noch kein Ziel notiert. Wofür sind die Gewohnheiten? Nennst du es in einer Zeile?",
-  coach_empty_stats: "Dein erstes Muster erscheint hier nach 3 Einträgen — noch {remaining}.",
-  annual: "Jährlich",
-  coach_suggestion_goals: "Hilf mir bei meinen Zielen",
-  coach_suggestion_motivation: "Ich brauche Motivation",
-  coach_suggestion_progress: "Zeig meinen Fortschritt",
-  coach_suggestion_wellness: "Täglicher Wohlbefinden-Check",
-  coach_welcome_message: "Hallo! Ich bin Lily, deine Begleiterin für persönliches Wachstum. Ich helfe dir, deine Ziele zu erreichen und deine Entwicklung zu unterstützen. Was möchtest du heute erkunden?",
-  level: "Level",
-  monthly: "Monatlich",
+  coach_d0_intro:
+    'Ich halte keine Motivationsreden. Ich lese dein Protokoll und sage dir, was drinsteht. Gerade ist es leer — schreiben wir die erste Zeile?',
+  coach_d0_ask_habit: 'Welche eine Sache, und zu welcher Tageszeit? Eine reicht für den Anfang.',
+  coach_d0_first_mark:
+    'Erster Eintrag steht: {habit}, {time}. Das ist die ganze Methode — morgen habe ich etwas zum Vergleichen.',
+  coach_d1_compare:
+    'Gestern war {habit} um {time_yesterday}; heute {time_today}. Gleiches Fenster oder driftet es?',
+  coach_d1_miss:
+    'Gestern kein Eintrag. Kein Urteil — ein Datenpunkt. Was kam dir um {planned_time} dazwischen?',
+  coach_d3_pattern:
+    '{done_count} von {day_count} Tagen, alle vor {latest_time}. Die Morgen tragen dich — soll die Erinnerung dorthin?',
+  coach_d7_readout:
+    'Woche eins: {done_count}/7 bei {habit}, mittlere Zeit {median_time}, längste Serie {streak}. Das Protokoll sagt: {best_day} funktioniert. So lassen oder Plan ändern?',
+  coach_any_reset:
+    'Der Zähler steht wieder auf 1. Die {streak_prev}-Tage-Serie bleibt in deinem Protokoll — sie beweist, dass der Plan funktioniert, wenn {best_condition}. Morgen derselbe Plan?',
+  coach_empty_habits: 'Das Protokoll ist leer. Welche eine Sache hältst du durch — und wann?',
+  coach_empty_goals:
+    'Noch kein Ziel notiert. Wofür sind die Gewohnheiten? Nennst du es in einer Zeile?',
+  coach_empty_stats: 'Dein erstes Muster erscheint hier nach 3 Einträgen — noch {remaining}.',
+  annual: 'Jährlich',
+  coach_suggestion_goals: 'Hilf mir bei meinen Zielen',
+  coach_suggestion_motivation: 'Ich brauche Motivation',
+  coach_suggestion_progress: 'Zeig meinen Fortschritt',
+  coach_suggestion_wellness: 'Täglicher Wohlbefinden-Check',
+  coach_welcome_message:
+    'Hallo! Ich bin Lily, deine Begleiterin für persönliches Wachstum. Ich helfe dir, deine Ziele zu erreichen und deine Entwicklung zu unterstützen. Was möchtest du heute erkunden?',
+  level: 'Level',
+  monthly: 'Monatlich',
   n20_minutes_before_anything_else: '20 Minuten, bevor irgendetwas anderes kommt',
   a_full_month_unbroken: 'Einen ganzen Monat ohne Unterbrechung',
   a_magical_sanctuary_of_wisdom_and_wonder: 'Ein magischer Zufluchtsort voller Weisheit und Wunder',
@@ -42,7 +51,8 @@ export const de = {
   apple_sign_in_did_not_return_an_identity_tok: 'Apple hat kein Identitäts-Token zurückgegeben',
   apple_sign_in_failed_2: 'Anmeldung mit Apple fehlgeschlagen',
   appreciating_the_moment: 'Den Moment genießen',
-  are_you_sure_you_want_to_delete_your_account: 'Möchtest du dein Konto wirklich löschen? Das lässt sich nicht rückgängig machen.',
+  are_you_sure_you_want_to_delete_your_account:
+    'Möchtest du dein Konto wirklich löschen? Das lässt sich nicht rückgängig machen.',
   are_you_sure_you_want_to_log_out: 'Möchtest du dich wirklich abmelden?',
   authentication_failed: 'Anmeldung fehlgeschlagen',
   available_to_unlock: 'Zum Freischalten verfügbar',
@@ -62,7 +72,8 @@ export const de = {
   coins: 'Münzen',
   coins_added: 'Münzen gutgeschrieben',
   complete_a_goal_end_to_end: 'Ein Ziel von Anfang bis Ende abschließen',
-  complete_goals_and_tasks_to_unlock_achieveme: 'Schließe Ziele und Aufgaben ab, um Erfolge freizuschalten',
+  complete_goals_and_tasks_to_unlock_achieveme:
+    'Schließe Ziele und Aufgaben ab, um Erfolge freizuschalten',
   completed: 'Abgeschlossen',
   confirm_password: 'Passwort bestätigen',
   contact_support: 'Support kontaktieren',
@@ -70,8 +81,10 @@ export const de = {
   continue_with_google: 'Weiter mit Google',
   cool_and_collected: 'Gelassen und gesammelt',
   cost: 'Kosten',
-  could_not_load_habits_please_try_again: 'Gewohnheiten konnten nicht geladen werden. Bitte versuche es erneut.',
-  could_not_load_tasks_please_try_again: 'Aufgaben konnten nicht geladen werden. Bitte versuche es erneut.',
+  could_not_load_habits_please_try_again:
+    'Gewohnheiten konnten nicht geladen werden. Bitte versuche es erneut.',
+  could_not_load_tasks_please_try_again:
+    'Aufgaben konnten nicht geladen werden. Bitte versuche es erneut.',
   could_not_open_the_link: 'Link konnte nicht geöffnet werden',
   could_not_restore_purchases: 'Käufe konnten nicht wiederhergestellt werden',
   could_not_start_the_tour: 'Die Tour konnte nicht gestartet werden',
@@ -82,8 +95,10 @@ export const de = {
   create_new_task: 'Neue Aufgabe',
   create_task: 'Aufgabe erstellen',
   create_your_first_goal: 'Erstelle dein erstes Ziel',
-  create_your_first_habit_and_start_building_a: 'Erstelle deine erste Gewohnheit und beginne, an dir zu wachsen!',
-  create_your_first_task_and_get_things_done: 'Erstelle deine erste Aufgabe und bring die Dinge voran!',
+  create_your_first_habit_and_start_building_a:
+    'Erstelle deine erste Gewohnheit und beginne, an dir zu wachsen!',
+  create_your_first_task_and_get_things_done:
+    'Erstelle deine erste Aufgabe und bring die Dinge voran!',
   current: 'Aktuell',
   custom_themes: 'Eigene Designs',
   danger_zone: 'Kritischer Bereich',
@@ -103,21 +118,30 @@ export const de = {
   energized: 'Voller Energie',
   enjoy_all_premium_features: 'Genieße alle Premium-Funktionen',
   error: 'Fehler',
-  failed_to_complete_task_please_try_again: 'Aufgabe konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
-  failed_to_create_habit_please_try_again: 'Gewohnheit konnte nicht erstellt werden. Bitte versuche es erneut.',
-  failed_to_create_task_please_try_again: 'Aufgabe konnte nicht erstellt werden. Bitte versuche es erneut.',
+  failed_to_complete_task_please_try_again:
+    'Aufgabe konnte nicht abgeschlossen werden. Bitte versuche es erneut.',
+  failed_to_create_habit_please_try_again:
+    'Gewohnheit konnte nicht erstellt werden. Bitte versuche es erneut.',
+  failed_to_create_task_please_try_again:
+    'Aufgabe konnte nicht erstellt werden. Bitte versuche es erneut.',
   failed_to_delete_goal: 'Ziel konnte nicht gelöscht werden',
   failed_to_load_achievements: 'Erfolge konnten nicht geladen werden',
   failed_to_load_avatar_data: 'Avatardaten konnten nicht geladen werden',
   failed_to_load_subscription_options: 'Abo-Optionen konnten nicht geladen werden',
-  failed_to_load_subscription_options_please_t: 'Abo-Optionen konnten nicht geladen werden. Bitte versuche es später erneut.',
-  failed_to_restore_purchases_please_try_again: 'Käufe konnten nicht wiederhergestellt werden. Bitte versuche es erneut.',
-  failed_to_save_goal_please_try_again: 'Ziel konnte nicht gespeichert werden. Bitte versuche es erneut.',
-  failed_to_track_habit_please_try_again: 'Gewohnheit konnte nicht erfasst werden. Bitte versuche es erneut.',
-  failed_to_update_notification_settings: 'Benachrichtigungseinstellungen konnten nicht aktualisiert werden',
+  failed_to_load_subscription_options_please_t:
+    'Abo-Optionen konnten nicht geladen werden. Bitte versuche es später erneut.',
+  failed_to_restore_purchases_please_try_again:
+    'Käufe konnten nicht wiederhergestellt werden. Bitte versuche es erneut.',
+  failed_to_save_goal_please_try_again:
+    'Ziel konnte nicht gespeichert werden. Bitte versuche es erneut.',
+  failed_to_track_habit_please_try_again:
+    'Gewohnheit konnte nicht erfasst werden. Bitte versuche es erneut.',
+  failed_to_update_notification_settings:
+    'Benachrichtigungseinstellungen konnten nicht aktualisiert werden',
   failed_to_update_theme_settings: 'Design-Einstellungen konnten nicht aktualisiert werden',
-  failed_to_upload_profile_picture_please_try: 'Profilbild konnte nicht hochgeladen werden. Bitte versuche es erneut.',
-  feeling_great_today: 'Heute geht\'s dir richtig gut',
+  failed_to_upload_profile_picture_please_try:
+    'Profilbild konnte nicht hochgeladen werden. Bitte versuche es erneut.',
+  feeling_great_today: "Heute geht's dir richtig gut",
   finish_the_portfolio_site: 'Die Portfolio-Website fertigstellen',
   finish_without_walking: 'Ohne Gehpause ins Ziel',
   fired_up_and_ready: 'Angespornt und bereit',
@@ -134,7 +158,8 @@ export const de = {
   goal_updated_successfully: 'Ziel aktualisiert',
   goals: 'Ziele',
   google_sign_in_failed: 'Anmeldung mit Google fehlgeschlagen',
-  google_authentication_did_not_return_an_id_t: 'Google hat kein ID-Token zurückgegeben. Bitte versuche es erneut.',
+  google_authentication_did_not_return_an_id_t:
+    'Google hat kein ID-Token zurückgegeben. Bitte versuche es erneut.',
   grateful: 'Dankbar',
   growth_sanctuary: 'Garten des Wachstums',
   habit_created_successfully: 'Gewohnheit erstellt!',
@@ -147,7 +172,8 @@ export const de = {
   help_support: 'Hilfe & Support',
   how_are_you_feeling_today: 'Wie fühlst du dich heute?',
   in_the_zone: 'Voll im Flow',
-  in_app_purchases_are_being_configured_please: 'In-App-Käufe werden gerade eingerichtet. Bitte versuche es später erneut oder wende dich an den Support.',
+  in_app_purchases_are_being_configured_please:
+    'In-App-Käufe werden gerade eingerichtet. Bitte versuche es später erneut oder wende dich an den Support.',
   join_lilove_today: 'Werde noch heute Teil von LiLove',
   just_being: 'Einfach sein',
   legal: 'Rechtliches',
@@ -201,14 +227,15 @@ export const de = {
   passwords_do_not_match: 'Die Passwörter stimmen nicht überein',
   peaceful: 'Friedlich',
   peaceful_pond: 'Stiller Teich',
-  per_month: "/Monat",
-  per_year: "/Jahr",
+  per_month: '/Monat',
+  per_year: '/Jahr',
   permission_required: 'Berechtigung erforderlich',
   personalize_your_experience: 'Gestalte dein Erlebnis',
   personalized_guidance_from_our_ai_mentor: 'Persönliche Impulse von unserem KI-Mentor',
   pick_the_three_projects: 'Die drei Projekte auswählen',
   plan_saturday: 'Den Samstag planen',
-  please_allow_access_to_your_photo_library_to: 'Erlaube den Zugriff auf deine Fotos, um dein Profilbild zu ändern.',
+  please_allow_access_to_your_photo_library_to:
+    'Erlaube den Zugriff auf deine Fotos, um dein Profilbild zu ändern.',
   please_check_your_credentials: 'Bitte prüfe deine Zugangsdaten',
   please_enter_a_goal_title: 'Bitte gib einen Zieltitel ein',
   please_enter_a_habit_name: 'Bitte gib einen Namen für die Gewohnheit ein',
@@ -247,7 +274,8 @@ export const de = {
   run_5k_under_30_min: '5 km unter 30 Minuten laufen',
   run_8k: '8 km laufen',
   run_a_10k: '10-km-Lauf schaffen',
-  sample_data_nothing_is_saved_to_your_account: 'Beispieldaten · nichts wird in deinem Konto gespeichert',
+  sample_data_nothing_is_saved_to_your_account:
+    'Beispieldaten · nichts wird in deinem Konto gespeichert',
   sapling: 'Setzling',
   save_17_with_annual_subscription: 'Mit dem Jahresabo 17 % sparen',
   seedling: 'Keimling',
@@ -258,11 +286,13 @@ export const de = {
   sign_in_was_canceled: 'Anmeldung abgebrochen',
   something_went_wrong: 'Etwas ist schiefgelaufen',
   start_free_trial: 'Kostenlos testen',
-  start_your_journey_by_creating_your_first_go: 'Beginne deine Reise mit deinem ersten Ziel. Was möchtest du erreichen?',
+  start_your_journey_by_creating_your_first_go:
+    'Beginne deine Reise mit deinem ersten Ziel. Was möchtest du erreichen?',
   streak: 'Serie',
-  sub_auto_renews: "Das Abo verlängert sich automatisch, wenn es nicht mindestens 24 Stunden vor Ablauf gekündigt wird",
-  sub_cancel_anytime: "Jederzeit in den Einstellungen kündbar",
-  sub_charged_apple: "Die Zahlung wird bei Kaufbestätigung über dein Apple-Konto abgerechnet",
+  sub_auto_renews:
+    'Das Abo verlängert sich automatisch, wenn es nicht mindestens 24 Stunden vor Ablauf gekündigt wird',
+  sub_cancel_anytime: 'Jederzeit in den Einstellungen kündbar',
+  sub_charged_apple: 'Die Zahlung wird bei Kaufbestätigung über dein Apple-Konto abgerechnet',
   subscribe: 'Abonnieren',
   subscription: 'Abo',
   subscription_not_available: 'Abo nicht verfügbar',
@@ -282,31 +312,37 @@ export const de = {
   ten_day_streak: 'Zehn Tage in Folge',
   ten_days_without_a_gap: 'Zehn Tage ohne Lücke',
   terms_of_service: 'Nutzungsbedingungen',
-  thank_you_for_supporting_lilove_enjoy_all_pr: 'Danke, dass du LiLove unterstützt. Viel Freude mit allen Premium-Funktionen!',
+  thank_you_for_supporting_lilove_enjoy_all_pr:
+    'Danke, dass du LiLove unterstützt. Viel Freude mit allen Premium-Funktionen!',
   thirty_days: 'Dreißig Tage',
   three_case_studies_live: 'Drei Fallstudien, live',
   time_of_day: 'Tageszeit',
   tired: 'Müde',
   title: 'Titel',
-  to_delete_your_account_please_contact_suppor: 'Um dein Konto zu löschen, wende dich bitte an support@lilove.org',
+  to_delete_your_account_please_contact_suppor:
+    'Um dein Konto zu löschen, wende dich bitte an support@lilove.org',
   today_s_insight: 'Impuls des Tages',
   total: 'Gesamt',
   total_streaks: 'Serien gesamt',
   total_xp: 'XP gesamt',
-  track_as_many_goals_and_habits_as_you_want: 'Verfolge so viele Ziele und Gewohnheiten, wie du möchtest',
+  track_as_many_goals_and_habits_as_you_want:
+    'Verfolge so viele Ziele und Gewohnheiten, wie du möchtest',
   track_your_progress: 'Verfolge deinen Fortschritt',
   trait_selection: 'Merkmale auswählen',
   try_again: 'Erneut versuchen',
   try_again_2: 'Erneut versuchen',
   type_your_message: 'Nachricht schreiben …',
   unable_to_load_goals: 'Ziele konnten nicht geladen werden',
-  unable_to_load_your_goals_please_try_again: 'Deine Ziele konnten nicht geladen werden. Bitte versuche es erneut.',
+  unable_to_load_your_goals_please_try_again:
+    'Deine Ziele konnten nicht geladen werden. Bitte versuche es erneut.',
   unknown_error: 'Unbekannter Fehler',
   unlimited_goals_habits: 'Unbegrenzte Ziele & Gewohnheiten',
-  unlock_ai_coaching_unlimited_goals_and_premi: 'Schalte KI-Coaching, unbegrenzte Ziele und Premium-Funktionen frei',
+  unlock_ai_coaching_unlimited_goals_and_premi:
+    'Schalte KI-Coaching, unbegrenzte Ziele und Premium-Funktionen frei',
   unlock_premium: 'Premium freischalten',
   unlock_your_full_potential: 'Entfalte dein volles Potenzial',
-  unlock_all_premium_features_with_monthly_sub: 'Schalte mit dem Monatsabo alle Premium-Funktionen frei',
+  unlock_all_premium_features_with_monthly_sub:
+    'Schalte mit dem Monatsabo alle Premium-Funktionen frei',
   unlocked: 'Freigeschaltet',
   unlocked_elements: 'Freigeschaltete Elemente',
   upgrade_to_premium: 'Auf Premium upgraden',
@@ -323,11 +359,30 @@ export const de = {
   young_forest: 'Junger Wald',
   young_growth_stretches_toward_the_light: 'Junges Grün streckt sich dem Licht entgegen',
   your_balance: 'Dein Guthaben',
-  your_journey_begins_with_a_single_seed_of_ho: 'Deine Reise beginnt mit einem einzigen Samen der Hoffnung',
+  your_journey_begins_with_a_single_seed_of_ho:
+    'Deine Reise beginnt mit einem einzigen Samen der Hoffnung',
   your_mood_has_been_saved: 'Deine Stimmung wurde gespeichert!',
   your_personal_growth_companion: 'Dein Begleiter für persönliches Wachstum',
   your_premium_subscription_has_been_restored: 'Dein Premium-Abo wurde wiederhergestellt.',
   your_subscription_has_been_restored: 'Dein Abo wurde wiederhergestellt.',
   great_job: '✅ Stark gemacht!',
   well_done: '✅ Gut gemacht!',
+  purchase_needs_account_title: 'Erstelle zuerst ein kostenloses Konto',
+  purchase_needs_account_body:
+    'Dein Abo ist mit deinem LiLove-Konto verknüpft, damit Coach und Verlauf dir auf jedes Gerät folgen. Du bist gerade in der Beispieltour – es wurde nichts berechnet.',
+  habits_today: 'Heutige Gewohnheiten',
+  habits_completed_today: 'Heute erledigt',
+  habits_check: 'Heute als erledigt markieren',
+  habits_checking: 'Speichern…',
+  habits_check_failed:
+    'Ihr Check-in konnte nicht gespeichert werden. Aktualisieren Sie, um den Status zu überprüfen, bevor Sie es erneut versuchen.',
+  habits_load_failed: 'Ihre Gewohnheiten konnten nicht geladen werden. Versuchen Sie es erneut.',
+  subscription_checking: 'Abonnement wird geprüft …',
+  subscription_unverified: 'Nicht verifiziert',
+  subscription_unavailable: 'Ihr Abonnement konnte nicht verifiziert werden. Bitte erneut prüfen.',
+  subscription_check_again: 'Erneut prüfen',
+  subscription_verification_pending:
+    'Ihr Kauf ist eingegangen, aber der aktive Zugriff konnte nicht bestätigt werden. Prüfen Sie den Status erneut, bevor Sie einen weiteren Kauf tätigen.',
+  subscription_active_confirmed: 'Ihr Abonnement ist aktiv.',
+  subscription_free: 'Kostenlos',
 } as const;

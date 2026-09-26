@@ -49,6 +49,22 @@ import { Platform } from 'react-native';
 // bağlanmak, iki ayrı yeniden deneme ve hata politikası demek olurdu.
 import { api } from '../lib/api';
 import { COIN_IDS, SUBSCRIPTION_IDS, isCoinProduct } from '../config/products';
+import { tokenManager } from './tokenManager';
+import { DEMO_TOKEN } from '../lib/demoData';
+
+/**
+ * No purchase or restore is ever STARTED in the demo tour.
+ *
+ * The screens already stop and explain (lib/accountGate.ts). This is the
+ * second lock, for any future screen that forgets. Without it, Apple
+ * takes the payment and our server refuses to verify it: paid, and
+ * nothing received.
+ */
+async function hesapGerekir(): Promise<void> {
+  if ((await tokenManager.getToken()) === DEMO_TOKEN) {
+    throw Object.assign(new Error('Purchases need an account.'), { code: 'ACCOUNT_REQUIRED' });
+  }
+}
 
 export type StoreProduct = {
   id: string;
@@ -72,12 +88,7 @@ function urunKimligi(p: any): string {
 }
 
 function islemKimligi(p: any): string {
-  return String(
-    p?.transactionId ??
-      p?.id ??
-      p?.originalTransactionIdentifierIOS ??
-      ''
-  );
+  return String(p?.transactionId ?? p?.id ?? p?.originalTransactionIdentifierIOS ?? '');
 }
 
 function bekleyeniBitir(productId: string, hata?: any) {
@@ -93,14 +104,19 @@ function bekleyeniBitir(productId: string, hata?: any) {
  *
  * Hata durumunda işlem BİLEREK bitirilmiyor: StoreKit onu bir sonraki
  * açılışta yeniden sunar ve `purchaseUpdatedListener` tekrar dener.
- * Sunucu tarafı `sourceId = transactionId` ile tekrarları eliyor, yani
- * ikinci kez doğrulamak ikinci kez jeton vermez.
+ * Sunucu aynı işlem kimliğini yeniden alabilir; istemci yalnız açık
+ * başarı yanıtından sonra StoreKit işlemini tamamlar.
  */
+async function dogrula(islemId: string): Promise<void> {
+  const sonuc = await api.verifyPurchase(islemId);
+  if (sonuc?.success !== true) throw new Error('Purchase verification was not confirmed');
+}
+
 async function dogrulaVeBitir(purchase: any): Promise<void> {
   const islemId = islemKimligi(purchase);
   if (!islemId) throw new Error('Purchase has no transaction id');
 
-  await api.verifyPurchase(islemId);
+  await dogrula(islemId);
 
   await finishTransaction({
     purchase,
@@ -215,7 +231,18 @@ export async function loadSubscriptionProducts(): Promise<StoreProduct[]> {
  * sonsuza kadar dönmesi kabul edilemez; işlem askıda kalır ve bir
  * sonraki açılışta dinleyici onu tamamlar.
  */
-function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
+async function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
+  await hesapGerekir();
+  const hesap = await api.getIapAccountToken(productId);
+  const appAccountToken = hesap?.appAccountToken;
+  if (
+    typeof appAccountToken !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      appAccountToken
+    )
+  ) {
+    throw new Error('Purchase account token is unavailable');
+  }
   return new Promise<void>((coz, reddet) => {
     const zamanlayici = setTimeout(() => {
       bekleyenler.delete(productId);
@@ -225,7 +252,7 @@ function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
     bekleyenler.set(productId, { coz, reddet, zamanlayici });
 
     requestPurchase({
-      request: { ios: { sku: productId } },
+      request: { ios: { sku: productId, appAccountToken } },
       type: tur,
     }).catch((e: any) => bekleyeniBitir(productId, e));
   });
@@ -250,6 +277,7 @@ export function buySubscription(productId: string): Promise<void> {
  * @returns sunucunun kabul ettiği abonelik işlemi sayısı
  */
 export async function restore(): Promise<number> {
+  await hesapGerekir();
   const mevcut: any[] = (await getAvailablePurchases()) ?? [];
   let sayi = 0;
   for (const p of mevcut) {
@@ -257,7 +285,7 @@ export async function restore(): Promise<number> {
     const islemId = islemKimligi(p);
     if (!islemId) continue;
     try {
-      await api.verifyPurchase(islemId);
+      await dogrula(islemId);
       sayi++;
     } catch {
       // tek bir kaydın düşmesi diğerlerini durdurmasın

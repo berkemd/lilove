@@ -22,7 +22,7 @@ import { t } from '../i18n';
 //    verilerin" diye gösterilen hiçbir şey yok.
 // =====================================================================
 
-export const DEMO_TOKEN = "demo-session";
+export const DEMO_TOKEN = 'demo-session';
 
 /** Bugünden geriye n gün. Sabit tarih yazmıyoruz: demo hep taze görünsün. */
 function gunOnce(n: number): string {
@@ -51,124 +51,281 @@ export interface DemoStore {
 // yoktu), Avatar sekmesi bombostu (bolge uc noktalari hic yoktu).
 // Alanlar artik ekranlarin arayuzlerinden birebir alindi.
 const ZONE = (key: string, name: string, layerOrder: number) => ({
-  id: `z_${key}`, key, name, layerOrder, isRequired: false, allowMultiple: false,
+  id: `z_${key}`,
+  key,
+  name,
+  layerOrder,
+  isRequired: false,
+  allowMultiple: false,
 });
 
-const TRAIT = (zoneKey: string, n: number, name: string,
-               rarity: string, coinCost: number, isDefault = false) => ({
-  id: `t_${zoneKey}_${n}`, zoneId: `z_${zoneKey}`, name, rarity,
-  layerOrder: n, unlockType: coinCost > 0 ? 'purchase' : 'default',
-  coinCost, isDefault, isActive: true,
+const TRAIT = (
+  zoneKey: string,
+  n: number,
+  name: string,
+  rarity: string,
+  coinCost: number,
+  isDefault = false
+) => ({
+  id: `t_${zoneKey}_${n}`,
+  zoneId: `z_${zoneKey}`,
+  name,
+  rarity,
+  layerOrder: n,
+  unlockType: coinCost > 0 ? 'purchase' : 'default',
+  coinCost,
+  isDefault,
+  isActive: true,
 });
 
 function tohum(): DemoStore {
   const zones = [
-    ZONE('skin', 'Skin tone', 1), ZONE('body', 'Body', 2),
-    ZONE('eyes', 'Eyes', 4), ZONE('mouth', 'Mouth', 6),
-    ZONE('hair', 'Hair', 10), ZONE('glasses', 'Glasses', 12),
-    ZONE('clothing_top', 'Top', 20), ZONE('shoes', 'Shoes', 22),
-    ZONE('hat', 'Hat', 30), ZONE('aura', 'Aura', 40),
+    ZONE('skin', 'Skin tone', 1),
+    ZONE('body', 'Body', 2),
+    ZONE('eyes', 'Eyes', 4),
+    ZONE('mouth', 'Mouth', 6),
+    ZONE('hair', 'Hair', 10),
+    ZONE('glasses', 'Glasses', 12),
+    ZONE('clothing_top', 'Top', 20),
+    ZONE('shoes', 'Shoes', 22),
+    ZONE('hat', 'Hat', 30),
+    ZONE('aura', 'Aura', 40),
   ];
   const traits: Record<string, any[]> = {
-    z_skin: [TRAIT('skin', 1, 'Warm', 'common', 0, true), TRAIT('skin', 2, 'Cool', 'common', 0),
-             TRAIT('skin', 3, 'Deep', 'common', 0)],
-    z_body: [TRAIT('body', 1, 'Standard', 'common', 0, true), TRAIT('body', 2, 'Athletic', 'uncommon', 150)],
-    z_eyes: [TRAIT('eyes', 1, 'Round', 'common', 0, true), TRAIT('eyes', 2, 'Focused', 'uncommon', 120)],
-    z_mouth: [TRAIT('mouth', 1, 'Calm', 'common', 0, true), TRAIT('mouth', 2, 'Grin', 'common', 60)],
-    z_hair: [TRAIT('hair', 1, 'Short', 'common', 0, true), TRAIT('hair', 2, 'Waves', 'rare', 400),
-             TRAIT('hair', 3, 'Undercut', 'epic', 900)],
+    z_skin: [
+      TRAIT('skin', 1, 'Warm', 'common', 0, true),
+      TRAIT('skin', 2, 'Cool', 'common', 0),
+      TRAIT('skin', 3, 'Deep', 'common', 0),
+    ],
+    z_body: [
+      TRAIT('body', 1, 'Standard', 'common', 0, true),
+      TRAIT('body', 2, 'Athletic', 'uncommon', 150),
+    ],
+    z_eyes: [
+      TRAIT('eyes', 1, 'Round', 'common', 0, true),
+      TRAIT('eyes', 2, 'Focused', 'uncommon', 120),
+    ],
+    z_mouth: [
+      TRAIT('mouth', 1, 'Calm', 'common', 0, true),
+      TRAIT('mouth', 2, 'Grin', 'common', 60),
+    ],
+    z_hair: [
+      TRAIT('hair', 1, 'Short', 'common', 0, true),
+      TRAIT('hair', 2, 'Waves', 'rare', 400),
+      TRAIT('hair', 3, 'Undercut', 'epic', 900),
+    ],
     z_glasses: [TRAIT('glasses', 1, 'Readers', 'uncommon', 200)],
-    z_clothing_top: [TRAIT('clothing_top', 1, 'Tee', 'common', 0, true),
-                     TRAIT('clothing_top', 2, 'Runner jacket', 'rare', 500)],
+    z_clothing_top: [
+      TRAIT('clothing_top', 1, 'Tee', 'common', 0, true),
+      TRAIT('clothing_top', 2, 'Runner jacket', 'rare', 500),
+    ],
     z_shoes: [TRAIT('shoes', 1, 'Trainers', 'common', 0, true)],
     z_hat: [TRAIT('hat', 1, 'Cap', 'uncommon', 250)],
     z_aura: [TRAIT('aura', 1, 'Streak glow', 'legendary', 2000)],
   };
   return {
     profile: {
-      id: "demo-user", email: "demo@lilove.app", displayName: "Demo",
-      firstName: "Demo", subscriptionTier: "free", isPremium: false,
+      id: 'demo-user',
+      email: 'demo@lilove.app',
+      displayName: 'Demo',
+      firstName: 'Demo',
+      subscriptionTier: 'free',
+      isPremium: false,
       coinBalance: 1250,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
       createdAt: gunOnce(28),
       onboardingCompleted: true,
       settings: { theme: 'light', notifications: true, language: 'en' },
-      stats: { totalGoals: 2, completedGoals: 1, currentStreak: 12,
-               longestStreak: 19, totalXP: 2480, level: 7 },
+      stats: {
+        totalGoals: 2,
+        completedGoals: 1,
+        currentStreak: 12,
+        longestStreak: 19,
+        totalXP: 2480,
+        level: 7,
+      },
     },
     habits: [
-      { id: "h1", title: t('morning_walk'), description: t('n20_minutes_before_anything_else'),
-        icon: "walk", color: "#8B5CF6", category: "health", frequency: "daily",
-        currentStreak: 12, longestStreak: 19, totalCompletions: 46,
-        completedToday: true, createdAt: gunOnce(28), sample: true },
-      { id: "h2", title: t('read_20_pages'), description: t('paper_not_a_screen'),
-        icon: "book", color: "#3B82F6", category: "learning", frequency: "daily",
-        currentStreak: 5, longestStreak: 11, totalCompletions: 23,
-        completedToday: false, createdAt: gunOnce(21), sample: true },
-      { id: "h3", title: t('no_phone_after_23_00'), description: t('charger_stays_in_the_hall'),
-        icon: "moon", color: "#10B981", category: "focus", frequency: "daily",
-        currentStreak: 3, longestStreak: 8, totalCompletions: 14,
-        completedToday: false, createdAt: gunOnce(14), sample: true },
+      {
+        id: 'h1',
+        title: t('morning_walk'),
+        description: t('n20_minutes_before_anything_else'),
+        icon: 'walk',
+        color: '#8B5CF6',
+        category: 'health',
+        frequency: 'daily',
+        currentStreak: 12,
+        longestStreak: 19,
+        totalCompletions: 46,
+        completedToday: true,
+        createdAt: gunOnce(28),
+        sample: true,
+      },
+      {
+        id: 'h2',
+        title: t('read_20_pages'),
+        description: t('paper_not_a_screen'),
+        icon: 'book',
+        color: '#3B82F6',
+        category: 'learning',
+        frequency: 'daily',
+        currentStreak: 5,
+        longestStreak: 11,
+        totalCompletions: 23,
+        completedToday: false,
+        createdAt: gunOnce(21),
+        sample: true,
+      },
+      {
+        id: 'h3',
+        title: t('no_phone_after_23_00'),
+        description: t('charger_stays_in_the_hall'),
+        icon: 'moon',
+        color: '#10B981',
+        category: 'focus',
+        frequency: 'daily',
+        currentStreak: 3,
+        longestStreak: 8,
+        totalCompletions: 14,
+        completedToday: false,
+        createdAt: gunOnce(14),
+        sample: true,
+      },
     ],
     goals: [
-      { id: "g1", title: t('run_a_10k'), description: t('finish_without_walking'),
-        category: "health", status: "active", progress: "60",
-        targetOutcome: "10 km, one run, no stops",
-        estimatedDuration: 90, createdAt: gunOnce(26), sample: true,
+      {
+        id: 'g1',
+        title: t('run_a_10k'),
+        description: t('finish_without_walking'),
+        category: 'health',
+        status: 'active',
+        progress: '60',
+        targetOutcome: '10 km, one run, no stops',
+        estimatedDuration: 90,
+        createdAt: gunOnce(26),
+        sample: true,
         steps: [
-          { id: "g1s1", title: t('run_3k_without_stopping'), done: true },
-          { id: "g1s2", title: t('run_5k_under_30_min'), done: true },
-          { id: "g1s3", title: t('run_8k'), done: false },
-        ] },
-      { id: "g2", title: t('finish_the_portfolio_site'), description: t('three_case_studies_live'),
-        category: "career", status: "active", progress: "25",
-        targetOutcome: "Site online with three projects",
-        estimatedDuration: 45, createdAt: gunOnce(9), sample: true,
+          { id: 'g1s1', title: t('run_3k_without_stopping'), done: true },
+          { id: 'g1s2', title: t('run_5k_under_30_min'), done: true },
+          { id: 'g1s3', title: t('run_8k'), done: false },
+        ],
+      },
+      {
+        id: 'g2',
+        title: t('finish_the_portfolio_site'),
+        description: t('three_case_studies_live'),
+        category: 'career',
+        status: 'active',
+        progress: '25',
+        targetOutcome: 'Site online with three projects',
+        estimatedDuration: 45,
+        createdAt: gunOnce(9),
+        sample: true,
         steps: [
-          { id: "g2s1", title: t('pick_the_three_projects'), done: true },
-          { id: "g2s2", title: t('write_the_case_studies'), done: false },
-        ] },
-      { id: "g3", title: t('read_12_books_this_year'), description: t('one_a_month'),
-        category: "learning", status: "completed", progress: "100",
-        targetOutcome: "12 finished books", createdAt: gunOnce(200),
-        completedAt: gunOnce(3), sample: true, steps: [] },
+          { id: 'g2s1', title: t('pick_the_three_projects'), done: true },
+          { id: 'g2s2', title: t('write_the_case_studies'), done: false },
+        ],
+      },
+      {
+        id: 'g3',
+        title: t('read_12_books_this_year'),
+        description: t('one_a_month'),
+        category: 'learning',
+        status: 'completed',
+        progress: '100',
+        targetOutcome: '12 finished books',
+        createdAt: gunOnce(200),
+        completedAt: gunOnce(3),
+        sample: true,
+        steps: [],
+      },
     ],
     tasks: [
-      { id: "t1", title: t('book_the_dentist'), completed: false, dueDate: gunOnce(-1), sample: true },
-      { id: "t2", title: t('reply_to_elif'), completed: true, dueDate: gunOnce(0), sample: true },
-      { id: "t3", title: t('plan_saturday'), completed: false, dueDate: gunOnce(-2), sample: true },
+      {
+        id: 't1',
+        title: t('book_the_dentist'),
+        completed: false,
+        dueDate: gunOnce(-1),
+        sample: true,
+      },
+      {
+        id: 't2',
+        title: t('reply_to_elif'),
+        completed: true,
+        dueDate: gunOnce(0),
+        sample: true,
+      },
+      {
+        id: 't3',
+        title: t('plan_saturday'),
+        completed: false,
+        dueDate: gunOnce(-2),
+        sample: true,
+      },
     ],
     achievements: [
-      { id: "a1", title: t('first_week'), description: t('seven_days_in_a_row'), unlocked: true,
-        coinReward: 100 },
-      { id: "a2", title: t('ten_day_streak'), description: t('ten_days_without_a_gap'), unlocked: true,
-        coinReward: 250 },
-      { id: "a3", title: t('goal_finisher'), description: t('complete_a_goal_end_to_end'),
-        unlocked: true, coinReward: 500 },
-      { id: "a4", title: t('thirty_days'), description: t('a_full_month_unbroken'),
-        unlocked: false, coinReward: 1000 },
+      {
+        id: 'a1',
+        title: t('first_week'),
+        description: t('seven_days_in_a_row'),
+        unlocked: true,
+        coinReward: 100,
+      },
+      {
+        id: 'a2',
+        title: t('ten_day_streak'),
+        description: t('ten_days_without_a_gap'),
+        unlocked: true,
+        coinReward: 250,
+      },
+      {
+        id: 'a3',
+        title: t('goal_finisher'),
+        description: t('complete_a_goal_end_to_end'),
+        unlocked: true,
+        coinReward: 500,
+      },
+      {
+        id: 'a4',
+        title: t('thirty_days'),
+        description: t('a_full_month_unbroken'),
+        unlocked: false,
+        coinReward: 1000,
+      },
     ],
     zones,
     traits,
     // Varsayilanlar zaten sahipli; magazanin bir sey SATTIGI gorulsun
     // diye biri satin alinmis olarak isaretli.
     owned: [
-      { id: "u1", userId: "demo-user", traitId: "t_hair_2", unlockedAt: gunOnce(4),
-        unlockSource: "purchase" },
+      {
+        id: 'u1',
+        userId: 'demo-user',
+        traitId: 't_hair_2',
+        unlockedAt: gunOnce(4),
+        unlockSource: 'purchase',
+      },
     ],
     equipped: [
-      { id: "e1", userId: "demo-user", zoneId: "z_skin", traitId: "t_skin_1" },
-      { id: "e2", userId: "demo-user", zoneId: "z_hair", traitId: "t_hair_2" },
-      { id: "e3", userId: "demo-user", zoneId: "z_clothing_top", traitId: "t_clothing_top_1" },
+      { id: 'e1', userId: 'demo-user', zoneId: 'z_skin', traitId: 't_skin_1' },
+      { id: 'e2', userId: 'demo-user', zoneId: 'z_hair', traitId: 't_hair_2' },
+      {
+        id: 'e3',
+        userId: 'demo-user',
+        zoneId: 'z_clothing_top',
+        traitId: 't_clothing_top_1',
+      },
     ],
     coinBalance: 1250,
   };
 }
 
 let depo: DemoStore = tohum();
+let habitDay = new Date().toDateString();
 
 export function demoSifirla(): void {
   depo = tohum();
+  habitDay = new Date().toDateString();
 }
 
 /** Giris ekrani ile demo kumesi AYNI profili kullansin diye tek kaynak. */
@@ -182,93 +339,159 @@ export function demoProfil(): any {
  * diye yalan soylemesine yol acardi.
  */
 export function demoCevap(method: string, endpoint: string, body?: any): unknown | undefined {
-  const yol = endpoint.split("?")[0] ?? endpoint;
+  const yol = endpoint.split('?')[0] ?? endpoint;
+  const today = new Date().toDateString();
+  if (today !== habitDay) {
+    depo.habits = depo.habits.map((habit) => ({
+      ...habit,
+      completedToday: false,
+    }));
+    habitDay = today;
+  }
 
-  if (method === "GET") {
+  if (method === 'GET') {
     const bolgeIz = yol.match(/^\/api\/avatar-system\/zones\/([^/]+)\/traits$/);
     if (bolgeIz) return depo.traits[bolgeIz[1]] ?? [];
     switch (yol) {
-      case "/api/auth/me":
-      case "/api/user":
-      case "/api/user/profile":
+      case '/api/auth/me':
+      case '/api/user':
+      case '/api/user/profile':
         return depo.profile;
-      case "/api/user/stats":
-        return { profile: { currentLevel: depo.profile.stats.level,
-                            totalXp: depo.profile.stats.totalXP,
-                            streakCount: depo.profile.stats.currentStreak } };
-      case "/api/habits":       return depo.habits;
-      case "/api/goals":        return depo.goals;
-      case "/api/tasks":        return depo.tasks;
-      case "/api/achievements": return depo.achievements;
-      case "/api/coin-balance": return { balance: depo.coinBalance };
-      case "/api/avatar":       return { health: 82, maxHealth: 100, mana: 55, maxMana: 100 };
-      case "/api/avatar-system/zones":       return depo.zones;
-      case "/api/avatar-system/my-traits":   return depo.owned;
-      case "/api/avatar-system/my-equipped":
+      case '/api/user/stats':
+        return {
+          profile: {
+            currentLevel: depo.profile.stats.level,
+            totalXp: depo.profile.stats.totalXP,
+            streakCount: depo.profile.stats.currentStreak,
+          },
+        };
+      case '/api/habits':
+        return depo.habits;
+      case '/api/goals':
+        return depo.goals;
+      case '/api/tasks':
+        return depo.tasks;
+      case '/api/achievements':
+        return depo.achievements;
+      case '/api/coin-balance':
+        return { balance: depo.coinBalance };
+      case '/api/avatar':
+        return { health: 82, maxHealth: 100, mana: 55, maxMana: 100 };
+      case '/api/avatar-system/zones':
+        return depo.zones;
+      case '/api/avatar-system/my-traits':
+        return depo.owned;
+      case '/api/avatar-system/my-equipped':
         return depo.equipped.map((e) => ({
           ...e,
           zone: depo.zones.find((z) => z.id === e.zoneId),
           trait: (depo.traits[e.zoneId] ?? []).find((t) => t.id === e.traitId),
         }));
-      case "/api/environment": {
+      case '/api/environment': {
         // Rozetle bandin ayrisamamasi icin ayni istatistikten turetiliyor.
         const sv = depo.profile.stats.level;
-        return { environmentLevel: sv, environmentXp: depo.profile.stats.totalXP % 1000,
-                 xpToNextLevel: 1000, theme: "day", season: "summer" };
+        return {
+          environmentLevel: sv,
+          environmentXp: depo.profile.stats.totalXP % 1000,
+          xpToNextLevel: 1000,
+          theme: 'day',
+          season: 'summer',
+        };
       }
-      case "/api/health":       return { ok: true };
-      case "/api/subscription/status":
-        return { subscriptionTier: "free", subscriptionStatus: "active", isPremium: false };
-      case "/api/analytics":
+      case '/api/health':
+        return { ok: true };
+      case '/api/subscription/status':
+        return {
+          subscriptionTier: 'free',
+          subscriptionStatus: 'active',
+          isPremium: false,
+        };
+      case '/api/analytics':
         // Alan adlari Profil ekraninin OKUDUGU adlar; degerler depodan
         // turetiliyor ki ekranlar arasinda ayrisma imkani olmasin.
-        return { currentStreak: Math.max(...depo.habits.map((h) => h.currentStreak ?? 0)),
-                 totalGoals: depo.goals.length,
-                 completedTasks: depo.tasks.filter((t) => t.completed).length,
-                 completionRate: 0.68, bestHour: 8, worstDay: "Saturday",
-                 days: depo.habits.map((h) => ({ title: h.title, streak: h.currentStreak })),
-                 sample: true };
+        return {
+          currentStreak: Math.max(...depo.habits.map((h) => h.currentStreak ?? 0)),
+          totalGoals: depo.goals.length,
+          completedTasks: depo.tasks.filter((t) => t.completed).length,
+          completionRate: 0.68,
+          bestHour: 8,
+          worstDay: 'Saturday',
+          days: depo.habits.map((h) => ({
+            title: h.title,
+            streak: h.currentStreak,
+          })),
+          sample: true,
+        };
     }
   }
 
-  if (method === "POST" || method === "PATCH" || method === "PUT") {
+  if (method === 'POST' || method === 'PATCH' || method === 'PUT') {
     // DEMO'DA YAZMA GERCEKTEN YAZAR - ama yalniz cihazda ve oturum
     // boyunca. Yazamiyormus gibi yapmak urunu denemeyi anlamsiz kilardi.
-    if (yol === "/api/habits") {
-      const yeni = { id: `h${Date.now()}`, currentStreak: 0, longestStreak: 0,
-        totalCompletions: 0, completedToday: false, icon: "star", color: "#8B5CF6",
-        category: "general", frequency: "daily",
-        createdAt: new Date().toISOString(), ...body };
+    if (yol === '/api/habits') {
+      const yeni = {
+        id: `h${Date.now()}`,
+        currentStreak: 0,
+        longestStreak: 0,
+        totalCompletions: 0,
+        completedToday: false,
+        icon: 'star',
+        color: '#8B5CF6',
+        category: 'general',
+        frequency: 'daily',
+        createdAt: new Date().toISOString(),
+        ...body,
+      };
       depo.habits = [yeni, ...depo.habits];
       return yeni;
     }
-    if (yol === "/api/goals") {
-      const yeni = { id: `g${Date.now()}`, status: "active", progress: "0", steps: [],
-        category: "general", targetOutcome: "",
-        createdAt: new Date().toISOString(), ...body };
+    if (yol === '/api/goals') {
+      const yeni = {
+        id: `g${Date.now()}`,
+        status: 'active',
+        progress: '0',
+        steps: [],
+        category: 'general',
+        targetOutcome: '',
+        createdAt: new Date().toISOString(),
+        ...body,
+      };
       depo.goals = [yeni, ...depo.goals];
       return yeni;
     }
-    if (yol === "/api/tasks") {
+    if (yol === '/api/tasks') {
       const yeni = { id: `t${Date.now()}`, completed: false, ...body };
       depo.tasks = [yeni, ...depo.tasks];
       return yeni;
     }
-    if (yol === "/api/avatar-system/equip") {
+    if (yol === '/api/avatar-system/equip') {
       const { zoneId, traitId } = body ?? {};
-      depo.equipped = [...depo.equipped.filter((e) => e.zoneId !== zoneId),
-        { id: `e${Date.now()}`, userId: "demo-user", zoneId, traitId }];
+      depo.equipped = [
+        ...depo.equipped.filter((e) => e.zoneId !== zoneId),
+        { id: `e${Date.now()}`, userId: 'demo-user', zoneId, traitId },
+      ];
       return { ok: true };
     }
-    const takip = yol.match(/^\/api\/habits\/([^/]+)\/track$/);
+    const takip = yol.match(/^\/api\/habits\/([^/]+)\/check$/);
     if (takip) {
+      const existing = depo.habits.find((habit) => habit.id === decodeURIComponent(takip[1]));
+      if (!existing) throw { status: 404, message: 'Habit not found' };
+      if (existing.completedToday) return { habit: existing, completion: { sample: true } };
       depo.habits = depo.habits.map((h) =>
-        h.id === takip[1]
-          ? { ...h, completedToday: true, currentStreak: (h.currentStreak ?? 0) + 1,
-              totalCompletions: (h.totalCompletions ?? 0) + 1 }
+        h.id === existing.id
+          ? {
+              ...h,
+              completedToday: true,
+              currentStreak: (h.currentStreak ?? 0) + 1,
+              longestStreak: Math.max(h.longestStreak ?? 0, (h.currentStreak ?? 0) + 1),
+              totalCompletions: (h.totalCompletions ?? 0) + 1,
+            }
           : h
       );
-      return depo.habits.find((h) => h.id === takip[1]);
+      return {
+        habit: depo.habits.find((h) => h.id === existing.id),
+        completion: { sample: true },
+      };
     }
     const bitir = yol.match(/^\/api\/tasks\/([^/]+)\/complete$/);
     if (bitir) {
@@ -281,15 +504,15 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
 }
 
 export function demoDisi(endpoint: string): string | null {
-  const yol = endpoint.split("?")[0] ?? endpoint;
-  if (yol.startsWith("/api/ai-coach")) {
-    return "The coach needs an account — it runs on the server, not on your phone.";
+  const yol = endpoint.split('?')[0] ?? endpoint;
+  if (yol.startsWith('/api/ai-coach')) {
+    return 'The coach needs an account — it runs on the server, not on your phone.';
   }
-  if (yol.startsWith("/api/subscription/verify") || yol.startsWith("/api/payments")) {
-    return "Purchases need an account.";
+  if (yol.startsWith('/api/subscription/verify') || yol.startsWith('/api/payments')) {
+    return 'Purchases need an account.';
   }
-  if (yol.startsWith("/api/leaderboard") || yol.startsWith("/api/social")) {
-    return "Community features need an account.";
+  if (yol.startsWith('/api/leaderboard') || yol.startsWith('/api/social')) {
+    return 'Community features need an account.';
   }
   return null;
 }

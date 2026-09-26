@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { ThemeProvider, useTheme, useThemedStyles } from './src/theme/ThemeProvider';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, View, Text, StyleSheet, Platform } from 'react-native';
@@ -17,12 +18,14 @@ import {
 } from './src/services/pushNotifications';
 import { api } from './src/services/api';
 import { tokenManager } from './src/services/tokenManager';
+import { t } from './src/i18n';
 
 // Screens
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 import DashboardScreen from './src/screens/dashboard/DashboardScreen';
 import GoalsScreen from './src/screens/goals/GoalsScreen';
+import HabitsScreen from './src/screens/habits/HabitsScreen';
 import CoachScreen from './src/screens/coach/CoachScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
 import PremiumScreen from './src/screens/PremiumScreen';
@@ -54,24 +57,29 @@ function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={MainTabs} />
-      <Stack.Screen 
-        name="Premium" 
+      <Stack.Screen
+        name="Premium"
         component={PremiumScreen}
         options={{
           presentation: 'modal',
         }}
       />
-      <Stack.Screen 
-        name="Coins" 
+      <Stack.Screen
+        name="Coins"
         component={CoinsScreen}
         options={{
           presentation: 'modal',
         }}
       />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen
+        name="Avatar"
+        component={AvatarScreen}
+        options={{ headerShown: true, title: t('my_avatar') }}
+      />
       <Stack.Screen name="Achievements" component={AchievementsScreen} />
-      <Stack.Screen 
-        name="GrowthSanctuary" 
+      <Stack.Screen
+        name="GrowthSanctuary"
         component={GrowthSanctuaryMobile}
         options={{
           presentation: 'card',
@@ -82,12 +90,13 @@ function MainStack() {
 }
 
 function MainTabs() {
+  const { color } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#8B5CF6',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: color('#8B5CF6'),
+        tabBarInactiveTintColor: color('#9CA3AF'),
         tabBarStyle: {
           paddingBottom: Platform.OS === 'ios' ? 20 : 10,
           paddingTop: 10,
@@ -95,8 +104,8 @@ function MainTabs() {
         },
       }}
     >
-      <Tab.Screen 
-        name="Dashboard" 
+      <Tab.Screen
+        name="Dashboard"
         component={DashboardScreen}
         options={{
           tabBarLabel: 'Home',
@@ -105,8 +114,8 @@ function MainTabs() {
           ),
         }}
       />
-      <Tab.Screen 
-        name="Goals" 
+      <Tab.Screen
+        name="Goals"
         component={GoalsScreen}
         options={{
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
@@ -114,8 +123,8 @@ function MainTabs() {
           ),
         }}
       />
-      <Tab.Screen 
-        name="Coach" 
+      <Tab.Screen
+        name="Coach"
         component={CoachScreen}
         options={{
           tabBarLabel: 'AI Coach',
@@ -124,17 +133,18 @@ function MainTabs() {
           ),
         }}
       />
-      <Tab.Screen 
-        name="Avatar" 
-        component={AvatarScreen}
+      <Tab.Screen
+        name="Habits"
+        component={HabitsScreen}
         options={{
+          tabBarLabel: t('habits'),
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
-            <Ionicons name="person-circle" size={size} color={color} />
+            <Ionicons name="checkmark-circle" size={size} color={color} />
           ),
         }}
       />
-      <Tab.Screen 
-        name="Profile" 
+      <Tab.Screen
+        name="Profile"
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
@@ -147,6 +157,17 @@ function MainTabs() {
 }
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  const { isDark, ready, color } = useTheme();
+  const styles = useThemedStyles(baseStyles);
+  const navigationTheme = isDark ? DarkTheme : DefaultTheme;
   const { isAuthenticated, isDemo, isLoading, initializeAuth, userProfile } = useAuthStore();
 
   useEffect(() => {
@@ -179,9 +200,9 @@ export default function App() {
     } catch (error) {
       console.error('[App] StoreKit init failed:', error);
     }
-    
+
     await notificationService.registerForPushNotifications();
-    
+
     const receivedSubscription = addNotificationReceivedListener((notification) => {
       console.log('[Push] Notification received:', notification);
     });
@@ -189,14 +210,14 @@ export default function App() {
     const responseSubscription = addNotificationResponseListener((response) => {
       console.log('[Push] Notification tapped:', response);
     });
-    
+
     notificationService.setupNotificationListeners(
       (notification) => console.log('Notification received:', notification),
       (response) => console.log('Notification response:', response)
     );
   };
 
-  if (isLoading) {
+  if (isLoading || !ready) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8B5CF6" />
@@ -208,7 +229,19 @@ export default function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer
+          theme={{
+            ...navigationTheme,
+            colors: {
+              ...navigationTheme.colors,
+              primary: color('#8B5CF6'),
+              background: color('#F9FAFB', 'background'),
+              card: color('#FFFFFF', 'background'),
+              text: color('#111827'),
+              border: color('#E5E7EB', 'border'),
+            },
+          }}
+        >
           {isAuthenticated ? <MainStack /> : <AuthStack />}
         </NavigationContainer>
         {/* DEMO ŞERİDİ HER EKRANDA.
@@ -218,18 +251,16 @@ export default function App() {
             uyarı, okunmamış bir uyarıdır. */}
         {isAuthenticated && isDemo && (
           <View style={styles.demoBanner} pointerEvents="none">
-            <Text style={styles.demoBannerText}>
-              Demo · sample data, nothing is saved
-            </Text>
+            <Text style={styles.demoBannerText}>Demo · sample data, nothing is saved</Text>
           </View>
         )}
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
       </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   demoBanner: {
     position: 'absolute',
     left: 0,

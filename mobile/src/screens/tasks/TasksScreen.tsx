@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { api } from '../../lib/api';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 interface Task {
   id: string;
@@ -29,11 +30,14 @@ interface Task {
 }
 
 export default function TasksScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  
+
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -144,7 +148,7 @@ export default function TasksScreen() {
 
         <View style={styles.taskFooter}>
           <View style={[styles.priorityBadge, { backgroundColor: priorityColor + '20' }]}>
-            <Text style={[styles.priorityText, { color: priorityColor }]}>
+            <Text style={[styles.priorityText, { color: themeColor(priorityColor, 'text') }]}>
               {task.priority}
             </Text>
           </View>
@@ -168,9 +172,9 @@ export default function TasksScreen() {
     return colors[status] || '#6B7280';
   };
 
-  const pendingTasks = tasks.filter(t => t.status === 'pending');
-  const activeTasks = tasks.filter(t => t.status === 'active');
-  const completedTasks = tasks.filter(t => t.status === 'completed');
+  const pendingTasks = tasks.filter((t) => t.status === 'pending');
+  const activeTasks = tasks.filter((t) => t.status === 'active');
+  const completedTasks = tasks.filter((t) => t.status === 'completed');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -186,13 +190,11 @@ export default function TasksScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />}
       >
         {isLoading && !isRefreshing ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color={themeColor('#3B82F6', 'text')} />
             <Text style={styles.loadingText}>{t('loading_your_tasks')}</Text>
           </View>
         ) : (
@@ -222,7 +224,9 @@ export default function TasksScreen() {
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateEmoji}>📋</Text>
                 <Text style={styles.emptyStateTitle}>{t('no_tasks_yet')}</Text>
-                <Text style={styles.emptyStateText}>{t('create_your_first_task_and_get_things_done')}</Text>
+                <Text style={styles.emptyStateText}>
+                  {t('create_your_first_task_and_get_things_done')}
+                </Text>
                 <TouchableOpacity style={styles.emptyStateButton} onPress={openCreateModal}>
                   <Text style={styles.emptyStateButtonText}>{t('create_task')}</Text>
                 </TouchableOpacity>
@@ -244,21 +248,23 @@ export default function TasksScreen() {
             <Text style={styles.modalTitle}>{t('create_new_task')}</Text>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('task_title')}
               value={title}
               onChangeText={setTitle}
               maxLength={200}
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[[styles.input, styles.textArea], { color: themeColor('#111827', 'text') }]}
               placeholder={t('description_optional')}
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={3}
               maxLength={500}
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <View style={styles.prioritySelector}>
@@ -268,14 +274,14 @@ export default function TasksScreen() {
                   style={[
                     styles.priorityOption,
                     priority === p && styles.priorityOptionSelected,
-                    { borderColor: getPriorityColor(p) }
+                    { borderColor: getPriorityColor(p) },
                   ]}
                   onPress={() => setPriority(p)}
                 >
                   <Text
                     style={[
                       styles.priorityOptionText,
-                      priority === p && { color: getPriorityColor(p) }
+                      priority === p && { color: themeColor(getPriorityColor(p), 'text') },
                     ]}
                   >
                     {p}
@@ -305,7 +311,7 @@ export default function TasksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
