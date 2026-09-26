@@ -104,21 +104,16 @@ export default function HabitsScreen() {
     return colors[category] || '#6B7280';
   };
 
+  const getCategoryLabel = (category: string): string =>
+    category === 'health' ? t('health') : category;
+
   const renderHabitCard = (habit: Habit) => {
     const categoryColor = getCategoryColor(habit.category);
 
     return (
-      <TouchableOpacity
+      <View
         key={habit.id}
         style={[styles.habitCard, { borderLeftColor: categoryColor }]}
-        onPress={() => void tracker.check(habit.id)}
-        disabled={busy || !!error || habit.completedToday}
-        accessibilityRole="button"
-        accessibilityLabel={`${habit.title}. ${habit.completedToday ? t('habits_completed_today') : t('habits_check')}`}
-        accessibilityState={{
-          disabled: busy || !!error || habit.completedToday,
-          busy: checkingId === habit.id,
-        }}
         testID={`habit-${habit.id}`}
       >
         <View style={styles.habitHeader}>
@@ -167,18 +162,37 @@ export default function HabitsScreen() {
           </View>
         </View>
 
-        <Text style={styles.checkLabel}>
-          {checkingId === habit.id
-            ? t('habits_checking')
-            : habit.completedToday
-              ? t('habits_completed_today')
-              : t('habits_check')}
-        </Text>
+        {habit.completedToday ? (
+          <Text
+            style={styles.checkLabel}
+            accessibilityLabel={`${habit.title}. ${t('habits_completed_today')}`}
+          >
+            {t('habits_completed_today')}
+          </Text>
+        ) : (
+          <TouchableOpacity
+            style={[styles.checkButton, (busy || !!error) && styles.checkButtonDisabled]}
+            onPress={() => void tracker.check(habit.id)}
+            disabled={busy || !!error}
+            accessibilityRole="button"
+            accessibilityLabel={`${habit.title}. ${checkingId === habit.id ? t('habits_checking') : t('habits_check')}`}
+            accessibilityState={{ disabled: busy || !!error, busy: checkingId === habit.id }}
+            testID={`check-habit-${habit.id}`}
+          >
+            <Text
+              style={[styles.checkButtonText, (busy || !!error) && styles.checkButtonTextDisabled]}
+            >
+              {checkingId === habit.id ? t('habits_checking') : t('habits_check')}
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '20' }]}>
-          <Text style={[styles.categoryText, { color: categoryColor }]}>{habit.category}</Text>
+          <Text style={[styles.categoryText, { color: categoryColor }]}>
+            {getCategoryLabel(habit.category)}
+          </Text>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -341,7 +355,7 @@ export default function HabitsScreen() {
                       category === cat && { color: getCategoryColor(cat) },
                     ]}
                   >
-                    {cat}
+                    {getCategoryLabel(cat)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -374,6 +388,28 @@ export default function HabitsScreen() {
 }
 
 const styles = StyleSheet.create({
+  checkButton: {
+    minHeight: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  checkButtonDisabled: {
+    backgroundColor: '#D1FAE5',
+  },
+  checkButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  checkButtonTextDisabled: {
+    color: '#065F46',
+  },
   checkLabel: {
     color: '#047857',
     fontSize: 14,

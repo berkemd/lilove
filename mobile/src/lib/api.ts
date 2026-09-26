@@ -381,8 +381,10 @@ export const api = {
   // uçtan uca hiç çalışmamıştı. Gönderilen tek şey artık Apple'ın işlem
   // kimliği; jeton miktarını ve abonelik katmanını sunucu Apple'a
   // sorarak belirliyor — istemcinin söylediğine değil.
+  getIapAccountToken: async (productId: string) =>
+    apiClient.post<{ appAccountToken: string }>('/api/iap/account-token', { productId }),
   verifyPurchase: async (transactionId: string) =>
-    apiClient.post<{ success?: boolean }>('/api/subscription/verify', {
+    apiClient.post<{ success: boolean }>('/api/subscription/verify', {
       transactionId,
     }),
   // DÖNÜŞ TİPLERİ YAZILI: `apiClient.get` tür değişkenli ve tür
