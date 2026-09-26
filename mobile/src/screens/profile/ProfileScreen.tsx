@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import api from '../../lib/api';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
+import { useSubscription } from '../../hooks/useSubscription';
 
 interface UserStats {
   streak: number;
@@ -57,6 +58,7 @@ export default function ProfileScreen({ navigation }: any) {
   const { color: themeColor } = useTheme();
 
   const { user, userProfile, logout, updateUser } = useAuthStore();
+  const subscription = useSubscription();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -145,7 +147,10 @@ export default function ProfileScreen({ navigation }: any) {
     navigation.navigate('Premium');
   };
 
-  const isPremium = userProfile?.subscriptionTier === 'premium' || userProfile?.isPremium;
+  const isPremium =
+    subscription.status === 'verified' && subscription.subscription?.isPremium === true;
+  const isFree =
+    subscription.status === 'verified' && subscription.subscription?.isPremium === false;
 
   const menuItems = [
     {
@@ -285,9 +290,11 @@ export default function ProfileScreen({ navigation }: any) {
           {isPremium ? (
             <View style={styles.premiumBadge}>
               <Ionicons name="star" size={16} color={themeColor('#F59E0B', 'text')} />
-              <Text style={styles.premiumText}>{t('premium_member')}</Text>
+              <Text style={styles.premiumText}>
+                {subscription.subscription?.subscriptionTier === 'team' ? 'Team' : 'Pro'}
+              </Text>
             </View>
-          ) : (
+          ) : isFree ? (
             <TouchableOpacity
               style={styles.upgradeBadge}
               onPress={handlePremiumClick}
@@ -296,6 +303,23 @@ export default function ProfileScreen({ navigation }: any) {
             >
               <Ionicons name="sparkles" size={16} color={themeColor('#8B5CF6', 'text')} />
               <Text style={styles.upgradeText}>{t('upgrade_to_premium')}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.upgradeBadge}
+              onPress={() => subscription.refresh(true)}
+              disabled={subscription.status === 'loading'}
+              accessibilityRole="button"
+              accessibilityLabel={`${t('subscription_unverified')}. ${t('subscription_check_again')}`}
+            >
+              <Ionicons name="refresh" size={16} color={themeColor('#8B5CF6', 'text')} />
+              <Text style={[styles.upgradeText, { flexShrink: 1 }]}>
+                {subscription.status === 'loading'
+                  ? t('subscription_checking')
+                  : subscription.status === 'error'
+                    ? t('subscription_unavailable')
+                    : t('subscription_unverified')}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -320,8 +344,12 @@ export default function ProfileScreen({ navigation }: any) {
                   <Ionicons name="star" size={20} color={themeColor('#F59E0B', 'text')} />
                 </View>
                 <View>
-                  <Text style={styles.menuItemText}>{t('unlock_premium')}</Text>
-                  <Text style={styles.menuItemSubtext}>{t('get_unlimited_access')}</Text>
+                  <Text style={styles.menuItemText}>
+                    {isFree ? t('unlock_premium') : t('subscription')}
+                  </Text>
+                  <Text style={styles.menuItemSubtext}>
+                    {isFree ? t('get_unlimited_access') : t('subscription_unverified')}
+                  </Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={themeColor('#F59E0B', 'text')} />

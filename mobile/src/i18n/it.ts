@@ -367,4 +367,12 @@ export const it = {
   habits_check_failed:
     'Impossibile salvare il tuo check-in. Aggiorna per controllarne lo stato prima di riprovare.',
   habits_load_failed: 'Impossibile caricare le tue abitudini. Riprova.',
+  subscription_checking: 'Verifica abbonamento in corso…',
+  subscription_unverified: 'Non verificato',
+  subscription_unavailable: 'Impossibile verificare l’abbonamento. Riprova.',
+  subscription_check_again: 'Riprova',
+  subscription_verification_pending:
+    'L’acquisto è stato ricevuto, ma l’accesso attivo non può essere confermato. Verifica nuovamente prima di effettuare un nuovo acquisto.',
+  subscription_active_confirmed: 'L’abbonamento è attivo.',
+  subscription_free: 'Gratuito',
 } as const;

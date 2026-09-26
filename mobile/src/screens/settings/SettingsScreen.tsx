@@ -15,12 +15,14 @@ import { useAuthStore } from '../../store/authStore';
 import { t } from '../../i18n';
 import Constants from 'expo-constants';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
+import { useSubscription } from '../../hooks/useSubscription';
 
 export default function SettingsScreen({ navigation }: any) {
   const { userProfile, updateUser, logout } = useAuthStore();
   const [notifications, setNotifications] = useState(userProfile?.settings?.notifications ?? true);
   const { isDark: darkMode, setDarkMode, ready, saving, color } = useTheme();
   const styles = useThemedStyles(baseStyles);
+  const subscription = useSubscription();
 
   const handleNotificationToggle = async (value: boolean) => {
     setNotifications(value);
@@ -135,7 +137,15 @@ export default function SettingsScreen({ navigation }: any) {
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>
-                {userProfile?.subscriptionTier === 'premium' ? 'Premium' : 'Free'}
+                {subscription.status === 'verified'
+                  ? subscription.subscription?.subscriptionTier === 'team'
+                    ? 'Team'
+                    : subscription.subscription?.subscriptionTier === 'pro'
+                      ? 'Pro'
+                      : t('subscription_free')
+                  : subscription.status === 'loading'
+                    ? t('subscription_checking')
+                    : t('subscription_unverified')}
               </Text>
               <Ionicons name="chevron-forward" size={20} color={color('#D1D5DB')} />
             </View>

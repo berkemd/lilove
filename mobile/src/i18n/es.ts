@@ -366,4 +366,12 @@ export const es = {
   habits_check_failed:
     'No se pudo guardar su registro. Actualice para comprobar su estado antes de volver a intentarlo.',
   habits_load_failed: 'No se pudieron cargar sus hábitos. Inténtelo de nuevo.',
+  subscription_checking: 'Verificando suscripción…',
+  subscription_unverified: 'No verificado',
+  subscription_unavailable: 'No se pudo verificar su suscripción. Inténtelo de nuevo.',
+  subscription_check_again: 'Volver a verificar',
+  subscription_verification_pending:
+    'Su compra se recibió, pero no se pudo confirmar el acceso activo. Verifique nuevamente antes de realizar otra compra.',
+  subscription_active_confirmed: 'Su suscripción está activa.',
+  subscription_free: 'Gratis',
 } as const;

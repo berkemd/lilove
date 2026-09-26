@@ -20,7 +20,7 @@ import {
   type StoreProduct,
 } from '../services/iap';
 import { periodOf, tierOf } from '../config/products';
-import { api } from '../lib/api';
+import { useSubscription } from '../hooks/useSubscription';
 import { t } from '../i18n';
 import { purchaseBlockedInDemo } from '../lib/accountGate';
 import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
@@ -58,15 +58,25 @@ export default function PremiumScreen({ navigation }: any) {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
 
-  const { user, userProfile, updateUser } = useAuthStore();
+  const { isDemo } = useAuthStore();
+  const subscription = useSubscription();
   const [packages, setPackages] = useState<StoreProduct[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<StoreProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [purchaseNeedsCheck, setPurchaseNeedsCheck] = useState(false);
+  const isPremium =
+    subscription.status === 'verified' && subscription.subscription?.isPremium === true;
+  const isFree =
+    subscription.status === 'verified' && subscription.subscription?.isPremium === false;
+  const purchaseDisabled = isPurchasing || purchaseNeedsCheck || (!isDemo && !isFree);
+
+  useEffect(() => {
+    setPurchaseNeedsCheck(false);
+  }, [subscription.accountId]);
 
   useEffect(() => {
     loadOfferings();
-    checkSubscriptionStatus();
   }, []);
 
   const loadOfferings = async () => {
@@ -89,23 +99,14 @@ export default function PremiumScreen({ navigation }: any) {
     }
   };
 
-  // YETKİ SUNUCUDAN OKUNUR, İSTEMCİDEN DEĞİL.
-  //
-  // Abonelik durumunu Apple'a doğrulatan taraf sunucu; istemcinin
-  // "premium'um" demesi bir iddiadır.
   const checkSubscriptionStatus = async () => {
-    try {
-      const durum = await api.getSubscriptionStatus();
-      if (durum?.isPremium && user) {
-        updateUser({ subscriptionTier: durum.subscriptionTier || 'pro' });
-      }
-    } catch (error) {
-      // Durum okunamadıysa mevcut yetkiye dokunmuyoruz.
-    }
+    const status = await subscription.refresh(true);
+    if (status) setPurchaseNeedsCheck(false);
   };
 
   const handlePurchase = async () => {
     if (purchaseBlockedInDemo()) return;
+    if (purchaseDisabled) return;
     if (!selectedPackage) {
       Alert.alert(t('please_select_a_subscription_plan'));
       return;
@@ -113,12 +114,14 @@ export default function PremiumScreen({ navigation }: any) {
 
     try {
       setIsPurchasing(true);
-      await buySubscription(selectedPackage.id);
-      // Satın alma bitti demek, yetki verildi demek değil: sunucu
-      // Apple'a doğrulattıktan SONRA durumu yeniden okuyoruz.
-      await checkSubscriptionStatus();
-      updateUser({ subscriptionTier: tierOf(selectedPackage.id) });
-      Alert.alert(t('welcome_to_premium'), t('you_now_have_access_to_all_premium_features'), [
+      const result = await subscription.confirm(() => buySubscription(selectedPackage.id));
+      if (result === 'account-changed') return;
+      if (result !== 'active') {
+        setPurchaseNeedsCheck(true);
+        Alert.alert(t('subscription_unverified'), t('subscription_verification_pending'));
+        return;
+      }
+      Alert.alert(t('subscription'), t('subscription_active_confirmed'), [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
@@ -128,7 +131,9 @@ export default function PremiumScreen({ navigation }: any) {
         kod.includes('E_USER_CANCELLED') ||
         /cancel/i.test(String(error?.message ?? ''));
       if (!iptal) {
-        Alert.alert(t('purchase_failed'), error?.message || t('please_try_again'));
+        // A failed receipt/status check does not prove Apple declined a charge.
+        setPurchaseNeedsCheck(true);
+        Alert.alert(t('subscription_unverified'), t('subscription_unavailable'));
       }
     } finally {
       setIsPurchasing(false);
@@ -141,12 +146,15 @@ export default function PremiumScreen({ navigation }: any) {
     if (purchaseBlockedInDemo()) return;
     try {
       setIsPurchasing(true);
-      const sayi = await restore();
-      await checkSubscriptionStatus();
-      if (sayi > 0) {
-        Alert.alert(t('subscription_restored'), t('your_subscription_has_been_restored'));
-      } else {
+      const result = await subscription.confirm(restore);
+      if (result === 'account-changed') return;
+      if (result === 'active') {
+        setPurchaseNeedsCheck(false);
+        Alert.alert(t('subscription'), t('subscription_active_confirmed'));
+      } else if (result === 'inactive') {
         Alert.alert(t('no_subscription_found'), t('no_active_subscription_found_to_restore'));
+      } else {
+        Alert.alert(t('subscription_unverified'), t('subscription_unavailable'));
       }
     } catch (error) {
       Alert.alert(t('restore_failed'), t('failed_to_restore_purchases_please_try_again'));
@@ -168,17 +176,29 @@ export default function PremiumScreen({ navigation }: any) {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
-        <Text style={styles.loadingText}>{t('loading_subscription_options')}</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel={t('close')}
+          >
+            <Ionicons name="close" size={24} color={themeColor('#1F2937', 'text')} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
+          <Text style={styles.loadingText}>{t('loading_subscription_options')}</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   // Mağaza ürünleri gelmediyse ekran bunu SÖYLER ve tekrar dener.
   const showNoPackagesMessage = packages.length === 0;
 
-  if (userProfile?.subscriptionTier === 'premium' || userProfile?.isPremium) {
+  if (isPremium) {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -192,10 +212,10 @@ export default function PremiumScreen({ navigation }: any) {
             <View style={styles.crownIcon}>
               <Ionicons name="trophy" size={48} color={themeColor('#8B5CF6', 'text')} />
             </View>
-            <Text style={styles.premiumActiveTitle}>{t('you_re_a_premium_member')}</Text>
-            <Text style={styles.premiumActiveSubtitle}>
-              {t('thank_you_for_supporting_lilove_enjoy_all_pr')}
+            <Text style={styles.premiumActiveTitle}>
+              {subscription.subscription?.subscriptionTier === 'team' ? 'Team' : 'Pro'}
             </Text>
+            <Text style={styles.premiumActiveSubtitle}>{t('subscription_active_confirmed')}</Text>
 
             <View style={styles.featuresContainer}>
               {features.map((feature, index) => (
@@ -238,6 +258,29 @@ export default function PremiumScreen({ navigation }: any) {
             <Ionicons name="close" size={24} color={themeColor('#1F2937', 'text')} />
           </TouchableOpacity>
         </View>
+
+        {!isDemo && (
+          <View style={styles.subscriptionStatus} accessibilityLiveRegion="polite">
+            <Text style={styles.subscriptionStatusText}>
+              {purchaseNeedsCheck
+                ? t('subscription_verification_pending')
+                : subscription.status === 'loading'
+                  ? t('subscription_checking')
+                  : subscription.status === 'error'
+                    ? t('subscription_unavailable')
+                    : isFree
+                      ? t('subscription_free')
+                      : t('subscription_unverified')}
+            </Text>
+            <TouchableOpacity
+              onPress={checkSubscriptionStatus}
+              disabled={isPurchasing || subscription.status === 'loading'}
+              accessibilityRole="button"
+            >
+              <Text style={styles.legalLink}>{t('subscription_check_again')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.heroSection}>
           <View style={styles.premiumBadge}>
@@ -322,9 +365,9 @@ export default function PremiumScreen({ navigation }: any) {
         )}
 
         <TouchableOpacity
-          style={[styles.purchaseButton, isPurchasing && styles.purchaseButtonDisabled]}
+          style={[styles.purchaseButton, purchaseDisabled && styles.purchaseButtonDisabled]}
           onPress={handlePurchase}
-          disabled={isPurchasing}
+          disabled={purchaseDisabled}
         >
           {/* "Start Free Trial" ÇIKARILDI: ürünlerde tanımlı bir deneme
               olduğunu doğrulamadım ve olmayan bir denemeyi vaat etmek
@@ -365,6 +408,18 @@ export default function PremiumScreen({ navigation }: any) {
 }
 
 const baseStyles = StyleSheet.create({
+  subscriptionStatus: {
+    marginHorizontal: 24,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    gap: 8,
+  },
+  subscriptionStatusText: {
+    color: '#374151',
+    fontSize: 14,
+  },
   container: {
     flex: 1,
     backgroundColor: '#fff',

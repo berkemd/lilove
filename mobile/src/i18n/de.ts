@@ -377,4 +377,12 @@ export const de = {
   habits_check_failed:
     'Ihr Check-in konnte nicht gespeichert werden. Aktualisieren Sie, um den Status zu überprüfen, bevor Sie es erneut versuchen.',
   habits_load_failed: 'Ihre Gewohnheiten konnten nicht geladen werden. Versuchen Sie es erneut.',
+  subscription_checking: 'Abonnement wird geprüft …',
+  subscription_unverified: 'Nicht verifiziert',
+  subscription_unavailable: 'Ihr Abonnement konnte nicht verifiziert werden. Bitte erneut prüfen.',
+  subscription_check_again: 'Erneut prüfen',
+  subscription_verification_pending:
+    'Ihr Kauf ist eingegangen, aber der aktive Zugriff konnte nicht bestätigt werden. Prüfen Sie den Status erneut, bevor Sie einen weiteren Kauf tätigen.',
+  subscription_active_confirmed: 'Ihr Abonnement ist aktiv.',
+  subscription_free: 'Kostenlos',
 } as const;

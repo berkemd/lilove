@@ -361,4 +361,12 @@ export const tr = {
   habits_check_failed:
     'İşaretlemen kaydedilemedi. Yeniden denemeden önce durumunu kontrol etmek için yenile.',
   habits_load_failed: 'Alışkanlıkların yüklenemedi. Tekrar dene.',
+  subscription_checking: 'Abonelik kontrol ediliyor…',
+  subscription_unverified: 'Doğrulanmadı',
+  subscription_unavailable: 'Aboneliğiniz doğrulanamadı. Tekrar kontrol edin.',
+  subscription_check_again: 'Tekrar kontrol et',
+  subscription_verification_pending:
+    'Satın alma işlemi alındı, ancak aktif erişim henüz doğrulanamadı. Yeni bir satın alma yapmadan önce tekrar kontrol edin.',
+  subscription_active_confirmed: 'Abonelik aktif.',
+  subscription_free: 'Ücretsiz',
 } as const;

@@ -364,4 +364,12 @@ export const ja = {
   habits_check_failed:
     'チェックインを保存できませんでした。再試行する前に、状態を確認するため再読み込みしてください。',
   habits_load_failed: '習慣を読み込めませんでした。もう一度お試しください。',
+  subscription_checking: 'サブスクリプションを確認中…',
+  subscription_unverified: '確認されていません',
+  subscription_unavailable: 'サブスクリプションを確認できませんでした。再度確認してください。',
+  subscription_check_again: '再確認',
+  subscription_verification_pending:
+    'ご購入の情報は受け取りましたが、利用権が有効か確認できませんでした。再度購入する前に、状態をもう一度確認してください。',
+  subscription_active_confirmed: 'サブスクリプションは有効です。',
+  subscription_free: '無料',
 } as const;

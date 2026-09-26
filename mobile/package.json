@@ -12,7 +12,10 @@
     "build:ios:dev": "eas build --platform ios --profile development",
     "submit:ios": "eas submit --platform ios",
     "postinstall": "node ci-eas-shim.js",
-    "test:iap": "node --test tests/iap.test.cjs"
+    "test:iap": "node --test tests/iap.test.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "test:theme": "node --test tests/theme.test.cjs",
+    "test:subscription": "node --test tests/subscription.test.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",

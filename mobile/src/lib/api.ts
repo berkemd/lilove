@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { tokenManager } from '../services/tokenManager';
+import type { SubscriptionStatus } from './subscription';
 import { DEMO_TOKEN, demoCevap, demoDisi } from './demoData';
 import { t } from '../i18n';
 import { createHabitsApi } from './habits';
@@ -75,6 +76,7 @@ class ApiClient {
       maxRetries?: number;
       retryDelay?: number;
       timeout?: number;
+      authorizationToken?: string;
     }
   ): Promise<T> {
     // DEMO KİPİ TEK NOKTADAN KESİLİYOR.
@@ -83,7 +85,7 @@ class ApiClient {
     // yapmak, ekranlara tek satır dokunmadan hesapsız bir tur
     // açıyor. Ekranlarda `if (demo)` dallanması olsaydı, yeni yazılan
     // her ekran o dalı unutur ve demo sessizce kırılırdı.
-    const jeton = await tokenManager.getToken();
+    const jeton = options?.authorizationToken ?? (await tokenManager.getToken());
     if (jeton === DEMO_TOKEN) {
       const kapali = demoDisi(endpoint);
       if (kapali) {
@@ -114,11 +116,8 @@ class ApiClient {
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         console.log('[API Client] Getting token for request to:', endpoint);
-        const token = await tokenManager.getToken();
-        console.log(
-          '[API Client] Token retrieved:',
-          token ? `${token.substring(0, 20)}...` : 'NULL'
-        );
+        const token = options?.authorizationToken ?? (await tokenManager.getToken());
+        console.log('[API Client] Token present:', Boolean(token));
 
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -391,12 +390,8 @@ export const api = {
   // verilmezse `{}` dönüyor — yani `d.balance` derleme anında hata
   // veriyor. Bu dosyada başka hiçbir çağrı tür vermemiş; verenler
   // yalnız bunlar, çünkü sonuçlarını gerçekten OKUYORUZ.
-  getSubscriptionStatus: async () =>
-    apiClient.get<{
-      subscriptionTier?: string;
-      subscriptionStatus?: string;
-      isPremium?: boolean;
-    }>('/api/subscription/status'),
+  getSubscriptionStatus: async (authorizationToken?: string) =>
+    apiClient.get<SubscriptionStatus>('/api/subscription/status', { authorizationToken }),
   cancelSubscription: async () => apiClient.post('/api/subscription/cancel'),
   getCoinBalance: async () => apiClient.get<{ balance: number }>('/api/coin-balance'),
 

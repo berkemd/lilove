@@ -373,4 +373,12 @@ export const fr = {
   habits_check_failed:
     'Impossible de sauvegarder votre suivi. Actualisez pour vérifier son état avant de réessayer.',
   habits_load_failed: 'Impossible de charger vos habitudes. Réessayez.',
+  subscription_checking: 'Vérification de l’abonnement…',
+  subscription_unverified: 'Non vérifié',
+  subscription_unavailable: 'Nous n’avons pas pu vérifier votre abonnement. Veuillez réessayer.',
+  subscription_check_again: 'Réessayer',
+  subscription_verification_pending:
+    'Votre achat a été reçu, mais l’activation de votre accès n’a pas pu être confirmée. Vérifiez à nouveau avant d’effectuer un nouvel achat.',
+  subscription_active_confirmed: 'Votre abonnement est actif.',
+  subscription_free: 'Gratuit',
 } as const;

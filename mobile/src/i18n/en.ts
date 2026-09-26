@@ -362,4 +362,12 @@ export const en = {
   habits_check_failed:
     'Could not save your check-in. Refresh to check its status before trying again.',
   habits_load_failed: 'Could not load your habits. Try again.',
+  subscription_checking: 'Checking subscription…',
+  subscription_unverified: 'Not verified',
+  subscription_unavailable: 'We couldn’t verify your subscription. Check again.',
+  subscription_check_again: 'Check again',
+  subscription_verification_pending:
+    'Your purchase was received, but active access could not be confirmed. Check again before making another purchase.',
+  subscription_active_confirmed: 'Your subscription is active.',
+  subscription_free: 'Free',
 } as const;
