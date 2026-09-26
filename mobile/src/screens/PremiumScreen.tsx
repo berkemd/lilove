@@ -13,22 +13,51 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
-import { loadSubscriptionProducts, buySubscription, restore, type StoreProduct } from '../services/iap';
+import {
+  loadSubscriptionProducts,
+  buySubscription,
+  restore,
+  type StoreProduct,
+} from '../services/iap';
 import { periodOf, tierOf } from '../config/products';
 import { api } from '../lib/api';
 import { t } from '../i18n';
 import { purchaseBlockedInDemo } from '../lib/accountGate';
+import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
 
 const features = [
-  { icon: 'sparkles', title: t('advanced_ai_coaching'), description: t('personalized_guidance_from_our_ai_mentor') },
-  { icon: 'infinite', title: t('unlimited_goals_habits'), description: t('track_as_many_goals_and_habits_as_you_want') },
-  { icon: 'analytics', title: t('advanced_analytics'), description: t('deep_insights_into_your_progress') },
-  { icon: 'trophy', title: t('premium_challenges'), description: t('access_exclusive_challenges_and_rewards') },
+  {
+    icon: 'sparkles',
+    title: t('advanced_ai_coaching'),
+    description: t('personalized_guidance_from_our_ai_mentor'),
+  },
+  {
+    icon: 'infinite',
+    title: t('unlimited_goals_habits'),
+    description: t('track_as_many_goals_and_habits_as_you_want'),
+  },
+  {
+    icon: 'analytics',
+    title: t('advanced_analytics'),
+    description: t('deep_insights_into_your_progress'),
+  },
+  {
+    icon: 'trophy',
+    title: t('premium_challenges'),
+    description: t('access_exclusive_challenges_and_rewards'),
+  },
   { icon: 'people', title: t('priority_support'), description: t('get_help_when_you_need_it') },
-  { icon: 'color-palette', title: t('custom_themes'), description: t('personalize_your_experience') },
+  {
+    icon: 'color-palette',
+    title: t('custom_themes'),
+    description: t('personalize_your_experience'),
+  },
 ];
 
 export default function PremiumScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const { user, userProfile, updateUser } = useAuthStore();
   const [packages, setPackages] = useState<StoreProduct[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<StoreProduct | null>(null);
@@ -89,11 +118,9 @@ export default function PremiumScreen({ navigation }: any) {
       // Apple'a doğrulattıktan SONRA durumu yeniden okuyoruz.
       await checkSubscriptionStatus();
       updateUser({ subscriptionTier: tierOf(selectedPackage.id) });
-      Alert.alert(
-        t('welcome_to_premium'),
-        t('you_now_have_access_to_all_premium_features'),
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      Alert.alert(t('welcome_to_premium'), t('you_now_have_access_to_all_premium_features'), [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
     } catch (error: any) {
       const kod = String(error?.code ?? '');
       const iptal =
@@ -142,7 +169,7 @@ export default function PremiumScreen({ navigation }: any) {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
         <Text style={styles.loadingText}>{t('loading_subscription_options')}</Text>
       </View>
     );
@@ -156,25 +183,28 @@ export default function PremiumScreen({ navigation }: any) {
       <SafeAreaView style={styles.container}>
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Ionicons name="close" size={24} color="#1F2937" />
+            <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+              <Ionicons name="close" size={24} color={themeColor('#1F2937', 'text')} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.premiumActiveContainer}>
             <View style={styles.crownIcon}>
-              <Ionicons name="trophy" size={48} color="#8B5CF6" />
+              <Ionicons name="trophy" size={48} color={themeColor('#8B5CF6', 'text')} />
             </View>
             <Text style={styles.premiumActiveTitle}>{t('you_re_a_premium_member')}</Text>
-            <Text style={styles.premiumActiveSubtitle}>{t('thank_you_for_supporting_lilove_enjoy_all_pr')}</Text>
+            <Text style={styles.premiumActiveSubtitle}>
+              {t('thank_you_for_supporting_lilove_enjoy_all_pr')}
+            </Text>
 
             <View style={styles.featuresContainer}>
               {features.map((feature, index) => (
                 <View key={index} style={styles.featureRow}>
-                  <Ionicons name={feature.icon as any} size={24} color="#8B5CF6" />
+                  <Ionicons
+                    name={feature.icon as any}
+                    size={24}
+                    color={themeColor('#8B5CF6', 'text')}
+                  />
                   <View style={styles.featureTextContainer}>
                     <Text style={styles.featureTitle}>{feature.title}</Text>
                     <Text style={styles.featureDescription}>{feature.description}</Text>
@@ -183,9 +213,14 @@ export default function PremiumScreen({ navigation }: any) {
               ))}
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.manageButton}
-              onPress={() => Alert.alert(t('manage_subscription'), t('please_go_to_settings_subscriptions_on_your'))}
+              onPress={() =>
+                Alert.alert(
+                  t('manage_subscription'),
+                  t('please_go_to_settings_subscriptions_on_your')
+                )
+              }
             >
               <Text style={styles.manageButtonText}>{t('manage_subscription')}</Text>
             </TouchableOpacity>
@@ -199,27 +234,30 @@ export default function PremiumScreen({ navigation }: any) {
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.closeButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="close" size={24} color="#1F2937" />
+          <TouchableOpacity style={styles.closeButton} onPress={() => navigation.goBack()}>
+            <Ionicons name="close" size={24} color={themeColor('#1F2937', 'text')} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.heroSection}>
           <View style={styles.premiumBadge}>
-            <Ionicons name="star" size={32} color="#F59E0B" />
+            <Ionicons name="star" size={32} color={themeColor('#F59E0B', 'text')} />
           </View>
           <Text style={styles.heroTitle}>{t('unlock_your_full_potential')}</Text>
-          <Text style={styles.heroSubtitle}>{t('get_unlimited_access_to_all_premium_features')}</Text>
+          <Text style={styles.heroSubtitle}>
+            {t('get_unlimited_access_to_all_premium_features')}
+          </Text>
         </View>
 
         <View style={styles.featuresContainer}>
           {features.map((feature, index) => (
             <View key={index} style={styles.featureRow}>
               <View style={styles.featureIconContainer}>
-                <Ionicons name={feature.icon as any} size={20} color="#8B5CF6" />
+                <Ionicons
+                  name={feature.icon as any}
+                  size={20}
+                  color={themeColor('#8B5CF6', 'text')}
+                />
               </View>
               <View style={styles.featureTextContainer}>
                 <Text style={styles.featureTitle}>{feature.title}</Text>
@@ -232,7 +270,7 @@ export default function PremiumScreen({ navigation }: any) {
         {packages.length > 0 ? (
           <View style={styles.plansContainer}>
             <Text style={styles.plansTitle}>{t('choose_your_plan')}</Text>
-            
+
             {/* TASARRUF ROZETİ KALDIRILDI.
                 Eskiden yıllık planın üstünde sabit "Save 25%" yazıyordu.
                 Mağazadaki gerçek oran bu değil ve bölgeye göre de
@@ -241,10 +279,7 @@ export default function PremiumScreen({ navigation }: any) {
             {packages.map((pkg) => (
               <TouchableOpacity
                 key={pkg.id}
-                style={[
-                  styles.planCard,
-                  selectedPackage?.id === pkg.id && styles.planCardSelected
-                ]}
+                style={[styles.planCard, selectedPackage?.id === pkg.id && styles.planCardSelected]}
                 onPress={() => setSelectedPackage(pkg)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: selectedPackage?.id === pkg.id }}
@@ -256,10 +291,14 @@ export default function PremiumScreen({ navigation }: any) {
                     <Text style={styles.planPrice}>{formatPrice(pkg)}</Text>
                   </View>
                 </View>
-                
+
                 {selectedPackage?.id === pkg.id && (
                   <View style={styles.selectedIndicator}>
-                    <Ionicons name="checkmark-circle" size={24} color="#8B5CF6" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={24}
+                      color={themeColor('#8B5CF6', 'text')}
+                    />
                   </View>
                 )}
               </TouchableOpacity>
@@ -267,13 +306,16 @@ export default function PremiumScreen({ navigation }: any) {
           </View>
         ) : (
           <View style={styles.noPackagesContainer}>
-            <Ionicons name="cloud-offline-outline" size={48} color="#9CA3AF" />
+            <Ionicons
+              name="cloud-offline-outline"
+              size={48}
+              color={themeColor('#9CA3AF', 'text')}
+            />
             <Text style={styles.noPackagesTitle}>{t('subscription_not_available')}</Text>
-            <Text style={styles.noPackagesText}>{t('in_app_purchases_are_being_configured_please')}</Text>
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={loadOfferings}
-            >
+            <Text style={styles.noPackagesText}>
+              {t('in_app_purchases_are_being_configured_please')}
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadOfferings}>
               <Text style={styles.retryButtonText}>{t('retry')}</Text>
             </TouchableOpacity>
           </View>
@@ -288,7 +330,7 @@ export default function PremiumScreen({ navigation }: any) {
               olduğunu doğrulamadım ve olmayan bir denemeyi vaat etmek
               3.1.2'dir. Düğme ne yapacağını söylüyor. */}
           {isPurchasing ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={themeColor('#fff', 'text')} />
           ) : (
             <Text style={styles.purchaseButtonText}>{t('subscribe')}</Text>
           )}
@@ -303,9 +345,9 @@ export default function PremiumScreen({ navigation }: any) {
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>
-          • {t('sub_cancel_anytime')}{'\n'}
-          • {t('sub_auto_renews')}{'\n'}
-          • {t('sub_charged_apple')}
+          • {t('sub_cancel_anytime')}
+          {'\n'}• {t('sub_auto_renews')}
+          {'\n'}• {t('sub_charged_apple')}
         </Text>
 
         <View style={styles.legalRow}>
@@ -322,7 +364,7 @@ export default function PremiumScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',

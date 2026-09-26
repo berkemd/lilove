@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { THEME_STORAGE_KEY } from '../theme/theme';
 
 class StorageService {
   // Keys for different storage items
@@ -47,7 +48,9 @@ class StorageService {
 
   async clear(): Promise<void> {
     try {
-      await AsyncStorage.clear();
+      const keys = await AsyncStorage.getAllKeys();
+      // Appearance belongs to this device, not to the account being signed out.
+      await AsyncStorage.multiRemove(keys.filter((key) => key !== THEME_STORAGE_KEY));
     } catch (error) {
       console.error('Error clearing storage:', error);
       throw error;
@@ -71,7 +74,7 @@ class StorageService {
     });
   }
 
-  async getCachedGoals(): Promise<{ data: any[], timestamp: number } | null> {
+  async getCachedGoals(): Promise<{ data: any[]; timestamp: number } | null> {
     return await this.getItem(this.KEYS.CACHED_GOALS);
   }
 
@@ -82,7 +85,7 @@ class StorageService {
     });
   }
 
-  async getCachedHabits(): Promise<{ data: any[], timestamp: number } | null> {
+  async getCachedHabits(): Promise<{ data: any[]; timestamp: number } | null> {
     return await this.getItem(this.KEYS.CACHED_HABITS);
   }
 
@@ -93,7 +96,7 @@ class StorageService {
     });
   }
 
-  async getCachedTasks(): Promise<{ data: any[], timestamp: number } | null> {
+  async getCachedTasks(): Promise<{ data: any[]; timestamp: number } | null> {
     return await this.getItem(this.KEYS.CACHED_TASKS);
   }
 

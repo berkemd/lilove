@@ -19,15 +19,23 @@ import { useGoogleAuth, getIdTokenFromResponse } from '../../services/googleAuth
 import { Ionicons } from '@expo/vector-icons';
 import Logo from '../../assets/Logo';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 export default function LoginScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { login, appleLogin, googleLogin, isLoading, error, clearError } = useAuthStore();
-  
-  const { request: googleRequest, response: googleResponse, promptAsync: googlePromptAsync } = useGoogleAuth();
+
+  const {
+    request: googleRequest,
+    response: googleResponse,
+    promptAsync: googlePromptAsync,
+  } = useGoogleAuth();
 
   useEffect(() => {
     checkAppleAuthAvailability();
@@ -47,19 +55,18 @@ export default function LoginScreen({ navigation }: any) {
       try {
         setIsGoogleLoading(true);
         clearError();
-        
+
         const idToken = getIdTokenFromResponse(googleResponse);
-        
+
         console.log('[Google Auth] Response type:', googleResponse.type);
         console.log('[Google Auth] Has idToken:', !!idToken);
-        
+
         if (!idToken) {
           console.error('[Google Auth] No ID token in response');
           throw new Error(t('google_authentication_did_not_return_an_id_t'));
         }
-        
+
         await googleLogin({ idToken });
-        
       } catch (error: any) {
         console.error('[Google Auth] Error:', error);
         Alert.alert(t('google_sign_in_failed'), error.message || t('please_try_again'));
@@ -68,7 +75,10 @@ export default function LoginScreen({ navigation }: any) {
       }
     } else if (googleResponse?.type === 'error') {
       console.error('[Google Auth] Error response:', googleResponse.error);
-      Alert.alert(t('google_sign_in_failed'), googleResponse.error?.message || t('authentication_failed'));
+      Alert.alert(
+        t('google_sign_in_failed'),
+        googleResponse.error?.message || t('authentication_failed')
+      );
     } else if (googleResponse?.type === 'cancel') {
       console.log('[Google Auth] User cancelled');
     }
@@ -87,18 +97,18 @@ export default function LoginScreen({ navigation }: any) {
     // SESSIZ BASARISIZLIK YOK. Jeton yazilamazsa ekran oldugu gibi
     // kalir ve kullanici (ve App Review) "dugme bozuk" gorur.
     try {
-    demoSifirla();
-    await tokenManager.setToken(DEMO_TOKEN);
-    useAuthStore.setState({
-      isAuthenticated: true,
-      isDemo: true,
-      isLoading: false,
-      error: null,
-      user: null,
-      // TEK KAYNAK: demo profili demoData'da yasiyor. Burada ikinci
-      // bir kopya tutmak, istatistiklerin sessizce ayrisma yoluydu.
-      userProfile: demoProfil(),
-    });
+      demoSifirla();
+      await tokenManager.setToken(DEMO_TOKEN);
+      useAuthStore.setState({
+        isAuthenticated: true,
+        isDemo: true,
+        isLoading: false,
+        error: null,
+        user: null,
+        // TEK KAYNAK: demo profili demoData'da yasiyor. Burada ikinci
+        // bir kopya tutmak, istatistiklerin sessizce ayrisma yoluydu.
+        userProfile: demoProfil(),
+      });
     } catch (e: any) {
       Alert.alert(t('could_not_start_the_tour'), String(e?.message ?? e));
     }
@@ -109,7 +119,10 @@ export default function LoginScreen({ navigation }: any) {
       clearError();
       await login(email, password);
     } catch (error: any) {
-      Alert.alert(t('login_failed'), error.response?.data?.error || t('please_check_your_credentials'));
+      Alert.alert(
+        t('login_failed'),
+        error.response?.data?.error || t('please_check_your_credentials')
+      );
     }
   };
 
@@ -126,7 +139,7 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
@@ -139,31 +152,33 @@ export default function LoginScreen({ navigation }: any) {
 
         <View style={styles.form}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: themeColor('#111827', 'text') }]}
             placeholder={t('email')}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
+            placeholderTextColor={themeColor('#9CA3AF', 'text')}
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: themeColor('#111827', 'text') }]}
             placeholder={t('password')}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoComplete="password"
+            placeholderTextColor={themeColor('#9CA3AF', 'text')}
           />
 
-          <TouchableOpacity 
-            style={[styles.button, isLoading && styles.buttonDisabled]} 
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={isLoading}
           >
             {isLoading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={themeColor('#fff', 'text')} />
             ) : (
               <Text style={styles.buttonText}>{t('login')}</Text>
             )}
@@ -176,26 +191,26 @@ export default function LoginScreen({ navigation }: any) {
           </View>
 
           {isAppleAuthAvailable && (
-            <TouchableOpacity 
-              style={styles.appleButton} 
+            <TouchableOpacity
+              style={styles.appleButton}
               onPress={handleAppleSignIn}
               disabled={isLoading || isGoogleLoading}
             >
-              <Ionicons name="logo-apple" size={20} color="#000" />
+              <Ionicons name="logo-apple" size={20} color={themeColor('#000', 'text')} />
               <Text style={styles.appleButtonText}>{t('continue_with_apple')}</Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[
-              styles.googleButton, 
-              (isLoading || isGoogleLoading || !googleRequest) && styles.socialButtonDisabled
-            ]} 
+              styles.googleButton,
+              (isLoading || isGoogleLoading || !googleRequest) && styles.socialButtonDisabled,
+            ]}
             onPress={handleGoogleSignIn}
             disabled={isLoading || isGoogleLoading || !googleRequest}
           >
             {isGoogleLoading ? (
-              <ActivityIndicator color="#4285F4" size="small" />
+              <ActivityIndicator color={themeColor('#4285F4', 'text')} size="small" />
             ) : (
               <>
                 <View style={styles.googleIconContainer}>
@@ -206,11 +221,13 @@ export default function LoginScreen({ navigation }: any) {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.linkButton}
             onPress={() => navigation.navigate('Register')}
           >
-            <Text style={styles.linkText}>{t('don_t_have_an_account')}<Text style={styles.linkTextBold}>{t('sign_up')}</Text>
+            <Text style={styles.linkText}>
+              {t('don_t_have_an_account')}
+              <Text style={styles.linkTextBold}>{t('sign_up')}</Text>
             </Text>
           </TouchableOpacity>
 
@@ -227,7 +244,9 @@ export default function LoginScreen({ navigation }: any) {
             data-testid="button-demo"
           >
             <Text style={styles.demoButtonText}>{t('look_around_without_an_account')}</Text>
-            <Text style={styles.demoButtonHint}>{t('sample_data_nothing_is_saved_to_your_account')}</Text>
+            <Text style={styles.demoButtonHint}>
+              {t('sample_data_nothing_is_saved_to_your_account')}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -235,7 +254,7 @@ export default function LoginScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   demoButton: {
     marginTop: 18,
     alignItems: 'center',

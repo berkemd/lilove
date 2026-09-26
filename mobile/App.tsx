@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { ThemeProvider, useTheme, useThemedStyles } from './src/theme/ThemeProvider';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, View, Text, StyleSheet, Platform } from 'react-native';
@@ -89,12 +90,13 @@ function MainStack() {
 }
 
 function MainTabs() {
+  const { color } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#8B5CF6',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: color('#8B5CF6'),
+        tabBarInactiveTintColor: color('#9CA3AF'),
         tabBarStyle: {
           paddingBottom: Platform.OS === 'ios' ? 20 : 10,
           paddingTop: 10,
@@ -155,6 +157,17 @@ function MainTabs() {
 }
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
+  const { isDark, ready, color } = useTheme();
+  const styles = useThemedStyles(baseStyles);
+  const navigationTheme = isDark ? DarkTheme : DefaultTheme;
   const { isAuthenticated, isDemo, isLoading, initializeAuth, userProfile } = useAuthStore();
 
   useEffect(() => {
@@ -204,7 +217,7 @@ export default function App() {
     );
   };
 
-  if (isLoading) {
+  if (isLoading || !ready) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8B5CF6" />
@@ -216,7 +229,21 @@ export default function App() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
-        <NavigationContainer>{isAuthenticated ? <MainStack /> : <AuthStack />}</NavigationContainer>
+        <NavigationContainer
+          theme={{
+            ...navigationTheme,
+            colors: {
+              ...navigationTheme.colors,
+              primary: color('#8B5CF6'),
+              background: color('#F9FAFB', 'background'),
+              card: color('#FFFFFF', 'background'),
+              text: color('#111827'),
+              border: color('#E5E7EB', 'border'),
+            },
+          }}
+        >
+          {isAuthenticated ? <MainStack /> : <AuthStack />}
+        </NavigationContainer>
         {/* DEMO ŞERİDİ HER EKRANDA.
             Tek yerde duruyor çünkü her ekrana ayrı ayrı konsaydı, yeni
             yazılan ekran onu unuturdu ve kullanıcı örnek veriye kendi
@@ -227,13 +254,13 @@ export default function App() {
             <Text style={styles.demoBannerText}>Demo · sample data, nothing is saved</Text>
           </View>
         )}
-        <StatusBar style="auto" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
       </SafeAreaProvider>
     </ErrorBoundary>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   demoBanner: {
     position: 'absolute',
     left: 0,

@@ -18,6 +18,7 @@ import storage from '../../services/storage';
 import * as ImagePicker from 'expo-image-picker';
 import api from '../../lib/api';
 import { t } from '../../i18n';
+import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 
 interface UserStats {
   streak: number;
@@ -34,13 +35,15 @@ function SkeletonBox({
   height: number;
   style?: any;
 }) {
+  const { color: themeColor } = useTheme();
+
   return (
     <View
       style={[
         {
           width,
           height,
-          backgroundColor: '#E5E7EB',
+          backgroundColor: themeColor('#E5E7EB', 'background'),
           borderRadius: 8,
         },
         style,
@@ -50,6 +53,9 @@ function SkeletonBox({
 }
 
 export default function ProfileScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const { user, userProfile, logout, updateUser } = useAuthStore();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
@@ -208,7 +214,7 @@ export default function ProfileScreen({ navigation }: any) {
           onPress={loadUserStats}
           activeOpacity={0.7}
         >
-          <Ionicons name="refresh" size={20} color="#6B7280" />
+          <Ionicons name="refresh" size={20} color={themeColor('#6B7280', 'text')} />
           <Text style={styles.statsErrorText}>{t('tap_to_load_stats')}</Text>
         </TouchableOpacity>
       );
@@ -257,7 +263,7 @@ export default function ProfileScreen({ navigation }: any) {
           >
             {isUploadingImage ? (
               <View style={styles.avatarPlaceholder}>
-                <ActivityIndicator color="#8B5CF6" size="large" />
+                <ActivityIndicator color={themeColor('#8B5CF6', 'text')} size="large" />
               </View>
             ) : userProfile?.photoURL ? (
               <Image source={{ uri: userProfile.photoURL }} style={styles.avatarImage} />
@@ -269,7 +275,7 @@ export default function ProfileScreen({ navigation }: any) {
               </View>
             )}
             <View style={styles.editBadge}>
-              <Ionicons name="camera" size={14} color="#FFFFFF" />
+              <Ionicons name="camera" size={14} color={themeColor('#FFFFFF', 'text')} />
             </View>
           </TouchableOpacity>
 
@@ -278,7 +284,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           {isPremium ? (
             <View style={styles.premiumBadge}>
-              <Ionicons name="star" size={16} color="#F59E0B" />
+              <Ionicons name="star" size={16} color={themeColor('#F59E0B', 'text')} />
               <Text style={styles.premiumText}>{t('premium_member')}</Text>
             </View>
           ) : (
@@ -288,7 +294,7 @@ export default function ProfileScreen({ navigation }: any) {
               activeOpacity={0.7}
               data-testid="button-upgrade-premium"
             >
-              <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+              <Ionicons name="sparkles" size={16} color={themeColor('#8B5CF6', 'text')} />
               <Text style={styles.upgradeText}>{t('upgrade_to_premium')}</Text>
             </TouchableOpacity>
           )}
@@ -305,15 +311,20 @@ export default function ProfileScreen({ navigation }: any) {
               data-testid="button-unlock-premium"
             >
               <View style={styles.menuItemLeft}>
-                <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="star" size={20} color="#F59E0B" />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: themeColor('#FEF3C7', 'background') },
+                  ]}
+                >
+                  <Ionicons name="star" size={20} color={themeColor('#F59E0B', 'text')} />
                 </View>
                 <View>
                   <Text style={styles.menuItemText}>{t('unlock_premium')}</Text>
                   <Text style={styles.menuItemSubtext}>{t('get_unlimited_access')}</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#F59E0B" />
+              <Ionicons name="chevron-forward" size={20} color={themeColor('#F59E0B', 'text')} />
             </TouchableOpacity>
           )}
 
@@ -327,11 +338,15 @@ export default function ProfileScreen({ navigation }: any) {
             >
               <View style={styles.menuItemLeft}>
                 <View style={styles.menuIconContainer}>
-                  <Ionicons name={item.icon as any} size={20} color="#6B7280" />
+                  <Ionicons
+                    name={item.icon as any}
+                    size={20}
+                    color={themeColor('#6B7280', 'text')}
+                  />
                 </View>
                 <Text style={styles.menuItemText}>{item.label}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+              <Ionicons name="chevron-forward" size={20} color={themeColor('#D1D5DB', 'text')} />
             </TouchableOpacity>
           ))}
         </View>
@@ -342,7 +357,7 @@ export default function ProfileScreen({ navigation }: any) {
           activeOpacity={0.7}
           data-testid="button-logout"
         >
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+          <Ionicons name="log-out-outline" size={20} color={themeColor('#EF4444', 'text')} />
           <Text style={styles.logoutText}>{t('log_out')}</Text>
         </TouchableOpacity>
 
@@ -355,7 +370,7 @@ export default function ProfileScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

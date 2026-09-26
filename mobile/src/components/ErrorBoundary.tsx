@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, Button } from 'react-native';
 import { t } from '../i18n';
+import { useThemedStyles } from '../theme/ThemeProvider';
 
 interface Props {
   children: ReactNode;
@@ -31,28 +32,27 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
-      return (
-        <View style={styles.container}>
-          <View style={styles.errorCard}>
-            <Text style={styles.errorTitle}>{t('oops_something_went_wrong')}</Text>
-            <Text style={styles.errorMessage}>
-              {this.state.error?.message || 'An unexpected error occurred'}
-            </Text>
-            <Button 
-              title={t('try_again')} 
-              onPress={this.handleReset}
-              color="#9333EA"
-            />
-          </View>
-        </View>
-      );
+      return <ErrorFallback error={this.state.error} onReset={this.handleReset} />;
     }
 
     return this.props.children;
   }
 }
 
-const styles = StyleSheet.create({
+function ErrorFallback({ error, onReset }: { error: Error | null; onReset: () => void }) {
+  const styles = useThemedStyles(baseStyles);
+  return (
+    <View style={styles.container}>
+      <View style={styles.errorCard}>
+        <Text style={styles.errorTitle}>{t('oops_something_went_wrong')}</Text>
+        <Text style={styles.errorMessage}>{error?.message || 'An unexpected error occurred'}</Text>
+        <Button title={t('try_again')} onPress={onReset} color="#9333EA" />
+      </View>
+    </View>
+  );
+}
+
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',

@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  Easing,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
 
 interface EnvironmentState {
   id: string;
@@ -26,11 +20,11 @@ interface EnvironmentState {
 }
 
 const getLevelName = (level: number): string => {
-  if (level <= 2) return "Barren Lands";
-  if (level <= 4) return "Awakening Grove";
-  if (level <= 6) return "Growing Sanctuary";
-  if (level <= 8) return "Flourishing Forest";
-  return "Magical Paradise";
+  if (level <= 2) return 'Barren Lands';
+  if (level <= 4) return 'Awakening Grove';
+  if (level <= 6) return 'Growing Sanctuary';
+  if (level <= 8) return 'Flourishing Forest';
+  return 'Magical Paradise';
 };
 
 interface LivingForestProps {
@@ -115,7 +109,18 @@ const getLevelConfig = (level: number): LevelConfig => {
   };
 };
 
-function AnimatedTree({ index, type, compact }: { index: number; type: string; compact?: boolean }) {
+function AnimatedTree({
+  index,
+  type,
+  compact,
+}: {
+  index: number;
+  type: string;
+  compact?: boolean;
+}) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const swayAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0)).current;
 
@@ -153,17 +158,23 @@ function AnimatedTree({ index, type, compact }: { index: number; type: string; c
   const getTreeSize = () => {
     const baseSize = compact ? 0.6 : 1;
     switch (type) {
-      case 'seedling': return { width: 8 * baseSize, height: 12 * baseSize, trunkHeight: 6 * baseSize };
-      case 'sapling': return { width: 12 * baseSize, height: 20 * baseSize, trunkHeight: 10 * baseSize };
-      case 'tree': return { width: 20 * baseSize, height: 28 * baseSize, trunkHeight: 12 * baseSize };
-      case 'mature': return { width: 24 * baseSize, height: 36 * baseSize, trunkHeight: 14 * baseSize };
-      case 'ancient': return { width: 32 * baseSize, height: 44 * baseSize, trunkHeight: 16 * baseSize };
-      default: return { width: 16 * baseSize, height: 24 * baseSize, trunkHeight: 10 * baseSize };
+      case 'seedling':
+        return { width: 8 * baseSize, height: 12 * baseSize, trunkHeight: 6 * baseSize };
+      case 'sapling':
+        return { width: 12 * baseSize, height: 20 * baseSize, trunkHeight: 10 * baseSize };
+      case 'tree':
+        return { width: 20 * baseSize, height: 28 * baseSize, trunkHeight: 12 * baseSize };
+      case 'mature':
+        return { width: 24 * baseSize, height: 36 * baseSize, trunkHeight: 14 * baseSize };
+      case 'ancient':
+        return { width: 32 * baseSize, height: 44 * baseSize, trunkHeight: 16 * baseSize };
+      default:
+        return { width: 16 * baseSize, height: 24 * baseSize, trunkHeight: 10 * baseSize };
     }
   };
 
   const size = getTreeSize();
-  const leftPosition = 10 + (index * 14);
+  const leftPosition = 10 + index * 14;
   const isGlowing = type === 'mature' || type === 'ancient';
 
   return (
@@ -194,7 +205,7 @@ function AnimatedTree({ index, type, compact }: { index: number; type: string; c
           {
             width: size.width / 4,
             height: size.trunkHeight,
-            backgroundColor: '#92400E',
+            backgroundColor: themeColor('#92400E', 'background'),
           },
         ]}
       />
@@ -203,6 +214,9 @@ function AnimatedTree({ index, type, compact }: { index: number; type: string; c
 }
 
 function AnimatedButterfly({ index }: { index: number }) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const positionAnim = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -250,12 +264,15 @@ function AnimatedButterfly({ index }: { index: number }) {
         },
       ]}
     >
-      <Ionicons name="bug-outline" size={14} color="#F472B6" />
+      <Ionicons name="bug-outline" size={14} color={themeColor('#F472B6', 'text')} />
     </Animated.View>
   );
 }
 
 function AnimatedBird({ index }: { index: number }) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const positionAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -284,12 +301,15 @@ function AnimatedBird({ index }: { index: number }) {
         },
       ]}
     >
-      <Ionicons name="airplane-outline" size={12} color="#64748B" />
+      <Ionicons name="airplane-outline" size={12} color={themeColor('#64748B', 'text')} />
     </Animated.View>
   );
 }
 
 function AnimatedSparkle({ index }: { index: number }) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
 
@@ -338,12 +358,14 @@ function AnimatedSparkle({ index }: { index: number }) {
         },
       ]}
     >
-      <Ionicons name="sparkles" size={12} color="#FDE047" />
+      <Ionicons name="sparkles" size={12} color={themeColor('#FDE047', 'text')} />
     </Animated.View>
   );
 }
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
+  const styles = useThemedStyles(baseStyles);
+
   const percentage = Math.min((value / max) * 100, 100);
   const animWidth = useRef(new Animated.Value(0)).current;
 
@@ -369,6 +391,9 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 }
 
 export default function LivingForest({ compact = false }: LivingForestProps) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor, isDark } = useTheme();
+
   const [environment, setEnvironment] = useState<EnvironmentState | null>(null);
   const [loading, setLoading] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -379,7 +404,7 @@ export default function LivingForest({ compact = false }: LivingForestProps) {
 
   const loadEnvironment = async () => {
     try {
-      const data = await api.getEnvironment() as EnvironmentState;
+      const data = (await api.getEnvironment()) as EnvironmentState;
       setEnvironment(data);
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -396,7 +421,7 @@ export default function LivingForest({ compact = false }: LivingForestProps) {
   if (loading) {
     return (
       <View style={[styles.container, compact && styles.containerCompact]}>
-        <ActivityIndicator size="small" color="#8B5CF6" />
+        <ActivityIndicator size="small" color={themeColor('#8B5CF6', 'text')} />
       </View>
     );
   }
@@ -409,11 +434,7 @@ export default function LivingForest({ compact = false }: LivingForestProps) {
 
   return (
     <Animated.View
-      style={[
-        styles.container,
-        compact && styles.containerCompact,
-        { opacity: fadeAnim },
-      ]}
+      style={[styles.container, compact && styles.containerCompact, { opacity: fadeAnim }]}
       data-testid="living-forest-container"
     >
       <View style={[styles.sky, { backgroundColor: config.skyColors[0] }]}>
@@ -428,21 +449,21 @@ export default function LivingForest({ compact = false }: LivingForestProps) {
         {Array.from({ length: config.treeCount }).map((_, i) => (
           <AnimatedTree key={i} index={i} type={config.treeType} compact={compact} />
         ))}
-        
+
         {config.hasButterflies && (
           <>
             <AnimatedButterfly index={0} />
             <AnimatedButterfly index={1} />
           </>
         )}
-        
+
         {config.hasBirds && (
           <>
             <AnimatedBird index={0} />
             <AnimatedBird index={1} />
           </>
         )}
-        
+
         {config.hasSparkles && (
           <>
             <AnimatedSparkle index={0} />
@@ -454,23 +475,30 @@ export default function LivingForest({ compact = false }: LivingForestProps) {
 
       <View style={styles.infoOverlay}>
         <View style={styles.levelInfo}>
-          <View style={styles.levelBadge}>
-            <Ionicons name="leaf" size={12} color="#10B981" />
+          <View
+            style={[
+              styles.levelBadge,
+              isDark && { backgroundColor: themeColor('#FFFFFF', 'background') },
+            ]}
+          >
+            <Ionicons name="leaf" size={12} color={themeColor('#10B981', 'text')} />
             <Text style={styles.levelText}>Lv {level}</Text>
           </View>
           <Text style={styles.levelName}>{displayLevelName}</Text>
         </View>
-        
+
         <View style={styles.xpSection}>
           <ProgressBar value={xp} max={xpToNext} />
-          <Text style={styles.xpText}>{xp} / {xpToNext} XP</Text>
+          <Text style={styles.xpText}>
+            {xp} / {xpToNext} XP
+          </Text>
         </View>
       </View>
     </Animated.View>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     height: 140,
     borderRadius: 12,

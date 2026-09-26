@@ -20,8 +20,12 @@ import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../lib/api';
 import { HabitTracker, type Habit } from '../../lib/habits';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 export default function HabitsScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [tracker] = useState(() => new HabitTracker(api));
   const {
     habits,
@@ -122,7 +126,7 @@ export default function HabitsScreen() {
               <Ionicons
                 name={habit.icon as 'walk' | 'book' | 'moon' | 'star'}
                 size={26}
-                color="#047857"
+                color={themeColor('#047857', 'text')}
               />
             ) : (
               <Text style={styles.habitEmoji}>{habit.icon || '🎯'}</Text>
@@ -137,7 +141,7 @@ export default function HabitsScreen() {
             )}
           </View>
           {checkingId === habit.id ? (
-            <ActivityIndicator color="#10B981" />
+            <ActivityIndicator color={themeColor('#10B981', 'text')} />
           ) : (
             habit.completedToday && (
               <View style={styles.checkMark}>
@@ -188,7 +192,7 @@ export default function HabitsScreen() {
         )}
 
         <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '20' }]}>
-          <Text style={[styles.categoryText, { color: categoryColor }]}>
+          <Text style={[styles.categoryText, { color: themeColor(categoryColor, 'text') }]}>
             {getCategoryLabel(habit.category)}
           </Text>
         </View>
@@ -248,7 +252,7 @@ export default function HabitsScreen() {
         )}
         {isLoading && habits.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#10B981" />
+            <ActivityIndicator size="large" color={themeColor('#10B981', 'text')} />
             <Text style={styles.loadingText}>{t('loading_your_habits')}</Text>
           </View>
         ) : (
@@ -319,23 +323,25 @@ export default function HabitsScreen() {
             </View>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: themeColor('#111827', 'text') }]}
               placeholder={t('habit_name')}
               value={title}
               onChangeText={setTitle}
               maxLength={100}
               testID="habit-title"
               accessibilityLabel={t('habit_name')}
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[[styles.input, styles.textArea], { color: themeColor('#111827', 'text') }]}
               placeholder={t('description_optional')}
               value={description}
               onChangeText={setDescription}
               multiline
               numberOfLines={2}
               maxLength={200}
+              placeholderTextColor={themeColor('#9CA3AF', 'text')}
             />
 
             <View style={styles.categorySelector}>
@@ -352,7 +358,7 @@ export default function HabitsScreen() {
                   <Text
                     style={[
                       styles.categoryOptionText,
-                      category === cat && { color: getCategoryColor(cat) },
+                      category === cat && { color: themeColor(getCategoryColor(cat), 'text') },
                     ]}
                   >
                     {getCategoryLabel(cat)}
@@ -387,7 +393,7 @@ export default function HabitsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   checkButton: {
     minHeight: 48,
     justifyContent: 'center',

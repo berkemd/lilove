@@ -349,3 +349,43 @@ test('StoreKit rejection and cancellation clear pending timers without completin
   assert.equal(h.state.removedListeners, 2);
   assert.equal(h.state.closedConnections, 1);
 });
+
+test('deployment API override routes authenticated requests to staging without changing the production fallback', async () => {
+  for (const scenario of [
+    {
+      configured: 'https://lilove.org',
+      override: 'https://staging.invalid',
+      expected: 'https://staging.invalid',
+    },
+    {
+      configured: 'https://configured.invalid',
+      override: '',
+      expected: 'https://configured.invalid',
+    },
+    { configured: undefined, override: undefined, expected: 'https://lilove.org' },
+  ]) {
+    const calls = [];
+    const { api } = loadSource(
+      'src/lib/api.ts',
+      {
+        'expo-constants': { default: { expoConfig: { extra: { apiUrl: scenario.configured } } } },
+        '../services/tokenManager': { tokenManager: { getToken: async () => 'session-token' } },
+        './demoData': { DEMO_TOKEN: demoToken },
+        '../i18n': { t: (key) => key },
+        './habits': { createHabitsApi: () => ({}) },
+      },
+      {
+        process: { env: { EXPO_PUBLIC_API_URL: scenario.override } },
+        console: { log: () => {} },
+        fetch: async (url, options) => {
+          calls.push({ url, authorization: options.headers.Authorization });
+          return { ok: true, json: async () => ({ appAccountToken: accountA }) };
+        },
+      }
+    );
+    await api.getIapAccountToken(coinId);
+    assert.deepEqual(calls, [
+      { url: `${scenario.expected}/api/iap/account-token`, authorization: 'Bearer session-token' },
+    ]);
+  }
+});

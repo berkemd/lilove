@@ -9,6 +9,7 @@ import { api } from '../../lib/api';
 import type { Habit } from '../../lib/habits';
 import MoodSelector from '../../components/MoodSelector';
 import { t } from '../../i18n';
+import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 
 interface Goal {
   id: string;
@@ -52,13 +53,15 @@ function SkeletonBox({
   height: number;
   style?: any;
 }) {
+  const { color: themeColor } = useTheme();
+
   return (
     <View
       style={[
         {
           width,
           height,
-          backgroundColor: '#E5E7EB',
+          backgroundColor: themeColor('#E5E7EB', 'background'),
           borderRadius: 8,
         },
         style,
@@ -68,6 +71,8 @@ function SkeletonBox({
 }
 
 function StatCardSkeleton() {
+  const styles = useThemedStyles(baseStyles);
+
   return (
     <View style={styles.statCard}>
       <SkeletonBox width={32} height={32} style={{ marginBottom: 12 }} />
@@ -78,6 +83,8 @@ function StatCardSkeleton() {
 }
 
 function ActionButtonSkeleton() {
+  const styles = useThemedStyles(baseStyles);
+
   return (
     <View style={styles.actionButton}>
       <SkeletonBox width={24} height={24} style={{ marginRight: 16 }} />
@@ -87,6 +94,9 @@ function ActionButtonSkeleton() {
 }
 
 export default function DashboardScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const { user, userProfile, updateMood } = useAuthStore();
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -197,7 +207,11 @@ export default function DashboardScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
           <View style={styles.errorIconContainer}>
-            <Ionicons name="cloud-offline-outline" size={48} color="#9CA3AF" />
+            <Ionicons
+              name="cloud-offline-outline"
+              size={48}
+              color={themeColor('#9CA3AF', 'text')}
+            />
           </View>
           <Text style={styles.errorTitle}>{t('something_went_wrong')}</Text>
           <Text style={styles.errorMessage}>{error}</Text>
@@ -206,7 +220,7 @@ export default function DashboardScreen() {
             onPress={loadDashboard}
             data-testid="button-retry-dashboard"
           >
-            <Ionicons name="refresh" size={20} color="#FFFFFF" />
+            <Ionicons name="refresh" size={20} color={themeColor('#FFFFFF', 'text')} />
             <Text style={styles.retryButtonText}>{t('try_again')}</Text>
           </TouchableOpacity>
         </View>
@@ -248,9 +262,9 @@ export default function DashboardScreen() {
             accessibilityLabel={t('coin_balance_get_more_coins')}
             data-testid="button-coins"
           >
-            <Ionicons name="wallet" size={18} color="#92400E" />
+            <Ionicons name="wallet" size={18} color={themeColor('#92400E', 'text')} />
             <Text style={styles.coinBalance}>{userProfile?.coinBalance || 0} Coins</Text>
-            <Ionicons name="add-circle" size={16} color="#92400E" />
+            <Ionicons name="add-circle" size={16} color={themeColor('#92400E', 'text')} />
           </TouchableOpacity>
         </View>
 
@@ -265,32 +279,52 @@ export default function DashboardScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="flag" size={24} color="#8B5CF6" />
+            <View
+              style={[
+                styles.statIconContainer,
+                { backgroundColor: themeColor('#F3E8FF', 'background') },
+              ]}
+            >
+              <Ionicons name="flag" size={24} color={themeColor('#8B5CF6', 'text')} />
             </View>
             <Text style={styles.statValue}>{stats?.activeGoals || 0}</Text>
             <Text style={styles.statLabel}>{t('active_goals')}</Text>
           </View>
 
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#D1FAE5' }]}>
-              <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+            <View
+              style={[
+                styles.statIconContainer,
+                { backgroundColor: themeColor('#D1FAE5', 'background') },
+              ]}
+            >
+              <Ionicons name="checkmark-circle" size={24} color={themeColor('#10B981', 'text')} />
             </View>
             <Text style={styles.statValue}>{stats?.completedTasks || 0}</Text>
             <Text style={styles.statLabel}>{t('completed')}</Text>
           </View>
 
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="flame" size={24} color="#F59E0B" />
+            <View
+              style={[
+                styles.statIconContainer,
+                { backgroundColor: themeColor('#FEF3C7', 'background') },
+              ]}
+            >
+              <Ionicons name="flame" size={24} color={themeColor('#F59E0B', 'text')} />
             </View>
             <Text style={styles.statValue}>{stats?.streaks || 0}</Text>
             <Text style={styles.statLabel}>{t('total_streaks')}</Text>
           </View>
 
           <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#E0E7FF' }]}>
-              <Ionicons name="repeat" size={24} color="#6366F1" />
+            <View
+              style={[
+                styles.statIconContainer,
+                { backgroundColor: themeColor('#E0E7FF', 'background') },
+              ]}
+            >
+              <Ionicons name="repeat" size={24} color={themeColor('#6366F1', 'text')} />
             </View>
             <Text style={styles.statValue}>{stats?.totalHabits || 0}</Text>
             <Text style={styles.statLabel}>{t('habits')}</Text>
@@ -306,14 +340,19 @@ export default function DashboardScreen() {
             activeOpacity={0.7}
             data-testid="button-habits"
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="add-circle" size={22} color="#8B5CF6" />
+            <View
+              style={[
+                styles.actionIconContainer,
+                { backgroundColor: themeColor('#F3E8FF', 'background') },
+              ]}
+            >
+              <Ionicons name="add-circle" size={22} color={themeColor('#8B5CF6', 'text')} />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionText}>{t('my_habits')}</Text>
               <Text style={styles.actionSubtext}>{t('habits_check')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color={themeColor('#9CA3AF', 'text')} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -322,14 +361,19 @@ export default function DashboardScreen() {
             activeOpacity={0.7}
             data-testid="button-view-goals"
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="flag" size={22} color="#8B5CF6" />
+            <View
+              style={[
+                styles.actionIconContainer,
+                { backgroundColor: themeColor('#F3E8FF', 'background') },
+              ]}
+            >
+              <Ionicons name="flag" size={22} color={themeColor('#8B5CF6', 'text')} />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionText}>{t('view_my_goals')}</Text>
               <Text style={styles.actionSubtext}>{t('track_your_progress')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color={themeColor('#9CA3AF', 'text')} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -338,14 +382,19 @@ export default function DashboardScreen() {
             activeOpacity={0.7}
             data-testid="button-ai-coach"
           >
-            <View style={[styles.actionIconContainer, { backgroundColor: '#F3E8FF' }]}>
-              <Ionicons name="sparkles" size={22} color="#8B5CF6" />
+            <View
+              style={[
+                styles.actionIconContainer,
+                { backgroundColor: themeColor('#F3E8FF', 'background') },
+              ]}
+            >
+              <Ionicons name="sparkles" size={22} color={themeColor('#8B5CF6', 'text')} />
             </View>
             <View style={styles.actionContent}>
               <Text style={styles.actionText}>{t('talk_to_lilove')}</Text>
               <Text style={styles.actionSubtext}>{t('get_personalized_guidance')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color={themeColor('#9CA3AF', 'text')} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -353,7 +402,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { t } from '../../i18n';
+import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 
 interface Goal {
   id: string;
@@ -28,14 +29,24 @@ interface Goal {
   completedAt?: string;
 }
 
-function SkeletonBox({ width, height, style }: { width: number | string; height: number; style?: any }) {
+function SkeletonBox({
+  width,
+  height,
+  style,
+}: {
+  width: number | string;
+  height: number;
+  style?: any;
+}) {
+  const { color: themeColor } = useTheme();
+
   return (
     <View
       style={[
         {
           width,
           height,
-          backgroundColor: '#E5E7EB',
+          backgroundColor: themeColor('#E5E7EB', 'background'),
           borderRadius: 8,
         },
         style,
@@ -45,6 +56,8 @@ function SkeletonBox({ width, height, style }: { width: number | string; height:
 }
 
 function GoalCardSkeleton() {
+  const styles = useThemedStyles(baseStyles);
+
   return (
     <View style={styles.goalCard}>
       <View style={styles.goalHeader}>
@@ -62,6 +75,9 @@ function GoalCardSkeleton() {
 }
 
 export default function GoalsScreen() {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -210,7 +226,9 @@ export default function GoalsScreen() {
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '15' }]}>
             <Ionicons name={statusConfig.icon as any} size={14} color={statusConfig.color} />
-            <Text style={[styles.statusText, { color: statusConfig.color }]}>{goal.status}</Text>
+            <Text style={[styles.statusText, { color: themeColor(statusConfig.color, 'text') }]}>
+              {goal.status}
+            </Text>
           </View>
         </View>
 
@@ -222,14 +240,19 @@ export default function GoalsScreen() {
 
         <View style={styles.goalMeta}>
           <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '15' }]}>
-            <Text style={[styles.categoryText, { color: categoryColor }]}>{goal.category}</Text>
+            <Text style={[styles.categoryText, { color: themeColor(categoryColor, 'text') }]}>
+              {goal.category}
+            </Text>
           </View>
           <Text style={styles.progressText}>{progressPercentage}%</Text>
         </View>
 
         <View style={styles.progressBarContainer}>
           <View
-            style={[styles.progressBar, { width: `${progressPercentage}%`, backgroundColor: categoryColor }]}
+            style={[
+              styles.progressBar,
+              { width: `${progressPercentage}%`, backgroundColor: categoryColor },
+            ]}
           />
         </View>
       </TouchableOpacity>
@@ -253,12 +276,16 @@ export default function GoalsScreen() {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconContainer}>
-        <Ionicons name="flag-outline" size={48} color="#8B5CF6" />
+        <Ionicons name="flag-outline" size={48} color={themeColor('#8B5CF6', 'text')} />
       </View>
       <Text style={styles.emptyStateTitle}>{t('no_goals_yet')}</Text>
       <Text style={styles.emptyStateText}>{t('start_your_journey_by_creating_your_first_go')}</Text>
-      <TouchableOpacity style={styles.emptyStateButton} onPress={openCreateModal} data-testid="button-create-first-goal">
-        <Ionicons name="add" size={20} color="#FFFFFF" />
+      <TouchableOpacity
+        style={styles.emptyStateButton}
+        onPress={openCreateModal}
+        data-testid="button-create-first-goal"
+      >
+        <Ionicons name="add" size={20} color={themeColor('#FFFFFF', 'text')} />
         <Text style={styles.emptyStateButtonText}>{t('create_your_first_goal')}</Text>
       </TouchableOpacity>
     </View>
@@ -267,12 +294,16 @@ export default function GoalsScreen() {
   const renderErrorState = () => (
     <View style={styles.errorContainer}>
       <View style={styles.errorIconContainer}>
-        <Ionicons name="cloud-offline-outline" size={48} color="#9CA3AF" />
+        <Ionicons name="cloud-offline-outline" size={48} color={themeColor('#9CA3AF', 'text')} />
       </View>
       <Text style={styles.errorTitle}>{t('unable_to_load_goals')}</Text>
       <Text style={styles.errorMessage}>{error}</Text>
-      <TouchableOpacity style={styles.retryButton} onPress={loadGoals} data-testid="button-retry-goals">
-        <Ionicons name="refresh" size={20} color="#FFFFFF" />
+      <TouchableOpacity
+        style={styles.retryButton}
+        onPress={loadGoals}
+        data-testid="button-retry-goals"
+      >
+        <Ionicons name="refresh" size={20} color={themeColor('#FFFFFF', 'text')} />
         <Text style={styles.retryButtonText}>{t('try_again')}</Text>
       </TouchableOpacity>
     </View>
@@ -282,8 +313,12 @@ export default function GoalsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('my_goals')}</Text>
-        <TouchableOpacity style={styles.addButton} onPress={openCreateModal} data-testid="button-new-goal">
-          <Ionicons name="add" size={20} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={openCreateModal}
+          data-testid="button-new-goal"
+        >
+          <Ionicons name="add" size={20} color={themeColor('#FFFFFF', 'text')} />
           <Text style={styles.addButtonText}>{t('new_goal')}</Text>
         </TouchableOpacity>
       </View>
@@ -292,7 +327,12 @@ export default function GoalsScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#8B5CF6" colors={['#8B5CF6']} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#8B5CF6"
+            colors={['#8B5CF6']}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -328,22 +368,31 @@ export default function GoalsScreen() {
         )}
       </ScrollView>
 
-      <Modal visible={isModalVisible} animationType="slide" transparent onRequestClose={() => setIsModalVisible(false)}>
+      <Modal
+        visible={isModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setIsModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editingGoal ? 'Edit Goal' : 'Create New Goal'}</Text>
-              <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.modalCloseButton} data-testid="button-close-modal">
-                <Ionicons name="close" size={24} color="#6B7280" />
+              <TouchableOpacity
+                onPress={() => setIsModalVisible(false)}
+                style={styles.modalCloseButton}
+                data-testid="button-close-modal"
+              >
+                <Ionicons name="close" size={24} color={themeColor('#6B7280', 'text')} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.inputLabel}>{t('title')}</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: themeColor('#111827', 'text') }]}
                 placeholder={t('what_do_you_want_to_achieve')}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={themeColor('#9CA3AF', 'text')}
                 value={title}
                 onChangeText={setTitle}
                 maxLength={100}
@@ -352,9 +401,9 @@ export default function GoalsScreen() {
 
               <Text style={styles.inputLabel}>{t('description')}</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[[styles.input, styles.textArea], { color: themeColor('#111827', 'text') }]}
                 placeholder={t('add_more_details_about_your_goal')}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={themeColor('#9CA3AF', 'text')}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -365,9 +414,9 @@ export default function GoalsScreen() {
 
               <Text style={styles.inputLabel}>{t('target_outcome')}</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: themeColor('#111827', 'text') }]}
                 placeholder={t('what_does_success_look_like')}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={themeColor('#9CA3AF', 'text')}
                 value={targetOutcome}
                 onChangeText={setTargetOutcome}
                 maxLength={200}
@@ -376,23 +425,32 @@ export default function GoalsScreen() {
 
               <Text style={styles.inputLabel}>{t('category')}</Text>
               <View style={styles.categorySelector}>
-                {['personal', 'career', 'health', 'finance', 'relationships', 'education'].map((cat) => {
-                  const isSelected = category === cat;
-                  const catColor = getCategoryColor(cat);
-                  return (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[
-                        styles.categoryOption,
-                        isSelected && { backgroundColor: catColor + '15', borderColor: catColor },
-                      ]}
-                      onPress={() => setCategory(cat)}
-                      data-testid={`button-category-${cat}`}
-                    >
-                      <Text style={[styles.categoryOptionText, isSelected && { color: catColor }]}>{cat}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                {['personal', 'career', 'health', 'finance', 'relationships', 'education'].map(
+                  (cat) => {
+                    const isSelected = category === cat;
+                    const catColor = getCategoryColor(cat);
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.categoryOption,
+                          isSelected && { backgroundColor: catColor + '15', borderColor: catColor },
+                        ]}
+                        onPress={() => setCategory(cat)}
+                        data-testid={`button-category-${cat}`}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryOptionText,
+                            isSelected && { color: themeColor(catColor, 'text') },
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+                )}
               </View>
 
               <View style={styles.modalButtons}>
@@ -403,7 +461,11 @@ export default function GoalsScreen() {
                 >
                   <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={handleSaveGoal} data-testid="button-save-goal">
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={handleSaveGoal}
+                  data-testid="button-save-goal"
+                >
                   <Text style={styles.saveButtonText}>{editingGoal ? 'Update' : 'Create'}</Text>
                 </TouchableOpacity>
               </View>
@@ -415,7 +477,7 @@ export default function GoalsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

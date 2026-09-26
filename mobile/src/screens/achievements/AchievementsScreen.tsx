@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../lib/api';
 import { t } from '../../i18n';
+import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
 interface Achievement {
   id: string;
@@ -38,6 +39,9 @@ const ACHIEVEMENT_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function AchievementsScreen({ navigation }: any) {
+  const styles = useThemedStyles(baseStyles);
+  const { color: themeColor } = useTheme();
+
   const { userProfile } = useAuthStore();
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,7 +55,7 @@ export default function AchievementsScreen({ navigation }: any) {
   const loadAchievements = async () => {
     try {
       setError(null);
-      const data = await api.getAchievements() as any;
+      const data = (await api.getAchievements()) as any;
       if (Array.isArray(data)) {
         setAchievements(data);
       } else if (data && typeof data === 'object' && 'achievements' in data) {
@@ -82,15 +86,12 @@ export default function AchievementsScreen({ navigation }: any) {
   const lockedAchievements = achievements.filter((a) => !a.unlockedAt);
 
   const renderAchievement = (achievement: Achievement, isUnlocked: boolean) => (
-    <View
-      key={achievement.id}
-      style={[styles.achievementCard, !isUnlocked && styles.lockedCard]}
-    >
+    <View key={achievement.id} style={[styles.achievementCard, !isUnlocked && styles.lockedCard]}>
       <View style={[styles.iconContainer, !isUnlocked && styles.lockedIcon]}>
         <Ionicons
           name={getIconName(achievement.category)}
           size={28}
-          color={isUnlocked ? '#8B5CF6' : '#9CA3AF'}
+          color={themeColor(isUnlocked ? '#8B5CF6' : '#9CA3AF', 'text')}
         />
       </View>
       <View style={styles.achievementContent}>
@@ -116,11 +117,11 @@ export default function AchievementsScreen({ navigation }: any) {
         {isUnlocked && (
           <View style={styles.rewardContainer}>
             <View style={styles.reward}>
-              <Ionicons name="flash" size={14} color="#F59E0B" />
+              <Ionicons name="flash" size={14} color={themeColor('#F59E0B', 'text')} />
               <Text style={styles.rewardText}>{achievement.xpReward} XP</Text>
             </View>
             <View style={styles.reward}>
-              <Ionicons name="logo-bitcoin" size={14} color="#8B5CF6" />
+              <Ionicons name="logo-bitcoin" size={14} color={themeColor('#8B5CF6', 'text')} />
               <Text style={styles.rewardText}>{achievement.coinReward} Coins</Text>
             </View>
           </View>
@@ -128,7 +129,7 @@ export default function AchievementsScreen({ navigation }: any) {
       </View>
       {isUnlocked && (
         <View style={styles.checkmark}>
-          <Ionicons name="checkmark-circle" size={24} color="#10B981" />
+          <Ionicons name="checkmark-circle" size={24} color={themeColor('#10B981', 'text')} />
         </View>
       )}
     </View>
@@ -139,13 +140,13 @@ export default function AchievementsScreen({ navigation }: any) {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#111827" />
+            <Ionicons name="arrow-back" size={24} color={themeColor('#111827', 'text')} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('achievements')}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
+          <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
         </View>
       </SafeAreaView>
     );
@@ -155,7 +156,7 @@ export default function AchievementsScreen({ navigation }: any) {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color={themeColor('#111827', 'text')} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('achievements')}</Text>
         <View style={styles.placeholder} />
@@ -191,32 +192,30 @@ export default function AchievementsScreen({ navigation }: any) {
 
         {error ? (
           <TouchableOpacity style={styles.errorContainer} onPress={loadAchievements}>
-            <Ionicons name="refresh" size={24} color="#6B7280" />
+            <Ionicons name="refresh" size={24} color={themeColor('#6B7280', 'text')} />
             <Text style={styles.errorText}>{error}</Text>
             <Text style={styles.retryText}>{t('tap_to_retry')}</Text>
           </TouchableOpacity>
         ) : achievements.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="trophy-outline" size={64} color="#D1D5DB" />
+            <Ionicons name="trophy-outline" size={64} color={themeColor('#D1D5DB', 'text')} />
             <Text style={styles.emptyTitle}>{t('no_achievements_yet')}</Text>
-            <Text style={styles.emptyText}>{t('complete_goals_and_tasks_to_unlock_achieveme')}</Text>
+            <Text style={styles.emptyText}>
+              {t('complete_goals_and_tasks_to_unlock_achieveme')}
+            </Text>
           </View>
         ) : (
           <>
             {unlockedAchievements.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  Unlocked ({unlockedAchievements.length})
-                </Text>
+                <Text style={styles.sectionTitle}>Unlocked ({unlockedAchievements.length})</Text>
                 {unlockedAchievements.map((a) => renderAchievement(a, true))}
               </View>
             )}
 
             {lockedAchievements.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>
-                  In Progress ({lockedAchievements.length})
-                </Text>
+                <Text style={styles.sectionTitle}>In Progress ({lockedAchievements.length})</Text>
                 {lockedAchievements.map((a) => renderAchievement(a, false))}
               </View>
             )}
@@ -229,7 +228,7 @@ export default function AchievementsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',

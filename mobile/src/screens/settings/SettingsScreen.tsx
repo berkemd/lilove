@@ -14,11 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import { t } from '../../i18n';
 import Constants from 'expo-constants';
+import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 
 export default function SettingsScreen({ navigation }: any) {
   const { userProfile, updateUser, logout } = useAuthStore();
   const [notifications, setNotifications] = useState(userProfile?.settings?.notifications ?? true);
-  const [darkMode, setDarkMode] = useState(userProfile?.settings?.theme === 'dark');
+  const { isDark: darkMode, setDarkMode, ready, saving, color } = useTheme();
+  const styles = useThemedStyles(baseStyles);
 
   const handleNotificationToggle = async (value: boolean) => {
     setNotifications(value);
@@ -37,39 +39,24 @@ export default function SettingsScreen({ navigation }: any) {
   };
 
   const handleThemeToggle = async (value: boolean) => {
-    setDarkMode(value);
     try {
-      await updateUser({
-        settings: {
-          theme: value ? 'dark' : 'light',
-          notifications: userProfile?.settings?.notifications ?? true,
-          language: userProfile?.settings?.language || 'en',
-        },
-      });
-    } catch (error) {
-      setDarkMode(!value);
+      await setDarkMode(value);
+    } catch {
       Alert.alert(t('error'), t('failed_to_update_theme_settings'));
     }
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      t('delete_account'),
-      t('are_you_sure_you_want_to_delete_your_account'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('delete'),
-          style: 'destructive',
-          onPress: async () => {
-            Alert.alert(
-              t('contact_support'),
-              t('to_delete_your_account_please_contact_suppor')
-            );
-          },
+    Alert.alert(t('delete_account'), t('are_you_sure_you_want_to_delete_your_account'), [
+      { text: t('cancel'), style: 'cancel' },
+      {
+        text: t('delete'),
+        style: 'destructive',
+        onPress: async () => {
+          Alert.alert(t('contact_support'), t('to_delete_your_account_please_contact_suppor'));
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleLogout = () => {
@@ -95,7 +82,7 @@ export default function SettingsScreen({ navigation }: any) {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color={color('#111827')} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('settings')}</Text>
         <View style={styles.placeholder} />
@@ -104,29 +91,32 @@ export default function SettingsScreen({ navigation }: any) {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('preferences')}</Text>
-          
+
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="notifications-outline" size={22} color="#6B7280" />
+              <Ionicons name="notifications-outline" size={22} color={color('#6B7280')} />
               <Text style={styles.settingText}>{t('push_notifications')}</Text>
             </View>
             <Switch
               value={notifications}
               onValueChange={handleNotificationToggle}
-              trackColor={{ false: '#D1D5DB', true: '#C4B5FD' }}
+              trackColor={{ false: color('#D1D5DB', 'background'), true: '#C4B5FD' }}
               thumbColor={notifications ? '#8B5CF6' : '#9CA3AF'}
             />
           </View>
 
           <View style={styles.settingItem}>
             <View style={styles.settingLeft}>
-              <Ionicons name="moon-outline" size={22} color="#6B7280" />
+              <Ionicons name="moon-outline" size={22} color={color('#6B7280')} />
               <Text style={styles.settingText}>{t('dark_mode')}</Text>
             </View>
             <Switch
               value={darkMode}
+              testID="appearance-dark-mode"
+              accessibilityLabel={t('dark_mode')}
+              disabled={!ready || saving}
               onValueChange={handleThemeToggle}
-              trackColor={{ false: '#D1D5DB', true: '#C4B5FD' }}
+              trackColor={{ false: color('#D1D5DB', 'background'), true: '#C4B5FD' }}
               thumbColor={darkMode ? '#8B5CF6' : '#9CA3AF'}
             />
           </View>
@@ -134,20 +124,20 @@ export default function SettingsScreen({ navigation }: any) {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('account')}</Text>
-          
+
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() => navigation.navigate('Premium')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="star-outline" size={22} color="#6B7280" />
+              <Ionicons name="star-outline" size={22} color={color('#6B7280')} />
               <Text style={styles.settingText}>{t('subscription')}</Text>
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>
                 {userProfile?.subscriptionTier === 'premium' ? 'Premium' : 'Free'}
               </Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+              <Ionicons name="chevron-forward" size={20} color={color('#D1D5DB')} />
             </View>
           </TouchableOpacity>
 
@@ -156,25 +146,25 @@ export default function SettingsScreen({ navigation }: any) {
             onPress={() => openURL('mailto:support@lilove.org')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="mail-outline" size={22} color="#6B7280" />
+              <Ionicons name="mail-outline" size={22} color={color('#6B7280')} />
               <Text style={styles.settingText}>{t('contact_support')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            <Ionicons name="chevron-forward" size={20} color={color('#D1D5DB')} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('legal')}</Text>
-          
+
           <TouchableOpacity
             style={styles.settingItem}
             onPress={() => openURL('https://lilove.org/privacy')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="shield-outline" size={22} color="#6B7280" />
+              <Ionicons name="shield-outline" size={22} color={color('#6B7280')} />
               <Text style={styles.settingText}>{t('privacy_policy')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            <Ionicons name="chevron-forward" size={20} color={color('#D1D5DB')} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -182,38 +172,40 @@ export default function SettingsScreen({ navigation }: any) {
             onPress={() => openURL('https://lilove.org/terms')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="document-text-outline" size={22} color="#6B7280" />
+              <Ionicons name="document-text-outline" size={22} color={color('#6B7280')} />
               <Text style={styles.settingText}>{t('terms_of_service')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            <Ionicons name="chevron-forward" size={20} color={color('#D1D5DB')} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('danger_zone')}</Text>
-          
+
           <TouchableOpacity style={styles.dangerItem} onPress={handleDeleteAccount}>
             <View style={styles.settingLeft}>
-              <Ionicons name="trash-outline" size={22} color="#EF4444" />
+              <Ionicons name="trash-outline" size={22} color={color('#EF4444')} />
               <Text style={styles.dangerText}>{t('delete_account')}</Text>
             </View>
           </TouchableOpacity>
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+          <Ionicons name="log-out-outline" size={20} color={color('#EF4444')} />
           <Text style={styles.logoutText}>{t('log_out')}</Text>
         </TouchableOpacity>
 
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>{`LiLove v${Constants.expoConfig?.version ?? ''} (${Constants.expoConfig?.ios?.buildNumber ?? ''})`}</Text>
+          <Text
+            style={styles.versionText}
+          >{`LiLove v${Constants.expoConfig?.version ?? ''} (${Constants.expoConfig?.ios?.buildNumber ?? ''})`}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
