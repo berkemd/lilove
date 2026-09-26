@@ -1,18 +1,12 @@
-import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
+import type { Habit } from '../../lib/habits';
 import MoodSelector from '../../components/MoodSelector';
 import { t } from '../../i18n';
 
@@ -32,13 +26,6 @@ interface Task {
   dueDate?: string;
 }
 
-interface Habit {
-  id: string;
-  name: string;
-  currentStreak?: number;
-  frequency?: string;
-}
-
 interface DashboardStats {
   totalGoals: number;
   activeGoals: number;
@@ -51,11 +38,20 @@ interface DashboardStats {
 type TabParamList = {
   Dashboard: undefined;
   Goals: undefined;
+  Habits: undefined;
   Coach: undefined;
   Profile: undefined;
 };
 
-function SkeletonBox({ width, height, style }: { width: number | string; height: number; style?: any }) {
+function SkeletonBox({
+  width,
+  height,
+  style,
+}: {
+  width: number | string;
+  height: number;
+  style?: any;
+}) {
   return (
     <View
       style={[
@@ -119,13 +115,20 @@ export default function DashboardScreen() {
         api.getTasks() as Promise<Task[]>,
         api.getHabits() as Promise<Habit[]>,
       ]);
-      
+
       // Ensure arrays are never null/undefined (handle nullish responses but not thrown errors)
       const goals = Array.isArray(goalsData) ? goalsData : [];
       const tasks = Array.isArray(tasksData) ? tasksData : [];
       const habits = Array.isArray(habitsData) ? habitsData : [];
-      
-      console.log('[DashboardScreen] Data loaded - goals:', goals.length, 'tasks:', tasks.length, 'habits:', habits.length);
+
+      console.log(
+        '[DashboardScreen] Data loaded - goals:',
+        goals.length,
+        'tasks:',
+        tasks.length,
+        'habits:',
+        habits.length
+      );
 
       setStats({
         totalGoals: goals.length,
@@ -145,9 +148,11 @@ export default function DashboardScreen() {
     }
   };
 
-  useEffect(() => {
-    loadDashboard();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -226,7 +231,13 @@ export default function DashboardScreen() {
       >
         <View style={styles.header}>
           <Text style={styles.greeting}>{t('welcome_back')}</Text>
-          <Text style={styles.username}>{userProfile?.displayName || user?.displayName || (user as any)?.firstName || (user as any)?.lastName || 'there'}</Text>
+          <Text style={styles.username}>
+            {userProfile?.displayName ||
+              user?.displayName ||
+              (user as any)?.firstName ||
+              (user as any)?.lastName ||
+              'there'}
+          </Text>
         </View>
 
         <View style={styles.coinBadgeContainer}>
@@ -288,19 +299,19 @@ export default function DashboardScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('quick_actions')}</Text>
-          
+
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => navigation.navigate('Goals')}
+            onPress={() => navigation.navigate('Habits')}
             activeOpacity={0.7}
-            data-testid="button-add-goal"
+            data-testid="button-habits"
           >
             <View style={[styles.actionIconContainer, { backgroundColor: '#F3E8FF' }]}>
               <Ionicons name="add-circle" size={22} color="#8B5CF6" />
             </View>
             <View style={styles.actionContent}>
-              <Text style={styles.actionText}>{t('add_new_goal')}</Text>
-              <Text style={styles.actionSubtext}>{t('set_a_new_target_to_achieve')}</Text>
+              <Text style={styles.actionText}>{t('my_habits')}</Text>
+              <Text style={styles.actionSubtext}>{t('habits_check')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>

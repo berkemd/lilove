@@ -25,7 +25,15 @@ interface UserStats {
   completedTasks: number;
 }
 
-function SkeletonBox({ width, height, style }: { width: number | string; height: number; style?: any }) {
+function SkeletonBox({
+  width,
+  height,
+  style,
+}: {
+  width: number | string;
+  height: number;
+  style?: any;
+}) {
   return (
     <View
       style={[
@@ -134,12 +142,41 @@ export default function ProfileScreen({ navigation }: any) {
   const isPremium = userProfile?.subscriptionTier === 'premium' || userProfile?.isPremium;
 
   const menuItems = [
-    { icon: 'settings-outline', label: t('settings'), action: () => navigation.navigate('Settings') },
-    { icon: 'trophy-outline', label: t('achievements'), action: () => navigation.navigate('Achievements') },
-    { icon: 'bar-chart-outline', label: t('analytics'), action: () => navigation.navigate('Dashboard') },
-    { icon: 'notifications-outline', label: t('notifications'), action: () => navigation.navigate('Settings') },
-    { icon: 'help-circle-outline', label: t('help_support'), action: () => Linking.openURL('mailto:support@lilove.org') },
-    { icon: 'document-text-outline', label: t('privacy_policy'), action: () => Linking.openURL('https://lilove.org/privacy') },
+    {
+      icon: 'person-circle-outline',
+      label: t('my_avatar'),
+      action: () => navigation.navigate('Avatar'),
+    },
+    {
+      icon: 'settings-outline',
+      label: t('settings'),
+      action: () => navigation.navigate('Settings'),
+    },
+    {
+      icon: 'trophy-outline',
+      label: t('achievements'),
+      action: () => navigation.navigate('Achievements'),
+    },
+    {
+      icon: 'bar-chart-outline',
+      label: t('analytics'),
+      action: () => navigation.navigate('Dashboard'),
+    },
+    {
+      icon: 'notifications-outline',
+      label: t('notifications'),
+      action: () => navigation.navigate('Settings'),
+    },
+    {
+      icon: 'help-circle-outline',
+      label: t('help_support'),
+      action: () => Linking.openURL('mailto:support@lilove.org'),
+    },
+    {
+      icon: 'document-text-outline',
+      label: t('privacy_policy'),
+      action: () => Linking.openURL('https://lilove.org/privacy'),
+    },
   ];
 
   const renderStatsSection = () => {
@@ -166,7 +203,11 @@ export default function ProfileScreen({ navigation }: any) {
 
     if (statsError) {
       return (
-        <TouchableOpacity style={styles.statsErrorContainer} onPress={loadUserStats} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.statsErrorContainer}
+          onPress={loadUserStats}
+          activeOpacity={0.7}
+        >
           <Ionicons name="refresh" size={20} color="#6B7280" />
           <Text style={styles.statsErrorText}>{t('tap_to_load_stats')}</Text>
         </TouchableOpacity>
@@ -198,7 +239,12 @@ export default function ProfileScreen({ navigation }: any) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor="#8B5CF6" colors={['#8B5CF6']} />
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor="#8B5CF6"
+            colors={['#8B5CF6']}
+          />
         }
       >
         <View style={styles.header}>
@@ -217,7 +263,9 @@ export default function ProfileScreen({ navigation }: any) {
               <Image source={{ uri: userProfile.photoURL }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>{userProfile?.displayName?.[0]?.toUpperCase() || '?'}</Text>
+                <Text style={styles.avatarText}>
+                  {userProfile?.displayName?.[0]?.toUpperCase() || '?'}
+                </Text>
               </View>
             )}
             <View style={styles.editBadge}>
@@ -234,7 +282,12 @@ export default function ProfileScreen({ navigation }: any) {
               <Text style={styles.premiumText}>{t('premium_member')}</Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.upgradeBadge} onPress={handlePremiumClick} activeOpacity={0.7} data-testid="button-upgrade-premium">
+            <TouchableOpacity
+              style={styles.upgradeBadge}
+              onPress={handlePremiumClick}
+              activeOpacity={0.7}
+              data-testid="button-upgrade-premium"
+            >
               <Ionicons name="sparkles" size={16} color="#8B5CF6" />
               <Text style={styles.upgradeText}>{t('upgrade_to_premium')}</Text>
             </TouchableOpacity>
@@ -245,7 +298,12 @@ export default function ProfileScreen({ navigation }: any) {
 
         <View style={styles.menuContainer}>
           {!isPremium && (
-            <TouchableOpacity style={styles.premiumMenuItem} onPress={handlePremiumClick} activeOpacity={0.7} data-testid="button-unlock-premium">
+            <TouchableOpacity
+              style={styles.premiumMenuItem}
+              onPress={handlePremiumClick}
+              activeOpacity={0.7}
+              data-testid="button-unlock-premium"
+            >
               <View style={styles.menuItemLeft}>
                 <View style={[styles.menuIconContainer, { backgroundColor: '#FEF3C7' }]}>
                   <Ionicons name="star" size={20} color="#F59E0B" />
@@ -278,7 +336,12 @@ export default function ProfileScreen({ navigation }: any) {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.7} data-testid="button-logout">
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          activeOpacity={0.7}
+          data-testid="button-logout"
+        >
           <Ionicons name="log-out-outline" size={20} color="#EF4444" />
           <Text style={styles.logoutText}>{t('log_out')}</Text>
         </TouchableOpacity>
