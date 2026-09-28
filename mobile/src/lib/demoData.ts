@@ -244,21 +244,24 @@ function tohum(): DemoStore {
       {
         id: 't1',
         title: t('book_the_dentist'),
-        completed: false,
+        status: 'pending',
+        priority: 'medium',
         dueDate: gunOnce(-1),
         sample: true,
       },
       {
         id: 't2',
         title: t('reply_to_elif'),
-        completed: true,
+        status: 'completed',
+        priority: 'medium',
         dueDate: gunOnce(0),
         sample: true,
       },
       {
         id: 't3',
         title: t('plan_saturday'),
-        completed: false,
+        status: 'pending',
+        priority: 'medium',
         dueDate: gunOnce(-2),
         sample: true,
       },
@@ -369,8 +372,25 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
         return depo.habits;
       case '/api/goals':
         return depo.goals;
-      case '/api/tasks':
-        return depo.tasks;
+      case '/api/tasks': {
+        // React Native's bundled URLSearchParams does not implement get().
+        const query = new Map(
+          (endpoint.split('?')[1] ?? '').split('&').map((parameter) => {
+            const [key, value = ''] = parameter.split('=');
+            return [decodeURIComponent(key), decodeURIComponent(value)] as const;
+          })
+        );
+        const status = query.get('status');
+        const limit = Math.max(1, Number(query.get('limit') ?? 50));
+        const offset = Math.max(0, Number(query.get('offset') ?? 0));
+        const tasks = status ? depo.tasks.filter((task) => task.status === status) : depo.tasks;
+        return {
+          tasks: tasks.slice(offset, offset + limit),
+          totalCount: tasks.length,
+          currentPage: Math.floor(offset / limit) + 1,
+          totalPages: Math.ceil(tasks.length / limit),
+        };
+      }
       case '/api/achievements':
         return depo.achievements;
       case '/api/coin-balance':
@@ -412,7 +432,7 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
         return {
           currentStreak: Math.max(...depo.habits.map((h) => h.currentStreak ?? 0)),
           totalGoals: depo.goals.length,
-          completedTasks: depo.tasks.filter((t) => t.completed).length,
+          completedTasks: depo.tasks.filter((t) => t.status === 'completed').length,
           completionRate: 0.68,
           bestHour: 8,
           worstDay: 'Saturday',
@@ -460,7 +480,7 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
       return yeni;
     }
     if (yol === '/api/tasks') {
-      const yeni = { id: `t${Date.now()}`, completed: false, ...body };
+      const yeni = { id: `t${Date.now()}`, status: 'pending', ...body };
       depo.tasks = [yeni, ...depo.tasks];
       return yeni;
     }
@@ -495,7 +515,9 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
     }
     const bitir = yol.match(/^\/api\/tasks\/([^/]+)\/complete$/);
     if (bitir) {
-      depo.tasks = depo.tasks.map((t) => (t.id === bitir[1] ? { ...t, completed: true } : t));
+      depo.tasks = depo.tasks.map((t) =>
+        t.id === bitir[1] ? { ...t, status: 'completed', completedAt: new Date().toISOString() } : t
+      );
       return depo.tasks.find((t) => t.id === bitir[1]);
     }
   }
