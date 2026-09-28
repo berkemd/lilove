@@ -322,6 +322,7 @@ export const api = {
   deleteGoal: async (id: string) => apiClient.delete(`/api/goals/${id}`),
 
   getTasks: async () => apiClient.get('/api/tasks'),
+  getCompletedTasks: async () => apiClient.get('/api/tasks?status=completed&limit=1'),
   createTask: async (taskData: any) => apiClient.post('/api/tasks', taskData),
   updateTask: async (id: string, taskData: any) => apiClient.patch(`/api/tasks/${id}`, taskData),
   completeTask: async (id: string) => apiClient.post(`/api/tasks/${id}/complete`),

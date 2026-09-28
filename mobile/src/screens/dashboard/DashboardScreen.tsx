@@ -6,35 +6,10 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
-import type { Habit } from '../../lib/habits';
+import { loadDashboardStats, type DashboardStats } from '../../lib/dashboard';
 import MoodSelector from '../../components/MoodSelector';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
-
-interface Goal {
-  id: string;
-  title: string;
-  status: string;
-  description?: string;
-  targetDate?: string;
-}
-
-interface Task {
-  id: string;
-  title: string;
-  completed: boolean;
-  goalId?: string;
-  dueDate?: string;
-}
-
-interface DashboardStats {
-  totalGoals: number;
-  activeGoals: number;
-  totalTasks: number;
-  completedTasks: number;
-  totalHabits: number;
-  streaks: number;
-}
 
 type TabParamList = {
   Dashboard: undefined;
@@ -118,40 +93,12 @@ export default function DashboardScreen() {
 
   const loadDashboard = async () => {
     setError(null);
-    console.log('[DashboardScreen] Loading dashboard data...');
+    setLoading(true);
     try {
-      const [goalsData, tasksData, habitsData] = await Promise.all([
-        api.getGoals() as Promise<Goal[]>,
-        api.getTasks() as Promise<Task[]>,
-        api.getHabits() as Promise<Habit[]>,
-      ]);
-
-      // Ensure arrays are never null/undefined (handle nullish responses but not thrown errors)
-      const goals = Array.isArray(goalsData) ? goalsData : [];
-      const tasks = Array.isArray(tasksData) ? tasksData : [];
-      const habits = Array.isArray(habitsData) ? habitsData : [];
-
-      console.log(
-        '[DashboardScreen] Data loaded - goals:',
-        goals.length,
-        'tasks:',
-        tasks.length,
-        'habits:',
-        habits.length
-      );
-
-      setStats({
-        totalGoals: goals.length,
-        activeGoals: goals.filter((g) => g.status === 'active').length,
-        totalTasks: tasks.length,
-        completedTasks: tasks.filter((t) => t.completed).length,
-        totalHabits: habits.length,
-        streaks: habits.reduce((acc, h) => acc + (h.currentStreak || 0), 0),
-      });
-    } catch (err: any) {
-      console.error('[DashboardScreen] Error loading dashboard:', err);
-      console.error('[DashboardScreen] Error details:', JSON.stringify(err, null, 2));
-      setError(`Unable to load dashboard: ${err?.message || t('unknown_error')}`);
+      setStats(await loadDashboardStats(api));
+    } catch {
+      setStats(null);
+      setError(t('please_try_again'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -202,7 +149,7 @@ export default function DashboardScreen() {
     return renderSkeletonLoading();
   }
 
-  if (error && !stats) {
+  if (error) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>

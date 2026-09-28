@@ -34,7 +34,8 @@ export default function TasksScreen() {
   const { color: themeColor } = useTheme();
 
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -49,12 +50,30 @@ export default function TasksScreen() {
 
   const loadTasks = async () => {
     setIsLoading(true);
+    setLoadFailed(false);
     try {
-      const data = await api.getTasks();
-      setTasks(Array.isArray(data) ? data : []);
-    } catch (error: any) {
-      console.error('Failed to load tasks:', error);
-      Alert.alert(t('error'), t('could_not_load_tasks_please_try_again'));
+      const data = (await api.getTasks()) as { tasks?: Task[]; totalCount?: number } | null;
+      if (
+        !Array.isArray(data?.tasks) ||
+        typeof data.totalCount !== 'number' ||
+        !Number.isSafeInteger(data.totalCount) ||
+        data.totalCount < data.tasks.length ||
+        (data.totalCount > 0 && data.tasks.length === 0) ||
+        !data.tasks.every(
+          (task) =>
+            task &&
+            typeof task.id === 'string' &&
+            typeof task.title === 'string' &&
+            ['pending', 'active', 'completed', 'skipped', 'blocked', 'cancelled'].includes(
+              task.status
+            )
+        )
+      ) {
+        throw new Error('Invalid task page');
+      }
+      setTasks(data.tasks);
+    } catch {
+      setLoadFailed(true);
     } finally {
       setIsLoading(false);
     }
@@ -196,6 +215,18 @@ export default function TasksScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={themeColor('#3B82F6', 'text')} />
             <Text style={styles.loadingText}>{t('loading_your_tasks')}</Text>
+          </View>
+        ) : loadFailed ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>{t('could_not_load_tasks_please_try_again')}</Text>
+            <TouchableOpacity
+              style={styles.emptyStateButton}
+              onPress={loadTasks}
+              accessibilityRole="button"
+              testID="button-retry-tasks"
+            >
+              <Text style={styles.emptyStateButtonText}>{t('try_again')}</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
