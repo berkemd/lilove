@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -16,16 +17,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/authStore';
 import storage from '../../services/storage';
 import * as ImagePicker from 'expo-image-picker';
+import Constants from 'expo-constants';
 import api from '../../lib/api';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
-
-interface UserStats {
-  streak: number;
-  totalGoals: number;
-  completedTasks: number;
-}
+import { readUserStats, type UserStats } from '../../lib/userStats';
 
 function SkeletonBox({
   width,
@@ -62,28 +59,22 @@ export default function ProfileScreen({ navigation }: any) {
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [userStats, setUserStats] = useState<UserStats>({
-    streak: 0,
-    totalGoals: 0,
-    completedTasks: 0,
-  });
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [statsError, setStatsError] = useState(false);
 
-  useEffect(() => {
-    loadUserStats();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUserStats();
+    }, [])
+  );
 
   const loadUserStats = async () => {
     setStatsError(false);
+    setIsLoadingStats(true);
     try {
-      const analytics = await api.getAnalytics('30d');
-      setUserStats({
-        streak: analytics.currentStreak || 0,
-        totalGoals: analytics.totalGoals || 0,
-        completedTasks: analytics.completedTasks || 0,
-      });
-    } catch (err) {
-      console.error('Failed to load user stats:', err);
+      setUserStats(readUserStats(await api.getUserStats()));
+    } catch {
+      setUserStats(null);
       setStatsError(true);
     } finally {
       setIsLoadingStats(false);
@@ -170,7 +161,7 @@ export default function ProfileScreen({ navigation }: any) {
     },
     {
       icon: 'bar-chart-outline',
-      label: t('analytics'),
+      label: t('track_your_progress'),
       action: () => navigation.navigate('Dashboard'),
     },
     {
@@ -212,12 +203,14 @@ export default function ProfileScreen({ navigation }: any) {
       );
     }
 
-    if (statsError) {
+    if (statsError || !userStats) {
       return (
         <TouchableOpacity
           style={styles.statsErrorContainer}
           onPress={loadUserStats}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          testID="button-retry-profile-stats"
         >
           <Ionicons name="refresh" size={20} color={themeColor('#6B7280', 'text')} />
           <Text style={styles.statsErrorText}>{t('tap_to_load_stats')}</Text>
@@ -233,7 +226,7 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{userStats.streak}</Text>
+          <Text style={styles.statValue}>{userStats.streakCount}</Text>
           <Text style={styles.statLabel}>{t('day_streak')}</Text>
         </View>
         <View style={styles.statDivider} />
@@ -390,7 +383,9 @@ export default function ProfileScreen({ navigation }: any) {
         </TouchableOpacity>
 
         <View style={styles.versionContainer}>
-          <Text style={styles.versionText}>LiLove v1.0.0</Text>
+          <Text
+            style={styles.versionText}
+          >{`LiLove v${Constants.expoConfig?.version ?? ''} (${Constants.expoConfig?.ios?.buildNumber ?? ''})`}</Text>
           <Text style={styles.copyrightText}>{t('made_with_love_for_your_growth')}</Text>
         </View>
       </ScrollView>

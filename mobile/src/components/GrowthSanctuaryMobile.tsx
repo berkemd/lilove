@@ -741,6 +741,17 @@ export default function GrowthSanctuaryMobile({ navigation }: GrowthSanctuaryMob
         </TouchableOpacity>
       </View>
 
+      <Text
+        style={{
+          color: colors.text,
+          paddingHorizontal: LiLoveTheme.spacing.lg,
+          paddingVertical: LiLoveTheme.spacing.sm,
+        }}
+        testID="text-sanctuary-sample"
+      >
+        {t('sample_data_nothing_is_saved_to_your_account')}
+      </Text>
+
       <View style={[styles.progressCard, { backgroundColor: colors.surfaceElevated }]}>
         <View style={styles.progressHeader}>
           <View>

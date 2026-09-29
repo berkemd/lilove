@@ -1,6 +1,15 @@
 // LiLove · de arayuz katalogu — URETILDI, elle duzenleme
 
 export const de = {
+  nav_home: 'Start',
+  nav_coach: 'Coach',
+  nav_profile: 'Profil',
+  nav_back: 'Zurück',
+  coach_checking_availability: 'KI-Verfügbarkeit wird geprüft …',
+  coach_unavailable:
+    'KI-Coaching ist derzeit nicht verfügbar. Sie können Ihre Ziele dennoch verwalten.',
+  coach_availability_failed:
+    'KI-Verfügbarkeit konnte nicht geprüft werden. Versuchen Sie es erneut oder verwalten Sie Ihre Ziele.',
   coach_d0_intro:
     'Ich halte keine Motivationsreden. Ich lese dein Protokoll und sage dir, was drinsteht. Gerade ist es leer — schreiben wir die erste Zeile?',
   coach_d0_ask_habit: 'Welche eine Sache, und zu welcher Tageszeit? Eine reicht für den Anfang.',

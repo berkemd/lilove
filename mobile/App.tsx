@@ -75,7 +75,13 @@ function MainStack() {
       <Stack.Screen
         name="Avatar"
         component={AvatarScreen}
-        options={{ headerShown: true, title: t('my_avatar') }}
+        options={{
+          headerShown: true,
+          title: t('my_avatar'),
+          headerBackTitle: t('nav_back'),
+          headerBackTruncatedTitle: t('nav_back'),
+          headerBackAccessibilityLabel: t('nav_back'),
+        }}
       />
       <Stack.Screen name="Achievements" component={AchievementsScreen} />
       <Stack.Screen
@@ -108,7 +114,7 @@ function MainTabs() {
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Home',
+          tabBarLabel: t('nav_home'),
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
             <Ionicons name="home" size={size} color={color} />
           ),
@@ -118,6 +124,7 @@ function MainTabs() {
         name="Goals"
         component={GoalsScreen}
         options={{
+          tabBarLabel: t('goals'),
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
             <Ionicons name="flag" size={size} color={color} />
           ),
@@ -127,7 +134,7 @@ function MainTabs() {
         name="Coach"
         component={CoachScreen}
         options={{
-          tabBarLabel: 'AI Coach',
+          tabBarLabel: t('nav_coach'),
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
             <Ionicons name="sparkles" size={size} color={color} />
           ),
@@ -147,6 +154,7 @@ function MainTabs() {
         name="Profile"
         component={ProfileScreen}
         options={{
+          tabBarLabel: t('nav_profile'),
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
             <Ionicons name="person" size={size} color={color} />
           ),
@@ -251,7 +259,9 @@ function AppContent() {
             uyarı, okunmamış bir uyarıdır. */}
         {isAuthenticated && isDemo && (
           <View style={styles.demoBanner} pointerEvents="none">
-            <Text style={styles.demoBannerText}>Demo · sample data, nothing is saved</Text>
+            <Text style={styles.demoBannerText}>
+              {t('sample_data_nothing_is_saved_to_your_account')}
+            </Text>
           </View>
         )}
         <StatusBar style={isDark ? 'light' : 'dark'} />

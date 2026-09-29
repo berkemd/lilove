@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { MainTabParamList } from '../../types/navigation';
 import { api } from '../../lib/api';
 import { t } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
@@ -35,6 +38,7 @@ interface DailyInsight {
 export default function CoachScreen() {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -42,12 +46,32 @@ export default function CoachScreen() {
   const [isLoadingInsight, setIsLoadingInsight] = useState(false);
   const [dailyInsight, setDailyInsight] = useState<DailyInsight | null>(null);
   const [insightError, setInsightError] = useState(false);
+  const [availability, setAvailability] = useState<
+    'loading' | 'available' | 'unavailable' | 'error'
+  >('loading');
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    initConversation();
-    loadDailyInsight();
+    loadCoach();
   }, []);
+
+  const loadCoach = async () => {
+    setAvailability('loading');
+    setDailyInsight(null);
+    try {
+      const capabilities = await api.getCoachCapabilities();
+      if (capabilities?.available === false) {
+        setAvailability('unavailable');
+        return;
+      }
+      if (capabilities?.available !== true) throw new Error('Invalid AI capabilities');
+      setAvailability('available');
+      if (messages.length === 0) await initConversation();
+      await loadDailyInsight();
+    } catch {
+      setAvailability('error');
+    }
+  };
 
   // Gun-sifir anayasasi (LILOVE_KOC_GUN_SIFIR.md): veri yoksa tavsiye yok —
   // koc ilk sayiyi yaratir. Kayit bos degilse (veya olculemezse) normal karsilama.
@@ -95,15 +119,19 @@ export default function CoachScreen() {
       const insight = await api.getDailyInsight();
       setDailyInsight(insight);
     } catch (err: any) {
-      console.log('Could not load daily insight:', err.message);
-      setInsightError(true);
+      setDailyInsight(null);
+      if (err?.code === 'AI_UNAVAILABLE' || err?.code === 'DEMO_MODE') {
+        setAvailability('unavailable');
+      } else {
+        setInsightError(true);
+      }
     } finally {
       setIsLoadingInsight(false);
     }
   };
 
   const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
+    if (!text.trim() || isLoading || availability !== 'available') return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -112,40 +140,29 @@ export default function CoachScreen() {
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputMessage('');
     setIsLoading(true);
 
     try {
       const response = await api.getCoachResponse(text.trim());
+      const content = response?.response || response?.message;
+      if (typeof content !== 'string' || !content.trim()) throw new Error('Invalid coach response');
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content:
-          response.response || response.message || "I'm here to help! Let's work on this together.",
+        content,
         timestamp: new Date(),
         suggestions: response.suggestions,
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+      setMessages((prev) => [...prev, userMessage, aiMessage]);
+      setInputMessage((current) => (current.trim() === text.trim() ? '' : current));
     } catch (err: any) {
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'ai',
-        // SEBEBI UYDURMA. Demo turunda sunucuya hic gidilmiyor; "baglanti
-        // sorunu" demek kullaniciya da, App Review'a da yanlis bilgi verir.
-        content:
-          err?.code === 'DEMO_MODE'
-            ? err.message
-            : "I'm having trouble connecting right now. Please check your connection and try again.",
-        timestamp: new Date(),
-        suggestions:
-          err?.code === 'DEMO_MODE'
-            ? ['Check my goals', 'View my progress']
-            : ['Try again', 'Check my goals', 'View my progress'],
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setInputMessage((current) => current || text);
+      setAvailability(
+        err?.code === 'AI_UNAVAILABLE' || err?.code === 'DEMO_MODE' ? 'unavailable' : 'error'
+      );
+      setDailyInsight(null);
     } finally {
       setIsLoading(false);
     }
@@ -178,7 +195,7 @@ export default function CoachScreen() {
                 key={index}
                 style={styles.suggestionChip}
                 onPress={() => handleSuggestionPress(suggestion)}
-                disabled={isLoading}
+                disabled={isLoading || availability !== 'available'}
                 activeOpacity={0.7}
                 data-testid={`button-suggestion-${index}`}
               >
@@ -192,6 +209,40 @@ export default function CoachScreen() {
   };
 
   const renderInsightCard = () => {
+    if (availability !== 'available') {
+      return (
+        <View style={styles.insightCard}>
+          <Text style={styles.insightText} testID="text-coach-availability">
+            {t(
+              availability === 'loading'
+                ? 'coach_checking_availability'
+                : availability === 'unavailable'
+                  ? 'coach_unavailable'
+                  : 'coach_availability_failed'
+            )}
+          </Text>
+          <View style={styles.suggestionsContainer}>
+            <TouchableOpacity
+              style={styles.suggestionChip}
+              onPress={loadCoach}
+              disabled={availability === 'loading'}
+              accessibilityRole="button"
+              testID="button-retry-coach"
+            >
+              <Text style={styles.suggestionText}>{t('try_again')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.suggestionChip}
+              onPress={() => navigation.navigate('Goals')}
+              accessibilityRole="button"
+              testID="button-coach-goals"
+            >
+              <Text style={styles.suggestionText}>{t('view_my_goals')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
     if (isLoadingInsight) {
       return (
         <View style={styles.insightCard}>
@@ -209,7 +260,7 @@ export default function CoachScreen() {
 
     if (insightError) {
       return (
-        <TouchableOpacity style={styles.insightCard} onPress={loadDailyInsight} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.insightCard} onPress={loadCoach} activeOpacity={0.7}>
           <View style={styles.insightHeader}>
             <Ionicons name="refresh" size={20} color={themeColor('#6B7280', 'text')} />
             <Text style={[styles.insightTitle, { color: themeColor('#6B7280', 'text') }]}>
@@ -263,8 +314,8 @@ export default function CoachScreen() {
           contentContainerStyle={styles.messagesContent}
           refreshControl={
             <RefreshControl
-              refreshing={isLoadingInsight}
-              onRefresh={loadDailyInsight}
+              refreshing={isLoadingInsight || availability === 'loading'}
+              onRefresh={loadCoach}
               tintColor="#8B5CF6"
               colors={['#8B5CF6']}
             />
@@ -305,10 +356,11 @@ export default function CoachScreen() {
           <TouchableOpacity
             style={[
               styles.sendButton,
-              (!inputMessage.trim() || isLoading) && styles.sendButtonDisabled,
+              (!inputMessage.trim() || isLoading || availability !== 'available') &&
+                styles.sendButtonDisabled,
             ]}
             onPress={() => sendMessage(inputMessage)}
-            disabled={!inputMessage.trim() || isLoading}
+            disabled={!inputMessage.trim() || isLoading || availability !== 'available'}
             activeOpacity={0.7}
             data-testid="button-send-message"
           >

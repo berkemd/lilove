@@ -1,6 +1,14 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  nav_home: 'Ana Sayfa',
+  nav_coach: 'Koç',
+  nav_profile: 'Profil',
+  nav_back: 'Geri',
+  coach_checking_availability: 'AI koçunun kullanılabilirliği kontrol ediliyor…',
+  coach_unavailable: 'AI koçu şu anda kullanılamıyor. Hedeflerinizi yönetmeye devam edebilirsiniz.',
+  coach_availability_failed:
+    'AI koçunun kullanılabilirliği kontrol edilemedi. Tekrar deneyin veya hedeflerinizi yönetin.',
   coach_d0_intro:
     'Ben moral konuşması yapmam. Senin kaydını okurum ve ne dediğini söylerim. Şu an kayıt boş — ilk satırı birlikte yazalım mı?',
   coach_d0_ask_habit: 'Hangi tek şey, günün hangi saatinde? Başlamak için bir tane yeter.',
