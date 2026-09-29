@@ -19,6 +19,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../lib/api';
 import { HabitTracker, type Habit } from '../../lib/habits';
+import { summarizeHabitProgress } from '../../lib/habitProgress';
+import HabitProgressCard from '../../components/HabitProgressCard';
 import { t } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
@@ -203,6 +205,7 @@ export default function HabitsScreen() {
   const visibleHabits = habits.filter((h) => h.isActive !== false && !h.isPaused);
   const activeHabits = visibleHabits.filter((h) => !h.completedToday);
   const completedToday = visibleHabits.filter((h) => h.completedToday);
+  const progress = summarizeHabitProgress(habits);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -250,6 +253,7 @@ export default function HabitsScreen() {
             </TouchableOpacity>
           </View>
         )}
+        {visibleHabits.length > 0 && !error && !isLoading && <HabitProgressCard {...progress} />}
         {isLoading && habits.length === 0 ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={themeColor('#10B981', 'text')} />

@@ -429,4 +429,9 @@ export const it = {
     'L’acquisto è stato ricevuto, ma l’accesso attivo non può essere confermato. Verifica nuovamente prima di effettuare un nuovo acquisto.',
   subscription_active_confirmed: 'L’abbonamento è attivo.',
   subscription_free: 'Gratuito',
+  progress_today_title: 'Oggi, passo dopo passo',
+  progress_today_count: '{done} / {total} completati',
+  progress_today_remaining: 'Rimasti oggi: {count}',
+  progress_today_complete: 'Tutte le abitudini attive sono segnate come completate oggi.',
+  progress_today_scope: 'In base alle registrazioni di oggi per le tue abitudini attive.',
 } as const;

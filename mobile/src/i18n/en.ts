@@ -422,4 +422,9 @@ export const en = {
     'Your purchase was received, but active access could not be confirmed. Check again before making another purchase.',
   subscription_active_confirmed: 'Your subscription is active.',
   subscription_free: 'Free',
+  progress_today_title: 'Today, one step at a time',
+  progress_today_count: '{done} / {total} completed',
+  progress_today_remaining: 'Remaining today: {count}',
+  progress_today_complete: 'Every active habit is marked done today.',
+  progress_today_scope: 'Based on today’s check-ins for your active habits.',
 } as const;

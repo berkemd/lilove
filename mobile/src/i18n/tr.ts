@@ -422,4 +422,9 @@ export const tr = {
     'Satın alma işlemi alındı, ancak aktif erişim henüz doğrulanamadı. Yeni bir satın alma yapmadan önce tekrar kontrol edin.',
   subscription_active_confirmed: 'Abonelik aktif.',
   subscription_free: 'Ücretsiz',
+  progress_today_title: 'Bugün, adım adım',
+  progress_today_count: '{done} / {total} tamamlandı',
+  progress_today_remaining: 'Bugün kalan: {count}',
+  progress_today_complete: 'Etkin tüm alışkanlıkların bugün tamamlandı olarak işaretli.',
+  progress_today_scope: 'Etkin alışkanlıkların için bugün yaptığın kayıtlara göre.',
 } as const;

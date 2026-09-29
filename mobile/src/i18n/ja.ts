@@ -425,4 +425,9 @@ export const ja = {
     'ご購入の情報は受け取りましたが、利用権が有効か確認できませんでした。再度購入する前に、状態をもう一度確認してください。',
   subscription_active_confirmed: 'サブスクリプションは有効です。',
   subscription_free: '無料',
+  progress_today_title: '今日も一歩ずつ',
+  progress_today_count: '{done} / {total} 完了',
+  progress_today_remaining: '今日の残り: {count}',
+  progress_today_complete: '今日の有効な習慣はすべて完了として記録されています。',
+  progress_today_scope: '有効な習慣について、今日記録した内容に基づきます。',
 } as const;

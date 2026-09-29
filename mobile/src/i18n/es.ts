@@ -428,4 +428,9 @@ export const es = {
     'Su compra se recibió, pero no se pudo confirmar el acceso activo. Verifique nuevamente antes de realizar otra compra.',
   subscription_active_confirmed: 'Su suscripción está activa.',
   subscription_free: 'Gratis',
+  progress_today_title: 'Hoy, paso a paso',
+  progress_today_count: '{done} / {total} completados',
+  progress_today_remaining: 'Restante hoy: {count}',
+  progress_today_complete: 'Todos tus hábitos activos están marcados como completados hoy.',
+  progress_today_scope: 'Según los hábitos activos que has marcado hoy.',
 } as const;
