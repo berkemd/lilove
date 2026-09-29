@@ -61,10 +61,12 @@ import { assertNewSubscriptionAvailable } from '../lib/subscriptionAvailability'
  * takes the payment and our server refuses to verify it: paid, and
  * nothing received.
  */
-async function hesapGerekir(): Promise<void> {
-  if ((await tokenManager.getToken()) === DEMO_TOKEN) {
+async function hesapGerekir(): Promise<string> {
+  const token = await tokenManager.getToken();
+  if (!token || token === DEMO_TOKEN) {
     throw Object.assign(new Error('Purchases need an account.'), { code: 'ACCOUNT_REQUIRED' });
   }
+  return token;
 }
 
 export type StoreProduct = {
@@ -81,6 +83,7 @@ type Bekleyen = {
 };
 
 let baglandi = false;
+let baglanti: Promise<void> | null = null;
 let aboneler: Array<{ remove: () => void }> = [];
 const bekleyenler = new Map<string, Bekleyen>();
 
@@ -108,8 +111,8 @@ function bekleyeniBitir(productId: string, hata?: any) {
  * Sunucu aynı işlem kimliğini yeniden alabilir; istemci yalnız açık
  * başarı yanıtından sonra StoreKit işlemini tamamlar.
  */
-async function dogrula(islemId: string): Promise<void> {
-  const sonuc = await api.verifyPurchase(islemId);
+async function dogrula(islemId: string, authorizationToken?: string): Promise<void> {
+  const sonuc = await api.verifyPurchase(islemId, authorizationToken);
   if (sonuc?.success !== true) throw new Error('Purchase verification was not confirmed');
 }
 
@@ -127,6 +130,17 @@ async function dogrulaVeBitir(purchase: any): Promise<void> {
 
 export async function initIAP(): Promise<void> {
   if (baglandi || Platform.OS !== 'ios') return;
+  if (baglanti) return baglanti;
+  const pending = baglantiKur();
+  baglanti = pending;
+  try {
+    await pending;
+  } finally {
+    if (baglanti === pending) baglanti = null;
+  }
+}
+
+async function baglantiKur(): Promise<void> {
   await initConnection();
   baglandi = true;
 
@@ -270,30 +284,92 @@ export function buySubscription(productId: string): Promise<void> {
   return satinAl(productId, 'subs');
 }
 
+export class RestoreError extends Error {
+  readonly code = 'RESTORE_INCOMPLETE';
+
+  constructor(
+    readonly stage: 'store' | 'verification' | 'account',
+    readonly verifiedCount = 0,
+    readonly failedCount = 0
+  ) {
+    super(
+      stage === 'store'
+        ? 'Store purchases could not be read'
+        : stage === 'account'
+          ? 'Restore session changed'
+          : 'Restore verification incomplete'
+    );
+    this.name = 'RestoreError';
+  }
+}
+
 /**
- * GERİ YÜKLEME GERÇEKTEN GERİ YÜKLER.
- *
- * Yalnız "geri yüklendi" yazan bir düğme 3.1.1'de reddedilir. Burada
- * cihazdaki her abonelik işlemi sunucuya yeniden doğrulatılıyor; yeni
- * cihazda abonelik böyle geri gelir. Tüketilebilir jetonlar geri
- * yüklenmez — Apple da onları geri vermez, bakiye zaten hesapta durur.
- *
- * @returns sunucunun kabul ettiği abonelik işlemi sayısı
+ * Verify every available non-consumable receipt before confirming a complete
+ * restore. Existing verified receipts may be retried after a partial failure;
+ * the server owns idempotent entitlement delivery. Coins remain account-bound.
+ * @returns the confirmed count only when every eligible receipt was verified
  */
 export async function restore(): Promise<number> {
-  await hesapGerekir();
-  const mevcut: any[] = (await getAvailablePurchases()) ?? [];
+  const token = await hesapGerekir();
+  let sessionChanged = false;
+  const unsubscribe = tokenManager.onTokenChange((currentToken) => {
+    if (currentToken !== token) sessionChanged = true;
+  });
+  const assertSession = async () => {
+    const currentToken = await tokenManager.getToken();
+    if (sessionChanged || currentToken !== token) {
+      throw new RestoreError('account');
+    }
+  };
+  try {
+    return await restoreForSession(token, assertSession);
+  } finally {
+    unsubscribe();
+  }
+}
+
+async function restoreForSession(
+  token: string,
+  assertSession: () => Promise<void>
+): Promise<number> {
+  await assertSession();
+  try {
+    // Startup may have failed while offline. Restore must be able to retry it.
+    await initIAP();
+  } catch {
+    throw new RestoreError('store');
+  }
+  await assertSession();
+  let mevcut: any[];
+  try {
+    const purchases = await getAvailablePurchases();
+    if (!Array.isArray(purchases)) throw new RestoreError('store');
+    mevcut = purchases;
+  } catch {
+    throw new RestoreError('store');
+  }
+  await assertSession();
   let sayi = 0;
+  let basarisiz = 0;
   for (const p of mevcut) {
+    await assertSession();
     if (isCoinProduct(urunKimligi(p))) continue;
     const islemId = islemKimligi(p);
-    if (!islemId) continue;
+    if (!islemId) {
+      basarisiz++;
+      continue;
+    }
     try {
-      await dogrula(islemId);
+      // Pin the initiating token even if the account changes after the check.
+      await dogrula(islemId, token);
       sayi++;
     } catch {
-      // tek bir kaydın düşmesi diğerlerini durdurmasın
+      // Try the remaining records, but an incomplete check is never "no purchases".
+      basarisiz++;
     }
+    await assertSession();
   }
+  await assertSession();
+  if (basarisiz > 0) throw new RestoreError('verification', sayi, basarisiz);
   return sayi;
 }

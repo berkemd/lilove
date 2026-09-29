@@ -49,11 +49,15 @@ function harness({ releaseReadyForTest = false } = {}) {
     available: [],
     accountCalls: [],
     verifyCalls: [],
+    verificationTokens: [],
+    tokenListeners: new Set(),
     requests: [],
     finishes: [],
     events: [],
     timers: new Map(),
     availableCalls: 0,
+    initCalls: 0,
+    listeners: 0,
     removedListeners: 0,
     closedConnections: 0,
   };
@@ -65,7 +69,12 @@ function harness({ releaseReadyForTest = false } = {}) {
     'src/services/iap.ts',
     {
       'expo-iap': {
-        initConnection: async () => {},
+        initConnection: async () => {
+          state.initCalls++;
+          if (state.initError) throw state.initError;
+          if (state.initPending) await state.initPending;
+          return state.canMakePayments ?? true;
+        },
         endConnection: async () => state.closedConnections++,
         requestProducts: async () => [],
         requestPurchase: async (request) => {
@@ -82,13 +91,17 @@ function harness({ releaseReadyForTest = false } = {}) {
         },
         getAvailablePurchases: async () => {
           state.availableCalls++;
+          if (state.availableError) throw state.availableError;
+          if (state.availablePending) await state.availablePending;
           return state.available;
         },
         purchaseUpdatedListener: (listener) => {
+          state.listeners++;
           onPurchase = listener;
           return { remove: () => state.removedListeners++ };
         },
         purchaseErrorListener: (listener) => {
+          state.listeners++;
           onError = listener;
           return { remove: () => state.removedListeners++ };
         },
@@ -102,10 +115,11 @@ function harness({ releaseReadyForTest = false } = {}) {
             if (state.accountError) throw state.accountError;
             return state.accountResponse;
           },
-          verifyPurchase: async (transactionId) => {
+          verifyPurchase: async (transactionId, authorizationToken) => {
             state.events.push('verify');
             state.verifyCalls.push(transactionId);
-            return state.verify(transactionId);
+            state.verificationTokens.push(authorizationToken ?? state.token);
+            return state.verify(transactionId, authorizationToken);
           },
         },
       },
@@ -113,7 +127,15 @@ function harness({ releaseReadyForTest = false } = {}) {
       '../lib/subscriptionAvailability': releaseReadyForTest
         ? { assertNewSubscriptionAvailable() {} }
         : subscriptionAvailability,
-      './tokenManager': { tokenManager: { getToken: async () => state.token } },
+      './tokenManager': {
+        tokenManager: {
+          getToken: async () => state.token,
+          onTokenChange: (listener) => {
+            state.tokenListeners.add(listener);
+            return () => state.tokenListeners.delete(listener);
+          },
+        },
+      },
       '../lib/demoData': { DEMO_TOKEN: demoToken },
     },
     {
@@ -136,11 +158,12 @@ function harness({ releaseReadyForTest = false } = {}) {
 
 test('API sends the selected product during account preflight and only the transaction ID during verification', async () => {
   const calls = [];
+  let sessionToken = 'session-token';
   const { api } = loadSource(
     'src/lib/api.ts',
     {
       'expo-constants': { default: { expoConfig: { extra: { apiUrl: 'https://test.invalid' } } } },
-      '../services/tokenManager': { tokenManager: { getToken: async () => 'session-token' } },
+      '../services/tokenManager': { tokenManager: { getToken: async () => sessionToken } },
       './demoData': { DEMO_TOKEN: demoToken },
       '../i18n': { t: (key) => key },
       './habits': { createHabitsApi: () => ({}) },
@@ -159,6 +182,8 @@ test('API sends the selected product during account preflight and only the trans
   );
   assert.deepEqual(await api.getIapAccountToken(coinId), { appAccountToken: accountA });
   assert.deepEqual(await api.verifyPurchase('apple-transaction'), { success: true });
+  sessionToken = 'new-account-session';
+  assert.deepEqual(await api.verifyPurchase('pinned-restore', 'session-token'), { success: true });
   assert.deepEqual(
     calls.map(({ url, options }) => ({
       url,
@@ -177,6 +202,12 @@ test('API sends the selected product during account preflight and only the trans
         url: 'https://test.invalid/api/subscription/verify',
         method: 'POST',
         body: { transactionId: 'apple-transaction' },
+        authorization: 'Bearer session-token',
+      },
+      {
+        url: 'https://test.invalid/api/subscription/verify',
+        method: 'POST',
+        body: { transactionId: 'pinned-restore' },
         authorization: 'Bearer session-token',
       },
     ]
@@ -349,7 +380,7 @@ test('a verification network failure leaves the transaction unfinished for a lat
   assert.equal(h.state.finishes.length, 1);
 });
 
-test('restore skips coins and only counts explicitly confirmed subscription transactions', async () => {
+test('restore tries every receipt, reports partial verification and safely retries confirmed receipts', async () => {
   const { iap, state } = harness();
   state.available = [
     { productId: coinId, transactionId: 'coin' },
@@ -364,10 +395,181 @@ test('restore skips coins and only counts explicitly confirmed subscription tran
     if (id === 'ambiguous') return {};
     return { success: id.startsWith('valid-') };
   };
-  assert.equal(await iap.restore(), 2);
+  await assert.rejects(iap.restore(), {
+    code: 'RESTORE_INCOMPLETE',
+    stage: 'verification',
+    verifiedCount: 2,
+    failedCount: 4,
+  });
   assert.deepEqual(state.verifyCalls, ['valid-a', 'invalid', 'ambiguous', 'offline', 'valid-b']);
+  state.available = state.available.filter((purchase) => purchase.transactionId);
+  state.verify = async () => ({ success: true });
+  assert.equal(await iap.restore(), 5);
+  assert.deepEqual(state.verifyCalls.slice(5), [
+    'valid-a',
+    'invalid',
+    'ambiguous',
+    'offline',
+    'valid-b',
+  ]);
   assert.deepEqual(state.finishes, []);
   assert.deepEqual(state.accountCalls, []);
+  assert.deepEqual(state.requests, []);
+});
+
+test('restore cannot turn unverified receipts into an empty successful restore', async () => {
+  for (const verify of [
+    async () => {
+      throw new Error('Network request failed');
+    },
+    async () => ({ success: false }),
+    async () => ({}),
+  ]) {
+    const { iap, state } = harness();
+    state.available = [{ productId: subscriptionId, transactionId: 'existing-subscription' }];
+    state.verify = verify;
+    await assert.rejects(iap.restore(), {
+      code: 'RESTORE_INCOMPLETE',
+      stage: 'verification',
+      verifiedCount: 0,
+      failedCount: 1,
+    });
+    assert.deepEqual(state.finishes, []);
+  }
+});
+
+test('only an actual empty StoreKit list is a successful empty restore', async () => {
+  for (const available of [null, undefined, {}]) {
+    const { iap, state } = harness();
+    state.available = available;
+    await assert.rejects(iap.restore(), { code: 'RESTORE_INCOMPLETE', stage: 'store' });
+    assert.deepEqual(state.verifyCalls, []);
+  }
+  const { iap, state } = harness();
+  assert.equal(await iap.restore(), 0);
+  assert.equal(state.initCalls, 1);
+  assert.equal(state.availableCalls, 1);
+});
+
+test('restore retries a failed StoreKit connection or query without opening a purchase', async () => {
+  for (const boundary of ['initError', 'availableError']) {
+    const { iap, state } = harness();
+    state[boundary] = new Error('Store unavailable');
+    await assert.rejects(iap.restore(), { code: 'RESTORE_INCOMPLETE', stage: 'store' });
+    if (boundary === 'initError') assert.equal(state.availableCalls, 0);
+    state[boundary] = null;
+    assert.equal(await iap.restore(), 0);
+    assert.equal(state.initCalls, boundary === 'initError' ? 2 : 1);
+    assert.equal(state.listeners, 2);
+    assert.deepEqual(state.requests, []);
+  }
+});
+
+test('startup and concurrent restores share initialization but retain independent receipt results', async () => {
+  const { iap, state } = harness();
+  const connection = deferred();
+  state.initPending = connection.promise;
+  state.available = [{ productId: subscriptionId, transactionId: 'existing-subscription' }];
+  let attempts = 0;
+  state.verify = async () => {
+    if (++attempts === 1) throw new Error('Network request failed');
+    return { success: true };
+  };
+  const startup = iap.initIAP();
+  const failed = assert.rejects(iap.restore(), { code: 'RESTORE_INCOMPLETE' });
+  const retried = iap.restore();
+  connection.resolve();
+  await startup;
+  await failed;
+  assert.equal(await retried, 1);
+  assert.equal(state.initCalls, 1);
+  assert.equal(state.listeners, 2);
+  assert.deepEqual(state.finishes, []);
+});
+
+test('guest and demo restore are rejected before StoreKit initialization or enumeration', async () => {
+  for (const token of [null, '', demoToken]) {
+    const { iap, state } = harness();
+    state.token = token;
+    await assert.rejects(iap.restore(), { code: 'ACCOUNT_REQUIRED' });
+    assert.equal(state.initCalls, 0);
+    assert.equal(state.availableCalls, 0);
+    assert.deepEqual(state.verifyCalls, []);
+  }
+});
+
+test('StoreKit payment restrictions do not prevent restoring an existing subscription', async () => {
+  const { iap, state } = harness();
+  // expo-iap 2.8.5 initializes its store even when AppStore.canMakePayments is false.
+  state.canMakePayments = false;
+  state.available = [{ productId: subscriptionId, transactionId: 'existing-subscription' }];
+  assert.equal(await iap.restore(), 1);
+  assert.deepEqual(state.verifyCalls, ['existing-subscription']);
+  assert.deepEqual(state.requests, []);
+});
+
+test('account changes during restore stop later receipts and entitlement readback', async () => {
+  for (const phase of ['initialization', 'enumeration', 'first-receipt', 'last-receipt']) {
+    const { iap, state } = harness();
+    const boundary = deferred();
+    const reached = deferred();
+    state.available = ['first', 'last'].map((transactionId) => ({
+      productId: subscriptionId,
+      transactionId,
+    }));
+    if (phase === 'initialization') state.initPending = boundary.promise;
+    if (phase === 'enumeration') state.availablePending = boundary.promise;
+    state.verify = async (transactionId) => {
+      if (transactionId === (phase === 'first-receipt' ? 'first' : 'last')) {
+        reached.resolve();
+        await boundary.promise;
+      }
+      return { success: true };
+    };
+    const { SubscriptionStore } = loadSource('src/lib/subscription.ts');
+    let reads = 0;
+    const store = new SubscriptionStore(async () => {
+      reads++;
+    });
+    store.setAccount('A');
+    const restoring = assert.rejects(store.confirm(iap.restore), {
+      code: 'RESTORE_INCOMPLETE',
+      stage: 'account',
+    });
+    if (phase === 'initialization' || phase === 'enumeration') {
+      await new Promise((resolve) => setImmediate(resolve));
+    } else {
+      await reached.promise;
+    }
+    state.token = 'another-account-session';
+    state.tokenListeners.forEach((listener) => listener(state.token));
+    boundary.resolve();
+    await restoring;
+    assert.equal(reads, 0);
+    assert.equal(state.availableCalls, phase === 'initialization' ? 0 : 1);
+    assert.deepEqual(
+      state.verifyCalls,
+      phase === 'initialization' || phase === 'enumeration'
+        ? []
+        : phase === 'first-receipt'
+          ? ['first']
+          : ['first', 'last']
+    );
+    assert(state.verificationTokens.every((token) => token === 'signed-in-account'));
+    assert.equal(state.tokenListeners.size, 0);
+  }
+});
+
+test('a token switch back to the original token still aborts the old restore session', async () => {
+  const { iap, state } = harness();
+  state.available = [{ productId: subscriptionId, transactionId: 'first' }];
+  state.verify = async () => {
+    state.tokenListeners.forEach((listener) => listener('other-session'));
+    state.tokenListeners.forEach((listener) => listener(state.token));
+    return { success: true };
+  };
+  await assert.rejects(iap.restore(), { code: 'RESTORE_INCOMPLETE', stage: 'account' });
+  assert.equal(state.tokenListeners.size, 0);
 });
 
 test('StoreKit rejection and cancellation clear pending timers without completing transactions', async () => {

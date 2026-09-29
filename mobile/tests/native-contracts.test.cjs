@@ -438,8 +438,13 @@ function mountCoach(overrides = {}) {
   });
 }
 
-test('closed Coach sends no generation requests, preserves draft through retry and opens real Goals', async () => {
+test('closed Coach disables input and generation, keeps retry closed and opens real Goals', async () => {
   const screen = mountCoach();
+  assert.equal(
+    findTree(screen.initial, (node) => node.props?.['data-testid'] === 'input-coach-message').props
+      .editable,
+    false
+  );
   screen.effects();
   await flush();
   let tree = screen.render();
@@ -447,11 +452,10 @@ test('closed Coach sends no generation requests, preserves draft through retry a
     findTree(tree, (node) => node.props?.testID === 'text-coach-availability').props.children,
     'coach_unavailable'
   );
-  findTree(
-    tree,
-    (node) => node.props?.['data-testid'] === 'input-coach-message'
-  ).props.onChangeText('My unsent plan');
-  tree = screen.render();
+  assert.equal(
+    findTree(tree, (node) => node.props?.['data-testid'] === 'input-coach-message').props.editable,
+    false
+  );
   const send = findTree(tree, (node) => node.props?.['data-testid'] === 'button-send-message');
   assert.equal(send.props.disabled, true);
   await send.props.onPress();
@@ -459,7 +463,7 @@ test('closed Coach sends no generation requests, preserves draft through retry a
   tree = screen.render();
   assert.equal(
     findTree(tree, (node) => node.props?.['data-testid'] === 'input-coach-message').props.value,
-    'My unsent plan'
+    ''
   );
   findTree(tree, (node) => node.props?.testID === 'button-coach-goals').props.onPress();
   assert.deepEqual(screen.navigated, ['Goals']);
@@ -492,6 +496,11 @@ test('failed or malformed capability checks stay closed and can retry without ge
       'coach_availability_failed'
     );
     assert.equal(JSON.stringify(tree).includes('private provider details'), false);
+    assert.equal(
+      findTree(tree, (node) => node.props?.['data-testid'] === 'input-coach-message').props
+        .editable,
+      false
+    );
     recovered = true;
     await findTree(tree, (node) => node.props?.testID === 'button-retry-coach').props.onPress();
     tree = screen.render();
@@ -515,6 +524,10 @@ test('AI_UNAVAILABLE after an available check preserves typed chat input and off
   screen.effects();
   await flush();
   let tree = screen.render();
+  assert.equal(
+    findTree(tree, (node) => node.props?.['data-testid'] === 'input-coach-message').props.editable,
+    true
+  );
   findTree(
     tree,
     (node) => node.props?.['data-testid'] === 'input-coach-message'
@@ -533,6 +546,10 @@ test('AI_UNAVAILABLE after an available check preserves typed chat input and off
   assert.equal(
     findTree(tree, (node) => node.props?.['data-testid'] === 'input-coach-message').props.value,
     'Keep this draft'
+  );
+  assert.equal(
+    findTree(tree, (node) => node.props?.['data-testid'] === 'input-coach-message').props.editable,
+    false
   );
   assert.equal(JSON.stringify(tree).includes('provider internals'), false);
   assert(findTree(tree, (node) => node.props?.testID === 'button-coach-goals'));
@@ -637,6 +654,7 @@ test('actual navigator options localize all tabs and Avatar back labels without 
   for (const locale of ['en', 'tr', 'de', 'fr', 'es', 'it', 'ja']) {
     const catalog = loadSource(`src/i18n/${locale}.ts`)[locale];
     const globals = {
+      ...loadSource('src/lib/coachAvailability.ts'),
       Stack: { Navigator: 'Stack.Navigator', Screen: 'Stack.Screen' },
       Tab: { Navigator: 'Tab.Navigator', Screen: 'Tab.Screen' },
       Platform: { OS: 'ios' },
@@ -655,6 +673,9 @@ test('actual navigator options localize all tabs and Avatar back labels without 
       ...Object.values(globals)
     );
     const tabs = module.exports.MainTabs();
+    const coach = findTree(tabs, (node) => node.props?.name === 'Coach');
+    assert.equal(coach.props.options.tabBarButton(), null);
+    assert.deepEqual(coach.props.options.tabBarItemStyle, { display: 'none' });
     for (const [route, key] of [
       ['Dashboard', 'nav_home'],
       ['Goals', 'goals'],

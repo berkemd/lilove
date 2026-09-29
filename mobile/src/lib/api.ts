@@ -405,10 +405,12 @@ export const api = {
   // sorarak belirliyor — istemcinin söylediğine değil.
   getIapAccountToken: async (productId: string) =>
     apiClient.post<{ appAccountToken: string }>('/api/iap/account-token', { productId }),
-  verifyPurchase: async (transactionId: string) =>
-    apiClient.post<{ success: boolean }>('/api/subscription/verify', {
-      transactionId,
-    }),
+  verifyPurchase: async (transactionId: string, authorizationToken?: string) =>
+    apiClient.post<{ success: boolean }>(
+      '/api/subscription/verify',
+      { transactionId },
+      { authorizationToken }
+    ),
   // DÖNÜŞ TİPLERİ YAZILI: `apiClient.get` tür değişkenli ve tür
   // verilmezse `{}` dönüyor — yani `d.balance` derleme anında hata
   // veriyor. Bu dosyada başka hiçbir çağrı tür vermemiş; verenler

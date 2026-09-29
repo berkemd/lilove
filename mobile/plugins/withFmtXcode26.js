@@ -36,7 +36,7 @@
  *
  *  SESSİZ BAŞARISIZLIK YOK
  *    Beklenen metin bulunamazsa yama sessizce atlanmıyor; `pod install`
- *    çıktısına uyarı basıyor. Sessizce atlanan yama, olmayan yamadır.
+ *    işlemini hata ile durdurur. Kilitli bağımlılık tekrar incelenmelidir.
  * ===================================================================== */
 const { withDangerousMod } = require('@expo/config-plugins');
 const fs = require('fs');
@@ -61,11 +61,11 @@ const RUBY = `
           File.write(fmt_base, fmt_src.sub(fmt_eski, fmt_yeni))
           Pod::UI.puts '[fmt] FMT_USE_CONSTEVAL 0 olarak sabitlendi (Xcode 26 consteval)'
         else
-          Pod::UI.warn '[fmt] BEKLENEN METIN YOK - yama UYGULANMADI. fmt surumu degismis olabilir.'
+          raise '[fmt] Expected fmt 11.0.2 consteval block is missing; review the locked dependency.'
         end
       end
     else
-      Pod::UI.warn '[fmt] base.h bulunamadi: ' + fmt_base
+      raise '[fmt] Required fmt header is missing: ' + fmt_base
     end
     # --- fmt yamasi sonu ---
 `;
