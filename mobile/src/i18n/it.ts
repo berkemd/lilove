@@ -434,4 +434,8 @@ export const it = {
   progress_today_remaining: 'Rimasti oggi: {count}',
   progress_today_complete: 'Tutte le abitudini attive sono segnate come completate oggi.',
   progress_today_scope: 'In base alle registrazioni di oggi per le tue abitudini attive.',
+  profile_unavailable_title: 'Impossibile caricare il profilo',
+  profile_unavailable_body:
+    'Sei connesso al tuo account, ma il tuo profilo non è disponibile. Riprova o esci.',
+  profile_loading: 'Caricamento del tuo profilo…',
 } as const;

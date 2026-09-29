@@ -252,16 +252,21 @@ export async function updateUserProfile(uid: string, data: Partial<UserProfile>)
 
 export function subscribeToUserProfile(
   uid: string,
-  callback: (data: UserProfile | null) => void
+  callback: (data: UserProfile | null) => void,
+  onError: (error: Error) => void
 ): () => void {
   const userRef = doc(db, 'users', uid);
-  return onSnapshot(userRef, (doc) => {
-    if (doc.exists()) {
-      callback({ id: doc.id, ...doc.data() } as UserProfile);
-    } else {
-      callback(null);
-    }
-  });
+  return onSnapshot(
+    userRef,
+    (doc) => {
+      if (doc.exists()) {
+        callback({ id: doc.id, ...doc.data() } as UserProfile);
+      } else {
+        callback(null);
+      }
+    },
+    onError
+  );
 }
 
 export async function createGoal(

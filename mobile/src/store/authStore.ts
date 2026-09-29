@@ -24,6 +24,7 @@ interface AuthState {
   isDemo: boolean;
   isLoading: boolean;
   error: string | null;
+  profileStatus: 'idle' | 'loading' | 'ready' | 'error';
 
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
@@ -34,7 +35,17 @@ interface AuthState {
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
   updateMood: (mood: string) => Promise<void>;
   initializeAuth: () => () => void;
+  retryProfile: () => void;
 }
+
+type AuthSession = {
+  retryProfile: () => void;
+  suspend: () => void;
+  resume: () => void;
+  dispose: () => void;
+};
+let activeSession: AuthSession | null = null;
+let authActionRevision = 0;
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -43,24 +54,117 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isDemo: false,
   isLoading: true,
   error: null,
+  profileStatus: 'idle',
+  retryProfile: () => activeSession?.retryProfile(),
 
   initializeAuth: () => {
+    activeSession?.dispose();
     let unsubscribeProfile: (() => void) | null = null;
+    let unsubscribeAuth: () => void = () => {};
+    let profileTimer: ReturnType<typeof setTimeout> | null = null;
+    let currentUser: User | null = null;
     let revision = 0;
+    let profileAttempt = 0;
     let disposed = false;
+    let suspended = false;
 
+    const clearProfileTimer = () => {
+      if (profileTimer !== null) clearTimeout(profileTimer);
+      profileTimer = null;
+    };
     const detachProfile = () => {
+      profileAttempt++;
+      clearProfileTimer();
       unsubscribeProfile?.();
       unsubscribeProfile = null;
     };
-    const unsubscribeAuth = subscribeToAuthState(async (firebaseUser) => {
-      if (disposed || (!firebaseUser && get().isDemo)) return;
-      const current = ++revision;
-      const isCurrent = () => !disposed && current === revision;
+    const startProfile = () => {
+      const user = currentUser;
+      if (disposed || suspended || !user || get().isDemo || !get().isAuthenticated) return;
+      if (get().user?.uid !== user.uid) return;
       detachProfile();
+      const current = revision;
+      const attempt = profileAttempt;
+      const isCurrent = () =>
+        !disposed &&
+        !suspended &&
+        current === revision &&
+        attempt === profileAttempt &&
+        get().isAuthenticated &&
+        !get().isDemo &&
+        get().user?.uid === user.uid;
+      // Keep an open screen/form mounted during a same-account token refresh.
+      const hasReadyProfile = get().profileStatus === 'ready' && get().userProfile !== null;
+      set({ profileStatus: hasReadyProfile ? 'ready' : 'loading' });
+      let waitingForFirstResponse = true;
+      const fail = () => {
+        if (!isCurrent()) return;
+        waitingForFirstResponse = false;
+        clearProfileTimer();
+        set({ profileStatus: 'error', isLoading: false });
+      };
+      profileTimer = setTimeout(() => {
+        if (waitingForFirstResponse) fail();
+      }, 15000);
+      try {
+        const unsubscribe = subscribeToUserProfile(
+          user.uid,
+          (profile) => {
+            if (!isCurrent()) return;
+            waitingForFirstResponse = false;
+            clearProfileTimer();
+            if (profile === null) {
+              // Keep listening: a signup document may arrive after this snapshot.
+              set({ profileStatus: 'error', isLoading: false });
+              return;
+            }
+            set({ userProfile: profile, profileStatus: 'ready', isLoading: false });
+          },
+          fail
+        );
+        if (isCurrent()) unsubscribeProfile = unsubscribe;
+        else unsubscribe();
+      } catch {
+        fail();
+      }
+    };
+    const session: AuthSession = {
+      retryProfile: startProfile,
+      suspend: () => {
+        suspended = true;
+        revision++;
+        currentUser = null;
+        detachProfile();
+      },
+      resume: () => {
+        suspended = false;
+      },
+      dispose: () => {
+        if (disposed) return;
+        disposed = true;
+        revision++;
+        currentUser = null;
+        unsubscribeAuth();
+        detachProfile();
+        if (activeSession === session) activeSession = null;
+      },
+    };
+    activeSession = session;
+    unsubscribeAuth = subscribeToAuthState(async (firebaseUser) => {
+      if (disposed || suspended || (!firebaseUser && get().isDemo)) return;
+      const current = ++revision;
+      const isCurrent = () => !disposed && !suspended && current === revision;
+      detachProfile();
+      currentUser = firebaseUser;
 
       if (!firebaseUser) {
-        set({ user: null, userProfile: null, isAuthenticated: false, isLoading: false });
+        set({
+          user: null,
+          userProfile: null,
+          isAuthenticated: false,
+          isLoading: false,
+          profileStatus: 'idle',
+        });
         await tokenManager.clearToken();
         return;
       }
@@ -74,6 +178,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isDemo: false,
           isLoading: true,
           error: null,
+          profileStatus: 'idle',
         });
         await tokenManager.clearToken();
         if (!isCurrent()) return;
@@ -86,55 +191,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (!isCurrent()) return;
       } catch {
         if (!isCurrent()) return;
+        currentUser = null;
+        detachProfile();
         set({
           user: null,
           userProfile: null,
           isAuthenticated: false,
           isLoading: false,
           error: t('login_failed'),
+          profileStatus: 'idle',
         });
         await tokenManager.clearToken();
         return;
       }
 
-      set({ user: firebaseUser, isAuthenticated: true, isDemo: false });
-      unsubscribeProfile = subscribeToUserProfile(firebaseUser.uid, (profile) => {
-        if (!isCurrent()) return;
-        set({
-          userProfile: profile ?? {
-            id: firebaseUser.uid,
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            photoURL: firebaseUser.photoURL || undefined,
-            isPremium: false,
-            subscriptionTier: 'free',
-            coinBalance: 100,
-            onboardingCompleted: false,
-            settings: { theme: 'light', notifications: true, language: 'en' },
-            stats: {
-              totalGoals: 0,
-              completedGoals: 0,
-              currentStreak: 0,
-              longestStreak: 0,
-              totalXP: 0,
-              level: 1,
-            },
-          },
-          isLoading: false,
-        });
-      });
+      set({ user: firebaseUser, isAuthenticated: true, isDemo: false, isLoading: false });
+      startProfile();
     });
 
-    return () => {
-      disposed = true;
-      revision++;
-      unsubscribeAuth();
-      detachProfile();
-    };
+    return session.dispose;
   },
 
   login: async (email, password) => {
+    authActionRevision++;
+    activeSession?.resume();
     try {
       set({ isLoading: true, error: null });
       await signInWithEmail(email, password);
@@ -146,6 +226,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   register: async (email, password, displayName) => {
+    authActionRevision++;
+    activeSession?.resume();
     try {
       set({ isLoading: true, error: null });
       await signUpWithEmail(email, password, displayName || email.split('@')[0]);
@@ -157,34 +239,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    console.log('[AuthStore] Logout initiated...');
-    // DEMO TURUNDAN ÇIKIŞ FIREBASE'E GİTMEZ.
-    // Demo oturumunda Firebase kullanıcısı hiç yok; `firebaseLogout()`
-    // çağırmak orada bir hata üretir ve kullanıcı giriş ekranına
-    // dönemez. Önce demo dalı.
-    if (get().isDemo) {
-      await tokenManager.clearToken();
-      set({
-        user: null,
-        userProfile: null,
-        isAuthenticated: false,
-        isDemo: false,
-        isLoading: false,
-        error: null,
-      });
-      return;
-    }
+    const action = ++authActionRevision;
+    const wasDemo = get().isDemo;
+    activeSession?.suspend();
+    const clearing = tokenManager.clearToken();
+    set({
+      user: null,
+      userProfile: null,
+      isAuthenticated: false,
+      isDemo: false,
+      isLoading: true,
+      error: null,
+      profileStatus: 'idle',
+    });
     try {
-      await firebaseLogout();
-      console.log('[AuthStore] Logout complete');
+      if (!wasDemo) await firebaseLogout();
     } catch (error: any) {
-      console.error('[AuthStore] Logout error:', error);
-      set({
-        user: null,
-        userProfile: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
+      if (action === authActionRevision) set({ error: getErrorMessage(error) });
+    } finally {
+      await clearing;
+      if (action === authActionRevision) set({ isLoading: false });
     }
   },
 
@@ -195,6 +269,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     nonce: string;
     fullName?: { givenName?: string | null; familyName?: string | null };
   }) => {
+    authActionRevision++;
+    activeSession?.resume();
     try {
       set({ isLoading: true, error: null });
       console.log('[AuthStore] Apple login with Firebase...');
@@ -209,6 +285,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   googleLogin: async (response: { idToken: string }) => {
+    authActionRevision++;
+    activeSession?.resume();
     try {
       set({ isLoading: true, error: null });
       console.log('[AuthStore] Google login with Firebase...');

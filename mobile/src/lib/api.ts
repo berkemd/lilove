@@ -20,8 +20,8 @@ class ApiClient {
 
   constructor() {
     this.baseURL =
-      process.env.EXPO_PUBLIC_API_URL ||
       Constants.expoConfig?.extra?.apiUrl ||
+      process.env.EXPO_PUBLIC_API_URL ||
       'https://lilove.org';
     this.maxRetries = 3;
     this.retryDelay = 1000;

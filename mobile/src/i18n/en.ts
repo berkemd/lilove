@@ -427,4 +427,8 @@ export const en = {
   progress_today_remaining: 'Remaining today: {count}',
   progress_today_complete: 'Every active habit is marked done today.',
   progress_today_scope: 'Based on today’s check-ins for your active habits.',
+  profile_unavailable_title: 'Your profile could not be loaded',
+  profile_unavailable_body:
+    'Your account is signed in, but your profile is unavailable. Try again or sign out.',
+  profile_loading: 'Loading your profile…',
 } as const;

@@ -1,3 +1,5 @@
+import { resolveApiOrigin } from './config/apiOrigin.cjs';
+
 export default {
   expo: {
     name: 'LiLove',
@@ -39,7 +41,7 @@ export default {
       eas: {
         projectId: 'ab7bb029-eeb4-4407-a810-a9b27462f0ae',
       },
-      apiUrl: 'https://lilove.org',
+      apiUrl: resolveApiOrigin(process.env),
       firebase: {
         apiKey: process.env.FIREBASE_API_KEY || 'AIzaSyDYkdHendqbURTk4FxjLnYNwmxtqPEYHfY',
         projectId: 'lilove-e8b3a',

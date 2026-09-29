@@ -54,3 +54,41 @@ persistence, signed restart, background expiration and real SSO gates above
 remain open until device validation.
 
 These safeguards are not a complete authentication or release certification.
+
+## Profile recovery — task 0086
+
+Authentication and profile loading now have separate state. After a valid ID token
+is obtained, `profileStatus` records `loading`, `ready` or `error`; it does not
+change a verified identity into a failed sign-in just because a profile read
+failed. The Firebase snapshot adapter forwards its error callback. A synchronous
+subscription failure, missing document or no first response within 15 seconds
+opens explicit profile recovery instead of an indefinite application spinner.
+No account profile, balance or entitlement is fabricated for a missing document.
+
+The recovery screen has Retry and Log Out. Logout remains available while a
+profile attempt is pending. Retry replaces only that account's profile listener;
+it does not create another auth listener. Account revision, profile attempt and
+disposal checks reject stale success, error and timer callbacks. Timers are cleared
+on response or cancellation. A timeout does not cancel network work: the current
+attempt's late successful snapshot may recover. A missing document's live listener
+may similarly receive the document created by signup later.
+
+A same-account token refresh retains a previously ready profile and mounted main
+screen while its listener is renewed. A failed refresh invalidates any concurrent
+profile retry. The sample-data tour remains independent of profile recovery.
+Profile recovery never writes or deletes user documents and preserves the fields
+of successful snapshots.
+
+Logout immediately invalidates profile work and clears the local session/token
+before waiting for Firebase sign-out. Late callbacks cannot reopen that session.
+A failed SDK sign-out is reported locally and does not certify that Firebase's
+persisted state was removed; explicit sign-in can start a new local auth attempt.
+The existing signed-device/restart verification boundary remains open.
+
+The original source failed all nine initial profile regression cases; that log is
+preserved in the portfolio audit. Additional tests execute the actual snapshot
+adapter, recovery component and AppContent routing, alongside the auth store with
+controlled callbacks/timers. They cover permission errors, synchronous throws,
+missing/late documents, timeout, retry, account switch, token rotation, disposal,
+logout, and field preservation. These are local behavioral tests, not real
+Firebase-account, network or signed-device validation.
