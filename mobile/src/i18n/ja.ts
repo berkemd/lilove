@@ -1,6 +1,12 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  account_name_update_failed_body:
+    'プロフィールは保存されましたが、アカウントの表示名の更新に失敗しました。このアカウントでサインインできます。',
+  verification_email_failed_title: 'アカウントが作成されました',
+  verification_email_failed_body:
+    'アカウントとプロフィールは作成されましたが、確認メールを送信できませんでした。このアカウントでサインインできます。',
+
   edit_goal: '目標を編集',
   update: '更新',
   other_goals: 'その他の目標',

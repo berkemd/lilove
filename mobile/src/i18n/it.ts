@@ -1,6 +1,12 @@
 // LiLove · it arayuz katalogu — URETILDI, elle duzenleme
 
 export const it = {
+  account_name_update_failed_body:
+    'Il tuo profilo è stato salvato, ma non è stato possibile aggiornare il nome visualizzato del tuo account. Puoi accedere con questo account.',
+  verification_email_failed_title: 'Account creato',
+  verification_email_failed_body:
+    'Il tuo account e il tuo profilo sono stati creati, ma l’e-mail di verifica non è stata inviata. Puoi accedere con questo account.',
+
   edit_goal: 'Modifica obiettivo',
   update: 'Aggiorna',
   other_goals: 'Altri obiettivi',

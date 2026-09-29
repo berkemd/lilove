@@ -1,6 +1,12 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  account_name_update_failed_body:
+    'Your profile was saved, but your account display name could not be updated. You can sign in with this account.',
+  verification_email_failed_title: 'Account created',
+  verification_email_failed_body:
+    'Your account and profile were created, but the verification email could not be sent. You can sign in with this account.',
+
   edit_goal: 'Edit Goal',
   update: 'Update',
   other_goals: 'Other Goals',

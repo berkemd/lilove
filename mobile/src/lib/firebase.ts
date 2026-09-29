@@ -16,7 +16,7 @@ import {
   getFirestore,
   doc,
   getDoc,
-  setDoc,
+  runTransaction,
   updateDoc,
   collection,
   query,
@@ -114,6 +114,27 @@ export interface Connection {
   updatedAt: any;
 }
 
+type AccountSetupFailure = 'account-name' | 'verification-email';
+
+export class AccountSetupError extends Error {
+  readonly code = 'auth/account-setup-incomplete';
+
+  constructor(readonly failures: readonly AccountSetupFailure[]) {
+    super(
+      failures
+        .map((failure) =>
+          t(
+            failure === 'account-name'
+              ? 'account_name_update_failed_body'
+              : 'verification_email_failed_body'
+          )
+        )
+        .join('\n\n')
+    );
+    this.name = 'AccountSetupError';
+  }
+}
+
 export async function signUpWithEmail(
   email: string,
   password: string,
@@ -122,16 +143,29 @@ export async function signUpWithEmail(
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
   if (userCredential.user) {
-    await updateProfile(userCredential.user, { displayName });
-    await sendEmailVerification(userCredential.user);
     await createUserDocument(userCredential.user, { displayName });
+    const failures: AccountSetupFailure[] = [];
+    try {
+      await updateProfile(userCredential.user, { displayName });
+    } catch {
+      failures.push('account-name');
+    }
+    try {
+      await sendEmailVerification(userCredential.user);
+    } catch {
+      failures.push('verification-email');
+    }
+    // Neither follow-up failure means account/profile creation failed.
+    if (failures.length > 0) throw new AccountSetupError(failures);
   }
 
   return userCredential;
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<UserCredential> {
-  return signInWithEmailAndPassword(auth, email, password);
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  await createUserDocument(userCredential.user);
+  return userCredential;
 }
 
 export async function logout(): Promise<void> {
@@ -189,16 +223,24 @@ export async function signInWithGoogleCredential(idToken: string): Promise<UserC
 
 async function createUserDocument(user: User, additionalData?: Record<string, any>): Promise<void> {
   const userRef = doc(db, 'users', user.uid);
-  const userSnap = await getDoc(userRef);
+  await runTransaction(db, async (transaction) => {
+    const userSnap = await transaction.get(userRef);
+    // Only login timestamps change; existing and concurrently created data wins.
+    if (userSnap.exists()) {
+      transaction.update(userRef, {
+        lastLoginAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
 
-  if (!userSnap.exists()) {
     const { displayName, email, photoURL, uid } = user;
 
-    await setDoc(userRef, {
+    transaction.set(userRef, {
       uid,
-      email,
-      displayName: displayName || additionalData?.displayName || email?.split('@')[0],
-      photoURL,
+      email: email || '',
+      displayName: displayName || additionalData?.displayName || email?.split('@')[0] || '',
+      photoURL: photoURL || null,
       isPremium: false,
       subscriptionTier: 'free',
       coinBalance: 100,
@@ -220,12 +262,7 @@ async function createUserDocument(user: User, additionalData?: Record<string, an
         level: 1,
       },
     });
-  } else {
-    await updateDoc(userRef, {
-      lastLoginAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-  }
+  });
 }
 
 export function subscribeToAuthState(callback: (user: User | null) => void): () => void {
