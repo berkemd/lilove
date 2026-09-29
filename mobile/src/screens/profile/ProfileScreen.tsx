@@ -341,7 +341,7 @@ export default function ProfileScreen({ navigation }: any) {
                     {isFree ? t('unlock_premium') : t('subscription')}
                   </Text>
                   <Text style={styles.menuItemSubtext}>
-                    {isFree ? t('get_unlimited_access') : t('subscription_unverified')}
+                    {isFree ? t('choose_your_plan') : t('subscription_unverified')}
                   </Text>
                 </View>
               </View>

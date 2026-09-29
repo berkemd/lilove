@@ -4,70 +4,101 @@ const TOKEN_KEY = 'authToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
 let cachedToken: string | null = null;
-let tokenListeners: Array<(token: string | null) => void> = [];
+let cachedRefreshToken: string | null = null;
+let tokenLoaded = false;
+let refreshLoaded = false;
+let tokenRevision = 0;
+let refreshRevision = 0;
+let persistence: Promise<void> = Promise.resolve();
+const tokenListeners = new Set<(token: string | null) => void>();
+
+function notifyToken(token: string | null) {
+  const revision = tokenRevision;
+  for (const listener of [...tokenListeners]) {
+    if (revision !== tokenRevision) return;
+    try {
+      listener(token);
+    } catch {
+      console.warn('[TokenManager] Token subscriber failed');
+    }
+  }
+}
+
+// Keep disk mutations in intent order: an older write must finish before logout
+// removes it. Memory changes immediately, even if the keychain is unavailable.
+function persist(operation: () => Promise<void>): Promise<void> {
+  const next = persistence.then(operation).catch(() => {
+    console.warn('[TokenManager] Keychain unavailable; using current in-memory session');
+  });
+  persistence = next;
+  return next;
+}
 
 export const tokenManager = {
   async getToken(): Promise<string | null> {
+    if (tokenLoaded) return cachedToken;
+    const revision = tokenRevision;
     try {
-      // BELLEK ONCE. Bu oturumda zaten bir jeton belirlendiyse, onu
-      // diskten teyit etmeye calismak yalniz yeni bir dusme noktasi
-      // ekler. Disk kalicilik icindir, dogruluk icin degil.
-      if (cachedToken) return cachedToken;
       const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      console.log('[TokenManager] getToken - token exists:', !!token, 'length:', token?.length || 0);
-      if (token) {
-        cachedToken = token; // Update cache for getCachedToken()
+      if (!tokenLoaded && revision === tokenRevision) {
+        cachedToken = token;
+        tokenLoaded = true;
       }
-      return token;
-    } catch (error) {
-      console.error('[TokenManager] Error getting token:', error);
-      return null;
+    } catch {
+      console.warn('[TokenManager] Could not read keychain');
     }
+    return cachedToken;
   },
 
   async setToken(token: string): Promise<void> {
-    try {
-      cachedToken = token;
-      await SecureStore.setItemAsync(TOKEN_KEY, token);
-      console.log('[TokenManager] Token saved, length:', token.length);
-      tokenListeners.forEach(listener => listener(token));
-    } catch (error) {
-      // YAZAMAMAK OTURUMU BITIRMEZ. Jeton bellekte duruyor; uygulama
-      // calisir, yalniz bir sonraki aciliste yeniden giris istenir.
-      // Burada `throw` etmek, anahtar zinciri kullanilamayan her
-      // cihazda uygulamayi tumden kilitliyordu.
-      console.warn('[TokenManager] jeton diske yazilamadi; oturum bellekte surduruluyor', error);
-      tokenListeners.forEach(listener => listener(token));
-    }
+    cachedToken = token;
+    tokenLoaded = true;
+    tokenRevision++;
+    const saving = persist(() => SecureStore.setItemAsync(TOKEN_KEY, token));
+    notifyToken(token);
+    await saving;
   },
 
   async clearToken(): Promise<void> {
-    try {
-      cachedToken = null;
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-      console.log('[TokenManager] Token cleared');
-      tokenListeners.forEach(listener => listener(null));
-    } catch (error) {
-      console.error('[TokenManager] Error clearing token:', error);
-    }
+    cachedToken = null;
+    cachedRefreshToken = null;
+    tokenLoaded = true;
+    refreshLoaded = true;
+    tokenRevision++;
+    refreshRevision++;
+    const clearing = persist(async () => {
+      const results = await Promise.allSettled([
+        SecureStore.deleteItemAsync(TOKEN_KEY),
+        SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+      ]);
+      if (results.some((result) => result.status === 'rejected')) {
+        throw new Error('Keychain deletion failed');
+      }
+    });
+    notifyToken(null);
+    await clearing;
   },
 
   async setRefreshToken(token: string): Promise<void> {
-    try {
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
-    } catch (error) {
-      console.error('[TokenManager] Error saving refresh token:', error);
-    }
+    cachedRefreshToken = token;
+    refreshLoaded = true;
+    refreshRevision++;
+    await persist(() => SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token));
   },
 
   async getRefreshToken(): Promise<string | null> {
+    if (refreshLoaded) return cachedRefreshToken;
+    const revision = refreshRevision;
     try {
-      return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-    } catch (error) {
-      console.error('[TokenManager] Error getting refresh token:', error);
-      return null;
+      const token = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+      if (!refreshLoaded && revision === refreshRevision) {
+        cachedRefreshToken = token;
+        refreshLoaded = true;
+      }
+    } catch {
+      console.warn('[TokenManager] Could not read refresh credential');
     }
+    return cachedRefreshToken;
   },
 
   getCachedToken(): string | null {
@@ -75,17 +106,15 @@ export const tokenManager = {
   },
 
   onTokenChange(listener: (token: string | null) => void): () => void {
-    tokenListeners.push(listener);
+    tokenListeners.add(listener);
     return () => {
-      tokenListeners = tokenListeners.filter(l => l !== listener);
+      tokenListeners.delete(listener);
     };
   },
 
   async initialize(): Promise<void> {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
-    cachedToken = token;
-    console.log('[TokenManager] Initialized, hasToken:', !!token);
-  }
+    await this.getToken();
+  },
 };
 
 export default tokenManager;

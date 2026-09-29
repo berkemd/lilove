@@ -92,7 +92,8 @@ const native = {
 function mount(relative, imports = {}, props = {}) {
   const states = [];
   let cursor = 0;
-  let mounted = false;
+  let effectCursor = 0;
+  const effectDependencies = [];
   let focus;
   const effects = [];
   const navigated = [];
@@ -112,8 +113,13 @@ function mount(relative, imports = {}, props = {}) {
       if (!(index in states)) states[index] = { current: initial };
       return states[index];
     },
-    useEffect: (callback) => {
-      if (!mounted) effects.push(callback);
+    useEffect: (callback, dependencies) => {
+      const index = effectCursor++;
+      const previous = effectDependencies[index];
+      if (!dependencies || !previous || dependencies.some((value, i) => value !== previous[i])) {
+        effects.push(callback);
+      }
+      effectDependencies[index] = dependencies;
     },
     useCallback: (callback) => callback,
     useMemo: (callback) => callback(),
@@ -142,8 +148,8 @@ function mount(relative, imports = {}, props = {}) {
   }).default;
   const render = () => {
     cursor = 0;
+    effectCursor = 0;
     const tree = Screen({ navigation: { navigate: (route) => navigated.push(route) }, ...props });
-    mounted = true;
     return tree;
   };
   const initial = render();
@@ -152,21 +158,22 @@ function mount(relative, imports = {}, props = {}) {
     render,
     navigated,
     focus: () => focus(),
-    effects: () => effects.forEach((run) => run()),
+    effects: () => effects.splice(0).forEach((run) => run()),
   };
 }
 
-function mountProfile(getUserStats) {
+function mountProfile(getUserStats, imports = {}) {
   return mount('src/screens/profile/ProfileScreen.tsx', {
     '../../lib/api': { default: { getUserStats } },
     '../../services/storage': { default: {} },
     'expo-image-picker': {},
     'expo-constants': { default: { expoConfig: { version: '1.2', ios: { buildNumber: '125' } } } },
     '../../hooks/useSubscription': { useSubscription: () => ({ status: 'loading' }) },
+    ...imports,
   });
 }
 
-function mountAvatar(overrides = {}) {
+function mountAvatar(overrides = {}, imports = {}) {
   return mount('src/screens/avatar/AvatarScreen.tsx', {
     '../../lib/api': {
       api: {
@@ -179,6 +186,7 @@ function mountAvatar(overrides = {}) {
       },
     },
     '../../components/LivingForest': { default: 'LivingForest' },
+    ...imports,
   });
 }
 
@@ -300,7 +308,7 @@ test('Avatar displays the server level instead of inventing level one from a mis
   assert(
     findTree(
       tree,
-      (node) => node.type === 'Text' && JSON.stringify(node.props.children) === '["Level ",7]'
+      (node) => node.type === 'Text' && JSON.stringify(node.props.children) === '["level"," ",7]'
     )
   );
   assert.equal(
@@ -346,7 +354,7 @@ test('each Avatar read failure stays visible and retry restores the verified lev
     assert(
       findTree(
         tree,
-        (node) => node.type === 'Text' && JSON.stringify(node.props.children) === '["Level ",7]'
+        (node) => node.type === 'Text' && JSON.stringify(node.props.children) === '["level"," ",7]'
       )
     );
   }
@@ -645,5 +653,216 @@ test('actual navigator options localize all tabs and Avatar back labels without 
     assert.equal(avatar.props.options.headerBackTruncatedTitle, catalog.nav_back);
     assert.equal(avatar.props.options.headerBackAccessibilityLabel, catalog.nav_back);
     assert.notEqual(avatar.props.options.headerBackTitle, 'MainTabs');
+  }
+});
+
+const locales = ['en', 'tr', 'de', 'fr', 'es', 'it', 'ja'];
+function localeCopy(locale) {
+  const catalog = loadSource(`src/i18n/${locale}.ts`)[locale];
+  return {
+    catalog,
+    imports: {
+      '../../i18n': {
+        t: (key) => {
+          assert(catalog[key]?.trim(), `Missing ${locale}.${key}`);
+          return catalog[key];
+        },
+      },
+    },
+  };
+}
+const byId = (tree, id) =>
+  findTree(tree, (node) => node.props?.['data-testid'] === id || node.props?.testID === id);
+const textContent = (node) => {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(textContent).join('');
+  return node?.props ? textContent(node.props.children) : '';
+};
+
+test('Goals localizes edit/create controls and labels while preserving source IDs, status and payloads', async () => {
+  for (const locale of locales) {
+    const { catalog, imports } = localeCopy(locale);
+    const calls = [];
+    const goal = {
+      id: 'goal-source-id',
+      title: 'User $& title',
+      description: 'Untranslated user description',
+      category: 'personal',
+      status: 'paused',
+      progress: '37',
+      targetOutcome: 'User outcome',
+    };
+    const screen = mount('src/screens/goals/GoalsScreen.tsx', {
+      ...imports,
+      '../../lib/api': {
+        api: {
+          getGoals: async () => [goal],
+          updateGoal: async (...args) => calls.push(['update', ...args]),
+          createGoal: async (...args) => calls.push(['create', ...args]),
+        },
+      },
+    });
+    screen.effects();
+    await flush();
+    let tree = screen.render();
+    const card = byId(tree, `card-goal-${goal.id}`);
+    assert(textContent(card).includes(catalog.goal_category_personal));
+    assert(textContent(card).includes(catalog.goal_status_paused));
+    assert(textContent(card).includes(goal.title));
+    card.props.onPress();
+    tree = screen.render();
+    assert(findTree(tree, (node) => node.type === 'Modal' && node.props.visible));
+    assert(findTree(tree, (node) => node.props?.children === catalog.edit_goal));
+    assert.equal(textContent(byId(tree, 'button-save-goal')), catalog.update);
+    for (const category of [
+      'personal',
+      'career',
+      'health',
+      'finance',
+      'relationships',
+      'education',
+    ]) {
+      const key = category === 'health' ? 'health' : `goal_category_${category}`;
+      assert.equal(textContent(byId(tree, `button-category-${category}`)), catalog[key]);
+    }
+    byId(tree, 'button-category-finance').props.onPress();
+    await byId(screen.render(), 'button-save-goal').props.onPress();
+    assert.deepEqual(calls[0], [
+      'update',
+      goal.id,
+      {
+        title: goal.title,
+        description: goal.description,
+        category: 'finance',
+        targetOutcome: goal.targetOutcome,
+      },
+    ]);
+    // Editing display copy must not reset an existing paused goal or its progress.
+    assert.equal('status' in calls[0][2], false);
+    assert.equal('progress' in calls[0][2], false);
+    byId(screen.render(), 'button-new-goal').props.onPress();
+    tree = screen.render();
+    assert(findTree(tree, (node) => node.props?.children === catalog.new_goal));
+    assert.equal(textContent(byId(tree, 'button-save-goal')), catalog.create);
+    byId(tree, 'input-goal-title').props.onChangeText('New user goal');
+    byId(tree, 'button-category-career').props.onPress();
+    await byId(screen.render(), 'button-save-goal').props.onPress();
+    assert.deepEqual(calls[1], [
+      'create',
+      {
+        title: 'New user goal',
+        description: '',
+        category: 'career',
+        targetOutcome: '',
+        status: 'active',
+        progress: '0',
+      },
+    ]);
+    assert.equal(catalog.confirm_delete_goal.match(/\{title\}/g)?.length, 1);
+  }
+});
+
+test('Avatar localizes all known fields and rarity labels without changing trait content or API IDs', async () => {
+  const categories = {
+    appearance: ['skin', 'body', 'face_shape', 'eyes', 'eyebrows', 'nose', 'mouth', 'ears'],
+    hair_face: ['hair', 'hair_color', 'facial_hair', 'makeup', 'glasses'],
+    clothing: ['clothing_top', 'clothing_bottom', 'shoes'],
+    accessories: ['hat', 'jewelry', 'tattoo', 'scars'],
+    effects: ['wings', 'aura', 'pet', 'background', 'frame'],
+  };
+  const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+  const zones = Object.values(categories)
+    .flat()
+    .map((key) => ({ id: `source-${key}`, key, name: `Server ${key}` }));
+  const traits = zones.map((zone, index) => ({
+    id: `trait-${zone.key}`,
+    zoneId: zone.id,
+    name: `Catalog ${zone.key}`,
+    rarity: rarities[index % rarities.length],
+    isDefault: index === 0,
+    coinCost: 50,
+    unlockType: 'purchase',
+  }));
+  const equipped = zones.slice(0, 4).map((zone) => ({
+    id: `equipped-${zone.key}`,
+    zoneId: zone.id,
+    traitId: 'previous-trait',
+    zone,
+    trait: { name: 'Original catalog name', rarity: 'rare' },
+  }));
+  for (const locale of locales) {
+    const { catalog, imports } = localeCopy(locale);
+    const reads = [];
+    const equippedCalls = [];
+    const screen = mountAvatar(
+      {
+        getAvatarZones: async () => zones,
+        getMyEquipped: async () => equipped,
+        getTraitsByZone: async (id) => {
+          reads.push(id);
+          return traits.filter((trait) => trait.zoneId === id);
+        },
+        equipTrait: async (...args) => equippedCalls.push(args),
+      },
+      imports
+    );
+    screen.effects();
+    await flush();
+    for (const [category, keys] of Object.entries(categories)) {
+      byId(screen.render(), `tab-category-${category}`).props.onPress();
+      screen.render();
+      screen.effects();
+      await flush();
+      const tree = screen.render();
+      assert.equal(textContent(byId(tree, `tab-category-${category}`)), catalog[category]);
+      for (const key of keys) {
+        assert.equal(byId(tree, `text-zone-${key}`).props.children, catalog[`avatar_zone_${key}`]);
+        const trait = traits.find((value) => value.zoneId === `source-${key}`);
+        const card = byId(tree, `trait-card-${trait.id}`);
+        assert(card);
+        assert(textContent(card).includes(trait.name));
+        assert(textContent(card).includes(catalog[`rarity_${trait.rarity}`]));
+      }
+      if (category === 'appearance') {
+        assert(textContent(tree).includes(`${catalog.level} 7`));
+        assert(textContent(tree).includes(`${catalog.avatar_zone_skin}:`));
+        assert(textContent(tree).includes(catalog.avatar_more_equipped.replace('{count}', '1')));
+        assert(
+          byId(tree, 'button-get-coins').props.accessibilityLabel.includes(
+            catalog.coin_balance_get_more_coins
+          )
+        );
+        byId(tree, 'trait-card-trait-skin').props.onPress();
+        await flush();
+        assert.deepEqual(equippedCalls, [['source-skin', 'trait-skin']]);
+        byId(screen.render(), 'trait-card-trait-body').props.onPress();
+        const modal = byId(screen.render(), 'modal-purchase');
+        assert(textContent(modal).includes(catalog.rarity_uncommon));
+        assert(textContent(modal).includes(catalog.avatar_unlock_description));
+        assert(textContent(modal).includes('Catalog body'));
+        byId(modal, 'button-cancel-purchase').props.onPress();
+      }
+    }
+    assert.deepEqual(new Set(reads), new Set(zones.map((zone) => zone.id)));
+    assert.equal(catalog.avatar_more_equipped.match(/\{count\}/g)?.length, 1);
+  }
+});
+
+test('free Profile links to plan details without promising unlimited access in every locale', async () => {
+  for (const locale of locales) {
+    const { catalog, imports } = localeCopy(locale);
+    const screen = mountProfile(async () => stats(), {
+      ...imports,
+      '../../hooks/useSubscription': {
+        useSubscription: () => ({ status: 'verified', subscription: { isPremium: false } }),
+      },
+    });
+    screen.focus();
+    await flush();
+    const action = byId(screen.render(), 'button-unlock-premium');
+    assert(textContent(action).includes(catalog.choose_your_plan));
+    assert.equal(textContent(action).includes(catalog.get_unlimited_access), false);
+    action.props.onPress();
+    assert.deepEqual(screen.navigated, ['Premium']);
   }
 });

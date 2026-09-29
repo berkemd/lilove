@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
-import { t } from '../../i18n';
+import { t, type Anahtar } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 
 interface Goal {
@@ -27,6 +27,27 @@ interface Goal {
   estimatedDuration?: number;
   createdAt: string;
   completedAt?: string;
+}
+
+const GOAL_CATEGORY_LABELS = new Map<string, Anahtar>([
+  ['personal', 'goal_category_personal'],
+  ['career', 'goal_category_career'],
+  ['health', 'health'],
+  ['finance', 'goal_category_finance'],
+  ['relationships', 'goal_category_relationships'],
+  ['education', 'goal_category_education'],
+]);
+
+const GOAL_STATUS_LABELS = new Map<string, Anahtar>([
+  ['active', 'goal_status_active'],
+  ['paused', 'goal_status_paused'],
+  ['completed', 'completed'],
+  ['abandoned', 'goal_status_abandoned'],
+]);
+
+function goalLabel(labels: Map<string, Anahtar>, value: string): string {
+  const key = labels.get(value);
+  return key ? t(key) : value;
 }
 
 function SkeletonBox({
@@ -162,21 +183,25 @@ export default function GoalsScreen() {
   };
 
   const handleDeleteGoal = (goal: Goal) => {
-    Alert.alert(t('delete_goal'), `Are you sure you want to delete "${goal.title}"?`, [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.deleteGoal(goal.id);
-            loadGoals();
-          } catch (err) {
-            Alert.alert(t('error'), t('failed_to_delete_goal'));
-          }
+    Alert.alert(
+      t('delete_goal'),
+      t('confirm_delete_goal').replace('{title}', () => goal.title),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteGoal(goal.id);
+              loadGoals();
+            } catch (err) {
+              Alert.alert(t('error'), t('failed_to_delete_goal'));
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const getProgressPercentage = (progress: string): number => {
@@ -227,7 +252,7 @@ export default function GoalsScreen() {
           <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '15' }]}>
             <Ionicons name={statusConfig.icon as any} size={14} color={statusConfig.color} />
             <Text style={[styles.statusText, { color: themeColor(statusConfig.color, 'text') }]}>
-              {goal.status}
+              {goalLabel(GOAL_STATUS_LABELS, goal.status)}
             </Text>
           </View>
         </View>
@@ -241,7 +266,7 @@ export default function GoalsScreen() {
         <View style={styles.goalMeta}>
           <View style={[styles.categoryBadge, { backgroundColor: categoryColor + '15' }]}>
             <Text style={[styles.categoryText, { color: themeColor(categoryColor, 'text') }]}>
-              {goal.category}
+              {goalLabel(GOAL_CATEGORY_LABELS, goal.category)}
             </Text>
           </View>
           <Text style={styles.progressText}>{progressPercentage}%</Text>
@@ -346,21 +371,27 @@ export default function GoalsScreen() {
           <>
             {activeGoals.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Active Goals ({activeGoals.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('active_goals')} ({activeGoals.length})
+                </Text>
                 {activeGoals.map(renderGoalCard)}
               </View>
             )}
 
             {completedGoals.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Completed ({completedGoals.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('completed')} ({completedGoals.length})
+                </Text>
                 {completedGoals.map(renderGoalCard)}
               </View>
             )}
 
             {otherGoals.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Other Goals ({otherGoals.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('other_goals')} ({otherGoals.length})
+                </Text>
                 {otherGoals.map(renderGoalCard)}
               </View>
             )}
@@ -377,10 +408,11 @@ export default function GoalsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{editingGoal ? 'Edit Goal' : 'Create New Goal'}</Text>
+              <Text style={styles.modalTitle}>{editingGoal ? t('edit_goal') : t('new_goal')}</Text>
               <TouchableOpacity
                 onPress={() => setIsModalVisible(false)}
                 style={styles.modalCloseButton}
+                accessibilityLabel={t('close')}
                 data-testid="button-close-modal"
               >
                 <Ionicons name="close" size={24} color={themeColor('#6B7280', 'text')} />
@@ -445,7 +477,7 @@ export default function GoalsScreen() {
                             isSelected && { color: themeColor(catColor, 'text') },
                           ]}
                         >
-                          {cat}
+                          {goalLabel(GOAL_CATEGORY_LABELS, cat)}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -466,7 +498,9 @@ export default function GoalsScreen() {
                   onPress={handleSaveGoal}
                   data-testid="button-save-goal"
                 >
-                  <Text style={styles.saveButtonText}>{editingGoal ? 'Update' : 'Create'}</Text>
+                  <Text style={styles.saveButtonText}>
+                    {editingGoal ? t('update') : t('create')}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
