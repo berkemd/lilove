@@ -18,7 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/authStore';
 import LivingForest from '../../components/LivingForest';
-import { t } from '../../i18n';
+import { t, type Anahtar } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 import { readUserStats, type UserStats } from '../../lib/userStats';
 
@@ -114,6 +114,53 @@ const ZONE_CATEGORIES = [
     zones: ['wings', 'aura', 'pet', 'background', 'frame'],
   },
 ];
+
+const ZONE_LABELS = new Map<string, Anahtar>([
+  ['skin', 'avatar_zone_skin'],
+  ['body', 'avatar_zone_body'],
+  ['face_shape', 'avatar_zone_face_shape'],
+  ['eyes', 'avatar_zone_eyes'],
+  ['eyebrows', 'avatar_zone_eyebrows'],
+  ['nose', 'avatar_zone_nose'],
+  ['mouth', 'avatar_zone_mouth'],
+  ['ears', 'avatar_zone_ears'],
+  ['hair', 'avatar_zone_hair'],
+  ['hair_color', 'avatar_zone_hair_color'],
+  ['facial_hair', 'avatar_zone_facial_hair'],
+  ['makeup', 'avatar_zone_makeup'],
+  ['glasses', 'avatar_zone_glasses'],
+  ['clothing_top', 'avatar_zone_clothing_top'],
+  ['clothing_bottom', 'avatar_zone_clothing_bottom'],
+  ['shoes', 'avatar_zone_shoes'],
+  ['hat', 'avatar_zone_hat'],
+  ['jewelry', 'avatar_zone_jewelry'],
+  ['tattoo', 'avatar_zone_tattoo'],
+  ['scars', 'avatar_zone_scars'],
+  ['wings', 'avatar_zone_wings'],
+  ['aura', 'avatar_zone_aura'],
+  ['pet', 'avatar_zone_pet'],
+  ['background', 'avatar_zone_background'],
+  ['frame', 'avatar_zone_frame'],
+]);
+
+const RARITY_LABELS = new Map<string, Anahtar>([
+  ['common', 'rarity_common'],
+  ['uncommon', 'rarity_uncommon'],
+  ['rare', 'rarity_rare'],
+  ['epic', 'rarity_epic'],
+  ['legendary', 'rarity_legendary'],
+  ['mythic', 'rarity_mythic'],
+]);
+
+function zoneLabel(zone?: AvatarZone): string {
+  const key = zone && ZONE_LABELS.get(zone.key);
+  return key ? t(key) : zone?.name || '';
+}
+
+function rarityLabel(rarity?: string): string {
+  const key = rarity && RARITY_LABELS.get(rarity);
+  return key ? t(key) : rarity || '';
+}
 
 const RARITY_COLORS: Record<string, string> = {
   common: '#6B7280',
@@ -360,7 +407,7 @@ export default function AvatarScreen() {
             style={styles.coinBadge}
             onPress={() => (navigation as any).navigate('Coins')}
             accessibilityRole="button"
-            accessibilityLabel={`${coinBalance} coins. Get more coins.`}
+            accessibilityLabel={`${coinBalance}. ${t('coin_balance_get_more_coins')}`}
             data-testid="button-get-coins"
           >
             <Ionicons name="wallet" size={16} color={themeColor('#92400E', 'text')} />
@@ -384,7 +431,9 @@ export default function AvatarScreen() {
               <Text style={styles.previewTitle}>{t('preview')}</Text>
               <View style={styles.levelBadge}>
                 <Ionicons name="leaf" size={14} color={themeColor('#10B981', 'text')} />
-                <Text style={styles.levelText}>Level {currentLevel}</Text>
+                <Text style={styles.levelText}>
+                  {t('level')} {currentLevel}
+                </Text>
               </View>
             </View>
 
@@ -397,7 +446,7 @@ export default function AvatarScreen() {
                 <View style={styles.equippedList}>
                   {equippedTraits.slice(0, 3).map((eq) => (
                     <View key={eq.id} style={styles.equippedItem}>
-                      <Text style={styles.equippedZone}>{eq.zone?.name}:</Text>
+                      <Text style={styles.equippedZone}>{zoneLabel(eq.zone)}:</Text>
                       <View
                         style={[
                           styles.equippedBadge,
@@ -409,7 +458,12 @@ export default function AvatarScreen() {
                     </View>
                   ))}
                   {equippedTraits.length > 3 && (
-                    <Text style={styles.equippedMore}>+{equippedTraits.length - 3} more</Text>
+                    <Text style={styles.equippedMore}>
+                      {t('avatar_more_equipped').replace(
+                        '{count}',
+                        String(equippedTraits.length - 3)
+                      )}
+                    </Text>
                   )}
                 </View>
               )}
@@ -494,7 +548,7 @@ export default function AvatarScreen() {
             {currentCategoryZones.map((zone) => (
               <View key={zone.id} style={styles.zoneSection}>
                 <Text style={styles.zoneName} data-testid={`text-zone-${zone.key}`}>
-                  {zone.name}
+                  {zoneLabel(zone)}
                 </Text>
 
                 {loadingZones.has(zone.id) ? (
@@ -553,7 +607,7 @@ export default function AvatarScreen() {
                               { backgroundColor: RARITY_COLORS[trait.rarity] },
                             ]}
                           >
-                            <Text style={styles.rarityText}>{trait.rarity}</Text>
+                            <Text style={styles.rarityText}>{rarityLabel(trait.rarity)}</Text>
                           </View>
                         </TouchableOpacity>
                       );
@@ -595,12 +649,12 @@ export default function AvatarScreen() {
                   { backgroundColor: RARITY_COLORS[selectedTrait?.rarity || 'common'] },
                 ]}
               >
-                <Text style={styles.modalRarityText}>{selectedTrait?.rarity}</Text>
+                <Text style={styles.modalRarityText}>{rarityLabel(selectedTrait?.rarity)}</Text>
               </View>
             </View>
 
             <Text style={styles.modalDescription}>
-              {selectedTrait?.description || 'Unlock this trait to customize your avatar.'}
+              {selectedTrait?.description || t('avatar_unlock_description')}
             </Text>
 
             {selectedTrait?.unlockType === 'achievement' ? (

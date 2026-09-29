@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { 
+import {
   auth,
   signUpWithEmail,
   signInWithEmail,
@@ -10,7 +10,7 @@ import {
   updateUserMood,
   signInWithAppleCredential,
   signInWithGoogleCredential,
-  type UserProfile
+  type UserProfile,
 } from '../lib/firebase';
 import type { User } from 'firebase/auth';
 import { tokenManager } from '../services/tokenManager';
@@ -24,7 +24,7 @@ interface AuthState {
   isDemo: boolean;
   isLoading: boolean;
   error: string | null;
-  
+
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName?: string) => Promise<void>;
   appleLogin: (response: any) => Promise<void>;
@@ -46,70 +46,91 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initializeAuth: () => {
     let unsubscribeProfile: (() => void) | null = null;
+    let revision = 0;
+    let disposed = false;
 
+    const detachProfile = () => {
+      unsubscribeProfile?.();
+      unsubscribeProfile = null;
+    };
     const unsubscribeAuth = subscribeToAuthState(async (firebaseUser) => {
-      console.log('[AuthStore] Auth state changed:', firebaseUser?.email || 'null');
-      
-      if (firebaseUser) {
-        set({ user: firebaseUser, isAuthenticated: true });
-        
-        try {
-          const idToken = await firebaseUser.getIdToken();
-          await tokenManager.setToken(idToken);
-          console.log('[AuthStore] Firebase ID token saved to tokenManager');
-        } catch (error) {
-          console.error('[AuthStore] Failed to get Firebase ID token:', error);
-        }
-        
-        unsubscribeProfile = subscribeToUserProfile(firebaseUser.uid, (profile) => {
-          console.log('[AuthStore] Profile updated:', profile?.displayName || 'null');
-          
-          if (profile) {
-            set({ userProfile: profile, isLoading: false });
-          } else {
-            set({ 
-              userProfile: {
-                id: firebaseUser.uid,
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                photoURL: firebaseUser.photoURL || undefined,
-                isPremium: false,
-                subscriptionTier: 'free',
-                coinBalance: 100,
-                onboardingCompleted: false,
-                settings: { theme: 'light', notifications: true, language: 'en' },
-                stats: { totalGoals: 0, completedGoals: 0, currentStreak: 0, longestStreak: 0, totalXP: 0, level: 1 }
-              },
-              isLoading: false 
-            });
-          }
-        });
-      } else {
-        // DEMO OTURUMU FIREBASE'E AIT DEGIL.
-        // Firebase "kullanici yok" dedigi anda burasi state'i sifirliyor
-        // ve jetonu siliyordu; dinleyici gec cozulunce hesapsiz tur
-        // acilir acilmaz kapaniyordu. Demo, Firebase'in bilgisi disinda.
-        if (get().isDemo) return;
-        if (unsubscribeProfile) {
-          unsubscribeProfile();
-          unsubscribeProfile = null;
-        }
+      if (disposed || (!firebaseUser && get().isDemo)) return;
+      const current = ++revision;
+      const isCurrent = () => !disposed && current === revision;
+      detachProfile();
+
+      if (!firebaseUser) {
+        set({ user: null, userProfile: null, isAuthenticated: false, isLoading: false });
         await tokenManager.clearToken();
-        set({ 
-          user: null, 
-          userProfile: null, 
-          isAuthenticated: false, 
-          isLoading: false 
-        });
+        return;
       }
+
+      const changedAccount = get().user?.uid !== firebaseUser.uid || get().isDemo;
+      if (changedAccount) {
+        set({
+          user: firebaseUser,
+          userProfile: null,
+          isAuthenticated: false,
+          isDemo: false,
+          isLoading: true,
+          error: null,
+        });
+        await tokenManager.clearToken();
+        if (!isCurrent()) return;
+      }
+
+      try {
+        const idToken = await firebaseUser.getIdToken();
+        if (!isCurrent()) return;
+        await tokenManager.setToken(idToken);
+        if (!isCurrent()) return;
+      } catch {
+        if (!isCurrent()) return;
+        set({
+          user: null,
+          userProfile: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: t('login_failed'),
+        });
+        await tokenManager.clearToken();
+        return;
+      }
+
+      set({ user: firebaseUser, isAuthenticated: true, isDemo: false });
+      unsubscribeProfile = subscribeToUserProfile(firebaseUser.uid, (profile) => {
+        if (!isCurrent()) return;
+        set({
+          userProfile: profile ?? {
+            id: firebaseUser.uid,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+            photoURL: firebaseUser.photoURL || undefined,
+            isPremium: false,
+            subscriptionTier: 'free',
+            coinBalance: 100,
+            onboardingCompleted: false,
+            settings: { theme: 'light', notifications: true, language: 'en' },
+            stats: {
+              totalGoals: 0,
+              completedGoals: 0,
+              currentStreak: 0,
+              longestStreak: 0,
+              totalXP: 0,
+              level: 1,
+            },
+          },
+          isLoading: false,
+        });
+      });
     });
 
     return () => {
+      disposed = true;
+      revision++;
       unsubscribeAuth();
-      if (unsubscribeProfile) {
-        unsubscribeProfile();
-      }
+      detachProfile();
     };
   },
 
@@ -143,8 +164,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // dönemez. Önce demo dalı.
     if (get().isDemo) {
       await tokenManager.clearToken();
-      set({ user: null, userProfile: null, isAuthenticated: false,
-            isDemo: false, isLoading: false, error: null });
+      set({
+        user: null,
+        userProfile: null,
+        isAuthenticated: false,
+        isDemo: false,
+        isLoading: false,
+        error: null,
+      });
       return;
     }
     try {
@@ -152,18 +179,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.log('[AuthStore] Logout complete');
     } catch (error: any) {
       console.error('[AuthStore] Logout error:', error);
-      set({ 
-        user: null, 
+      set({
+        user: null,
         userProfile: null,
-        isAuthenticated: false, 
-        isLoading: false 
+        isAuthenticated: false,
+        isLoading: false,
       });
     }
   },
 
   clearError: () => set({ error: null }),
 
-  appleLogin: async (response: { identityToken: string; nonce: string; fullName?: { givenName?: string | null; familyName?: string | null } }) => {
+  appleLogin: async (response: {
+    identityToken: string;
+    nonce: string;
+    fullName?: { givenName?: string | null; familyName?: string | null };
+  }) => {
     try {
       set({ isLoading: true, error: null });
       console.log('[AuthStore] Apple login with Firebase...');
@@ -194,7 +225,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updateUser: async (updates) => {
     const { user } = get();
     if (!user) throw new Error(t('no_user_signed_in'));
-    
+
     try {
       await updateUserProfile(user.uid, updates);
     } catch (error: any) {
@@ -207,7 +238,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   updateMood: async (mood) => {
     const { user } = get();
     if (!user) throw new Error(t('no_user_signed_in'));
-    
+
     try {
       await updateUserMood(user.uid, mood);
     } catch (error: any) {

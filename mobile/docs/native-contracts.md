@@ -55,8 +55,10 @@ existing translated sample-data notice.
 - AI generation remains unavailable in the companion server change until
   metering and hard cost controls are implemented. The native capability check
   reflects that policy; it is not itself a spending control.
-- Mixed language in the Goals modal and Avatar category labels remains a
-  separate localization gate; this change only corrects navigation labels.
+- Mixed language in the Goals modal and Avatar field labels was a separate
+  gate at this checkpoint. Task 0083 addresses interface labels in
+  [native-copy.md](native-copy.md); server trait names/descriptions still need
+  a localized catalog contract.
 
 ## Verification
 
