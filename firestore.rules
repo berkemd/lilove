@@ -2,7 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function owner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return request.auth != null && request.auth.uid == uid
+        && !exists(/databases/$(database)/documents/_accountDeletionGuards/$(uid));
     }
 
     function validSettings(settings) {
@@ -84,6 +85,11 @@ service cloud.firestore {
       allow create: if owner(uid) && validCreation(uid);
       allow update: if owner(uid) && validUpdate();
       allow list, delete: if false;
+    }
+
+    // Only the Admin deletion worker may create, read or remove these guards.
+    match /_accountDeletionGuards/{document=**} {
+      allow read, write: if false;
     }
 
     // No discovery, chat, goals, nested profile data or other client collections.

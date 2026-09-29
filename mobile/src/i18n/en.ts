@@ -1,6 +1,45 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  deletion_intro:
+    'Delete your LiLove account and its app data. You will need to confirm your identity. Once deletion starts, some steps cannot be undone.',
+  deletion_subscription_notice:
+    'Deleting your LiLove account does not cancel an Apple subscription. If you have one, manage or cancel it in Apple Subscriptions.',
+  deletion_manage_subscriptions: 'Manage Apple subscriptions',
+  deletion_confirm: 'Confirm identity and request deletion',
+  deletion_status_title: 'Account deletion',
+  deletion_check_status: 'Check deletion status',
+  deletion_cancel_request: 'Cancel deletion request',
+  deletion_pending: 'Your deletion request was accepted. Check its current status here.',
+  deletion_unknown:
+    'The result could not be confirmed. Check the saved request before trying again.',
+  deletion_completed: 'Your LiLove account deletion is complete.',
+  deletion_cancelled: 'Your deletion request was cancelled.',
+  deletion_unavailable:
+    'Account deletion is temporarily unavailable. Your account has not been deleted. Please try again later.',
+  deletion_reauth: 'Confirm your identity using the same account you use for LiLove.',
+  deletion_reauth_failed: 'Identity confirmation failed. Use the same account and try again.',
+  deletion_account_changed:
+    'The signed-in account changed. This screen has stopped following the previous account. A request already sent may still continue.',
+  deletion_storage_failed:
+    'The recovery information could not be saved securely. Deletion was not requested. Please try again.',
+  deletion_status_failed:
+    'The deletion status could not be retrieved. Do not assume the account has been deleted. Please try again.',
+  deletion_retrying:
+    'Deletion is still in progress. A step will be retried; the account is not yet fully deleted.',
+  deletion_apple_required:
+    'Confirm your identity with Apple again to continue this deletion request.',
+  deletion_cannot_cancel: 'Deletion has started and can no longer be cancelled.',
+  deletion_processing: 'Please wait…',
+  deletion_password: 'Enter your LiLove password',
+  deletion_sign_in_required: 'Sign in to your LiLove account to request deletion.',
+  deletion_resume: 'Continue deletion request',
+  deletion_retry_request: 'Retry saved request',
+  deletion_record_missing:
+    'No accepted request was found. You can retry with the saved request information.',
+  deletion_expired:
+    'The saved status access has expired. Contact support if you still need the status of this request.',
+
   task_priority_low: 'Low',
   task_priority_medium: 'Medium',
   task_priority_high: 'High',

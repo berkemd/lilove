@@ -1,6 +1,46 @@
 // LiLove · es arayuz katalogu — URETILDI, elle duzenleme
 
 export const es = {
+  deletion_intro:
+    'Elimine su cuenta de LiLove y sus datos de la aplicación. Deberá confirmar su identidad. Una vez iniciada la eliminación, algunos pasos no se pueden deshacer.',
+  deletion_subscription_notice:
+    'Eliminar su cuenta de LiLove no cancela una suscripción de Apple. Si tiene una, gestiónela o cancélela en Suscripciones de Apple.',
+  deletion_manage_subscriptions: 'Gestionar suscripciones de Apple',
+  deletion_confirm: 'Confirmar identidad y solicitar eliminación',
+  deletion_status_title: 'Eliminación de cuenta',
+  deletion_check_status: 'Verificar estado de eliminación',
+  deletion_cancel_request: 'Cancelar solicitud de eliminación',
+  deletion_pending: 'Su solicitud de eliminación fue aceptada. Verifique su estado actual aquí.',
+  deletion_unknown:
+    'No se pudo confirmar el resultado. Verifique la solicitud guardada antes de volver a intentarlo.',
+  deletion_completed: 'La eliminación de su cuenta de LiLove ha finalizado.',
+  deletion_cancelled: 'Su solicitud de eliminación fue cancelada.',
+  deletion_unavailable:
+    'La eliminación de cuenta no está disponible temporalmente. Su cuenta no ha sido eliminada. Inténtelo de nuevo más tarde.',
+  deletion_reauth: 'Confirme su identidad con la misma cuenta que usa para LiLove.',
+  deletion_reauth_failed:
+    'Fallo en la confirmación de identidad. Use la misma cuenta e inténtelo de nuevo.',
+  deletion_account_changed:
+    'La cuenta conectada cambió. Esta pantalla dejó de seguir la cuenta anterior. Una solicitud ya enviada podría continuar.',
+  deletion_storage_failed:
+    'No se pudo guardar de forma segura la información de recuperación. No se solicitó la eliminación. Inténtelo de nuevo.',
+  deletion_status_failed:
+    'No se pudo obtener el estado de eliminación. No asuma que la cuenta ha sido eliminada. Inténtelo de nuevo.',
+  deletion_retrying:
+    'La eliminación aún está en curso. Se reintentará un paso; la cuenta aún no está completamente eliminada.',
+  deletion_apple_required:
+    'Confirme su identidad con Apple nuevamente para continuar esta solicitud de eliminación.',
+  deletion_cannot_cancel: 'La eliminación ya comenzó y no se puede cancelar.',
+  deletion_processing: 'Espere…',
+  deletion_password: 'Ingrese su contraseña de LiLove',
+  deletion_sign_in_required: 'Inicie sesión en su cuenta de LiLove para solicitar la eliminación.',
+  deletion_resume: 'Continuar solicitud de eliminación',
+  deletion_retry_request: 'Reintentar solicitud guardada',
+  deletion_record_missing:
+    'No se encontró ninguna solicitud aceptada. Puede reintentar con la información guardada.',
+  deletion_expired:
+    'La vigencia del acceso al estado ha expirado. Contacte al soporte si aún necesita el estado de esta solicitud.',
+
   task_priority_low: 'Baja',
   task_priority_medium: 'Media',
   task_priority_high: 'Alta',

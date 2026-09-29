@@ -1,6 +1,44 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  deletion_intro:
+    'LiLove hesabınızı ve uygulama verilerinizi silin. Kimliğinizi doğrulamanız gerekecek. Silme işlemi başladıktan sonra bazı adımlar geri alınamaz.',
+  deletion_subscription_notice:
+    'LiLove hesabınızı silmek, Apple aboneliğini iptal etmez. Varsa, Apple Abonelikler’den yönetin veya iptal edin.',
+  deletion_manage_subscriptions: 'Apple aboneliklerini yönet',
+  deletion_confirm: 'Kimliği doğrula ve silme isteği gönder',
+  deletion_status_title: 'Hesap silme',
+  deletion_check_status: 'Silme durumunu kontrol et',
+  deletion_cancel_request: 'Silme isteğini iptal et',
+  deletion_pending: 'Silme isteğiniz kabul edildi. Güncel durumunu buradan kontrol edin.',
+  deletion_unknown: 'Sonuç doğrulanamadı. Tekrar denemeden önce kayıtlı isteği kontrol edin.',
+  deletion_completed: 'LiLove hesabınızın silinmesi tamamlandı.',
+  deletion_cancelled: 'Silme isteğiniz iptal edildi.',
+  deletion_unavailable:
+    'Hesap silme geçici olarak kullanılamıyor. Hesabınız silinmedi. Lütfen daha sonra tekrar deneyin.',
+  deletion_reauth: 'LiLove için kullandığınız aynı hesapla kimliğinizi doğrulayın.',
+  deletion_reauth_failed: 'Kimlik doğrulama başarısız oldu. Aynı hesabı kullanarak tekrar deneyin.',
+  deletion_account_changed:
+    'Oturum açılan hesap değişti. Bu ekran önceki hesabı izlemeyi durdurdu. Daha önce gönderilen bir istek devam edebilir.',
+  deletion_storage_failed:
+    'Kurtarma bilgileri güvenli şekilde kaydedilemedi. Silme isteği gönderilmedi. Lütfen tekrar deneyin.',
+  deletion_status_failed:
+    'Silme durumu alınamadı. Hesabın silindiğini varsaymayın. Lütfen tekrar deneyin.',
+  deletion_retrying:
+    'Silme işlemi hâlâ devam ediyor. Bir adım yeniden deneniyor; hesap henüz tamamen silinmedi.',
+  deletion_apple_required:
+    'Bu silme isteğini sürdürmek için Apple ile kimliğinizi tekrar doğrulayın.',
+  deletion_cannot_cancel: 'Silme işlemi başladıktan sonra iptal edilemez.',
+  deletion_processing: 'Lütfen bekleyin…',
+  deletion_password: 'LiLove şifrenizi girin',
+  deletion_sign_in_required: 'Silme isteği göndermek için LiLove hesabınıza giriş yapın.',
+  deletion_resume: 'Silme isteğine devam et',
+  deletion_retry_request: 'Kayıtlı isteği yeniden dene',
+  deletion_record_missing:
+    'Kabul edilmiş bir istek bulunamadı. Kayıtlı bilgilerle yeniden deneyebilirsiniz.',
+  deletion_expired:
+    'Durum erişim bilgilerinin süresi doldu. Bu isteğin durumu hâlâ gerekliyse destek ekibiyle iletişime geçin.',
+
   task_priority_low: 'Düşük',
   task_priority_medium: 'Orta',
   task_priority_high: 'Yüksek',

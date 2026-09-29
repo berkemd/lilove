@@ -12,6 +12,7 @@ import notificationService from './src/services/notifications';
 import { initIAP } from './src/services/iap';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ProfileRecovery } from './src/components/ProfileRecovery';
+import { AccountDeletionDialog } from './src/components/AccountDeletionDialog';
 import {
   registerForPushNotifications,
   addNotificationReceivedListener,
@@ -189,6 +190,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AppContent />
+      <AccountDeletionDialog />
     </ThemeProvider>
   );
 }

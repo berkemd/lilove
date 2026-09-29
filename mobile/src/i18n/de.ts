@@ -1,6 +1,49 @@
 // LiLove · de arayuz katalogu — URETILDI, elle duzenleme
 
 export const de = {
+  deletion_intro:
+    'Ihr LiLove-Konto und dessen App-Daten löschen. Sie müssen Ihre Identität bestätigen. Einmal gestartet, können einige Schritte nicht rückgängig gemacht werden.',
+  deletion_subscription_notice:
+    'Das Löschen Ihres LiLove-Kontos kündigt kein Apple-Abonnement. Falls vorhanden, verwalten oder kündigen Sie es in den Apple-Abonnements.',
+  deletion_manage_subscriptions: 'Apple-Abonnements verwalten',
+  deletion_confirm: 'Identität bestätigen und Löschanfrage stellen',
+  deletion_status_title: 'Kontolöschung',
+  deletion_check_status: 'Löschstatus prüfen',
+  deletion_cancel_request: 'Löschanfrage abbrechen',
+  deletion_pending: 'Ihre Löschanfrage wurde angenommen. Prüfen Sie den aktuellen Status hier.',
+  deletion_unknown:
+    'Das Ergebnis konnte nicht bestätigt werden. Prüfen Sie die gespeicherte Anfrage, bevor Sie es erneut versuchen.',
+  deletion_completed: 'Die Löschung Ihres LiLove-Kontos ist abgeschlossen.',
+  deletion_cancelled: 'Ihre Löschanfrage wurde abgebrochen.',
+  deletion_unavailable:
+    'Die Kontolöschung ist vorübergehend nicht verfügbar. Ihr Konto wurde nicht gelöscht. Bitte versuchen Sie es später erneut.',
+  deletion_reauth:
+    'Bestätigen Sie Ihre Identität mit demselben Konto, das Sie für LiLove verwenden.',
+  deletion_reauth_failed:
+    'Identitätsbestätigung fehlgeschlagen. Verwenden Sie das gleiche Konto und versuchen Sie es erneut.',
+  deletion_account_changed:
+    'Das angemeldete Konto hat sich geändert. Dieser Bildschirm verfolgt das vorherige Konto nicht mehr. Eine bereits gesendete Anfrage kann jedoch weiterlaufen.',
+  deletion_storage_failed:
+    'Die Wiederherstellungsinformationen konnten nicht sicher gespeichert werden. Die Löschung wurde nicht angefordert. Bitte versuchen Sie es erneut.',
+  deletion_status_failed:
+    'Der Löschstatus konnte nicht abgerufen werden. Gehen Sie nicht davon aus, dass das Konto gelöscht wurde. Bitte versuchen Sie es erneut.',
+  deletion_retrying:
+    'Die Löschung ist noch im Gange. Ein Schritt wird wiederholt; das Konto ist noch nicht vollständig gelöscht.',
+  deletion_apple_required:
+    'Bestätigen Sie Ihre Identität erneut über Apple, um diese Löschanfrage fortzusetzen.',
+  deletion_cannot_cancel:
+    'Die Löschung wurde bereits gestartet und kann nicht mehr abgebrochen werden.',
+  deletion_processing: 'Bitte warten…',
+  deletion_password: 'Geben Sie Ihr LiLove-Passwort ein',
+  deletion_sign_in_required:
+    'Melden Sie sich bei Ihrem LiLove-Konto an, um eine Löschanfrage zu stellen.',
+  deletion_resume: 'Löschanfrage fortsetzen',
+  deletion_retry_request: 'Gespeicherte Anfrage erneut versuchen',
+  deletion_record_missing:
+    'Keine angenommene Anfrage gefunden. Sie können es mit den gespeicherten Informationen erneut versuchen.',
+  deletion_expired:
+    'Der Zugriff auf die Statusinformationen ist abgelaufen. Kontaktieren Sie den Support, falls Sie den Status dieser Anfrage noch benötigen.',
+
   task_priority_low: 'Niedrig',
   task_priority_medium: 'Mittel',
   task_priority_high: 'Hoch',

@@ -16,9 +16,10 @@ import { t } from '../../i18n';
 import Constants from 'expo-constants';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
+import { accountDeletion } from '../../services/accountDeletion';
 
 export default function SettingsScreen({ navigation }: any) {
-  const { userProfile, updateUser, logout } = useAuthStore();
+  const { userProfile, updateUser, logout, isDemo } = useAuthStore();
   const [notifications, setNotifications] = useState(userProfile?.settings?.notifications ?? true);
   const { isDark: darkMode, setDarkMode, ready, saving, color } = useTheme();
   const styles = useThemedStyles(baseStyles);
@@ -49,16 +50,11 @@ export default function SettingsScreen({ navigation }: any) {
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(t('delete_account'), t('are_you_sure_you_want_to_delete_your_account'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          Alert.alert(t('contact_support'), t('to_delete_your_account_please_contact_suppor'));
-        },
-      },
-    ]);
+    if (isDemo) {
+      Alert.alert(t('delete_account'), t('not_available_in_demo_mode'));
+      return;
+    }
+    void accountDeletion.open();
   };
 
   const handleLogout = () => {

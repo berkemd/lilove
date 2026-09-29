@@ -78,6 +78,7 @@ class ApiClient {
       retryDelay?: number;
       timeout?: number;
       authorizationToken?: string;
+      headers?: Record<string, string>;
     }
   ): Promise<T> {
     // DEMO KİPİ TEK NOKTADAN KESİLİYOR.
@@ -123,6 +124,7 @@ class ApiClient {
       try {
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
+          ...options?.headers,
         };
 
         // Pin the initial account for this operation, including read retries.
@@ -145,7 +147,7 @@ class ApiClient {
           throw {
             status: response.status,
             message: errorData.message || `HTTP ${response.status}`,
-            code: errorData.code,
+            code: errorData.code || errorData.error,
             details: errorData,
           };
         }

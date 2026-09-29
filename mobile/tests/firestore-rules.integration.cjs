@@ -130,6 +130,41 @@ before(async () => {
 beforeEach(async () => environment.clearFirestore());
 after(async () => environment?.cleanup());
 
+test('admin deletion guard blocks a previously authenticated owner without granting marker access', async () => {
+  await seed();
+  await assertSucceeds(getDoc(ref()));
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), '_accountDeletionGuards', uid), { active: true });
+  });
+  await assertFails(getDoc(ref()));
+  await assertFails(updateDoc(ref(), { displayName: 'Late write', updatedAt: serverTimestamp() }));
+  await assertFails(appAdapter().signInWithGoogleCredential('not-a-real-token'));
+  for (const db of [ownerDb, otherDb, anonymousDb]) {
+    const guard = doc(db, '_accountDeletionGuards', uid);
+    await assertFails(getDoc(guard));
+    await assertFails(setDoc(guard, { active: false }));
+    await assertFails(deleteDoc(guard));
+    await assertFails(setDoc(doc(db, 'users', uid, 'private', 'late'), { value: true }));
+  }
+});
+
+test('deletion guard prevents profile recreation, leaves other owners working, and supports admin cancellation', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), '_accountDeletionGuards', uid), { active: true });
+  });
+  await assertFails(appAdapter().signUpWithEmail(email, 'not-a-real-password', 'Owner'));
+  await assertSucceeds(
+    appAdapter(otherDb, {
+      uid: 'other-fixture',
+      email: 'other@example.invalid',
+    }).signUpWithEmail('other@example.invalid', 'not-a-real-password', 'Other')
+  );
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await deleteDoc(doc(context.firestore(), '_accountDeletionGuards', uid));
+  });
+  await assertSucceeds(appAdapter().signUpWithEmail(email, 'not-a-real-password', 'Owner'));
+});
+
 test('actual signup transaction reads a missing own document and creates the exact supported profile', async () => {
   assert.equal((await assertSucceeds(getDoc(ref()))).exists(), false);
   await assertSucceeds(appAdapter().signUpWithEmail(email, 'not-a-real-password', 'Owner'));
