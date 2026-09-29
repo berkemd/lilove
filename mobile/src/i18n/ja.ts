@@ -1,6 +1,25 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  profile_photo_save_incomplete:
+    '写真はアップロードされましたが、プロフィールを更新できませんでした。もう一度お試しください。',
+
+  profile_photo_format_unsupported: 'JPEG、PNG、またはWebP形式の写真を選択してください。',
+
+  coin_shop_about:
+    '目標・習慣・実績を通じてコインを獲得できます。コインはアバターのパーツやショップ商品に使えます。購入は任意です。',
+  coin_shop_unavailable:
+    '現在、コインパックはご利用いただけません。既存の残高は引き続きご利用いただけますし、アプリ内でコインを獲得することも可能です。',
+  coin_shop_demo:
+    'このデモはサンプルデータを使用しています。アカウントを作成して、独自の進捗やコイン残高の記録を開始してください。デモデータは移行されず、デモでは購入はできません。',
+  coin_shop_load_failed: 'コインパックを読み込めませんでした。後ほどもう一度お試しください。',
+  coin_shop_added: '残高に{count}コインが追加されました。',
+  coin_shop_pack: '{count}コイン · {price}',
+  coin_shop_payment:
+    'コインパックはLiLove内で使える都度購入の商品です。コインに有効期限はなく、他のユーザーには譲渡できません。購入を確定するとAppleアカウントに請求されます。',
+  password_minimum_hint: 'パスワード（{count}文字以上）',
+  password_minimum_error: '{count}文字以上のパスワードをご使用ください。',
+
   deletion_intro:
     'LiLoveアカウントおよびアプリデータを削除します。本人確認が必要です。削除処理開始後、一部の手順は取り消せません。',
   deletion_subscription_notice:

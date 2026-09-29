@@ -5,6 +5,30 @@ import { DEMO_TOKEN, demoCevap, demoDisi } from './demoData';
 import { t } from '../i18n';
 import { createHabitsApi } from './habits';
 
+const API_BASE_URL =
+  Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL || 'https://lilove.org';
+const PROFILE_PICTURE_PATH = /^\/uploads\/profile-pictures\/[a-zA-Z0-9_-]+\.(?:webp|png|jpe?g)$/;
+const API_ORIGIN = API_BASE_URL.match(/^https?:\/\/[^/?#]+/)?.[0];
+
+export function resolveProfilePhotoUrl(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  if (PROFILE_PICTURE_PATH.test(value)) return API_ORIGIN ? `${API_ORIGIN}${value}` : undefined;
+  // Preserve provider URLs without depending on native URL getter support.
+  if (
+    /[\s\\]/.test(value) ||
+    [...value].some((character) => character < ' ' || character === '\u007f')
+  ) {
+    return undefined;
+  }
+  return /^https:\/\/[a-zA-Z0-9.-]+(?::\d+)?(?:[/?#].*)?$/.test(value) ? value : undefined;
+}
+
+interface ProfilePhotoAsset {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string;
+}
+
 interface ApiError {
   status: number;
   message: string;
@@ -20,10 +44,7 @@ class ApiClient {
   private timeout: number;
 
   constructor() {
-    this.baseURL =
-      Constants.expoConfig?.extra?.apiUrl ||
-      process.env.EXPO_PUBLIC_API_URL ||
-      'https://lilove.org';
+    this.baseURL = API_BASE_URL;
     this.maxRetries = 3;
     this.retryDelay = 1000;
     this.timeout = 30000;
@@ -122,17 +143,23 @@ class ApiClient {
       let requestStarted = false;
       let responseStarted = false;
       try {
-        const headers: HeadersInit = {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        };
+        const multipart = typeof FormData !== 'undefined' && data instanceof FormData;
+        const headers: Record<string, string> = { ...options?.headers };
+        if (multipart) {
+          // Native fetch owns the multipart boundary.
+          for (const key of Object.keys(headers)) {
+            if (key.toLowerCase() === 'content-type') delete headers[key];
+          }
+        } else {
+          headers['Content-Type'] ??= 'application/json';
+        }
 
         // Pin the initial account for this operation, including read retries.
         if (jeton) {
           headers['Authorization'] = `Bearer ${jeton}`;
         }
 
-        const body = data ? JSON.stringify(data) : undefined;
+        const body = multipart ? data : data ? JSON.stringify(data) : undefined;
         requestStarted = true;
         const response = await fetch(url, {
           method,
@@ -367,19 +394,52 @@ export const api = {
   getCoachRecommendations: async () => apiClient.get('/api/ai-coach/recommendations'),
 
   updateProfile: async (profileData: any) => apiClient.patch('/api/user/profile', profileData),
-  uploadProfilePicture: async (uri: string): Promise<{ profileImageUrl: string }> => {
+  uploadProfilePicture: async (
+    asset: ProfilePhotoAsset,
+    authorizationToken: string
+  ): Promise<{ profileImageUrl: string }> => {
+    const uriName = asset.uri.split(/[?#]/)[0].split('/').pop() || '';
+    const extension = uriName.includes('.') ? uriName.split('.').pop()?.toLowerCase() : undefined;
+    const fallbackExtension = (asset.fileName?.split('.').pop() || '').toLowerCase();
+    const inferred = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      webp: 'image/webp',
+    };
+    const type =
+      asset.mimeType?.toLowerCase() ||
+      inferred[(extension || fallbackExtension) as keyof typeof inferred];
+    const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+    const outputExtension = extensions[type as keyof typeof extensions];
+    if (!outputExtension) {
+      throw {
+        status: 0,
+        code: 'UNSUPPORTED_PHOTO_FORMAT',
+        message: t('profile_photo_format_unsupported'),
+      };
+    }
     const formData = new FormData();
-    const filename = uri.split('/').pop();
-    const match = /\.(\w+)$/.exec(filename!);
-    const type = match ? `image/${match[1]}` : 'image/jpeg';
-
-    formData.append('profilePicture', {
-      uri,
-      name: filename,
+    formData.append('picture', {
+      uri: asset.uri,
+      name: `profile.${outputExtension}`,
       type,
     } as any);
-
-    return apiClient.post('/api/user/profile-picture', formData);
+    const response = await apiClient.post<{ picture?: { filePath?: string } }>(
+      '/api/profile/picture',
+      formData,
+      { authorizationToken, maxRetries: 0 }
+    );
+    const filePath = response?.picture?.filePath;
+    if (typeof filePath !== 'string' || !PROFILE_PICTURE_PATH.test(filePath) || !API_ORIGIN) {
+      throw {
+        status: 0,
+        code: 'INVALID_PHOTO_RESPONSE',
+        outcomeUnknown: true,
+        message: t('request_outcome_unknown'),
+      };
+    }
+    return { profileImageUrl: `${API_ORIGIN}${filePath}` };
   },
 
   getAnalytics: async (

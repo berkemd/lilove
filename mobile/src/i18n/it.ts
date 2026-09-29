@@ -1,6 +1,25 @@
 // LiLove · it arayuz katalogu — URETILDI, elle duzenleme
 
 export const it = {
+  profile_photo_save_incomplete:
+    'La foto è stata caricata, ma non è stato possibile aggiornare il tuo profilo. Riprova.',
+
+  profile_photo_format_unsupported: 'Scegli una foto in formato JPEG, PNG o WebP.',
+
+  coin_shop_about:
+    'Guadagna monete attraverso obiettivi, abitudini e risultati. Usa il tuo saldo per caratteristiche dell’avatar e articoli del negozio; gli acquisti sono facoltativi.',
+  coin_shop_unavailable:
+    'I pacchetti di monete non sono attualmente disponibili. Puoi comunque utilizzare il tuo saldo esistente e guadagnare monete nell’app.',
+  coin_shop_demo:
+    'Questa demo utilizza dati di esempio. Crea un account per iniziare a registrare il tuo progresso e il saldo delle monete. I dati della demo non vengono trasferiti; gli acquisti non sono disponibili nella demo.',
+  coin_shop_load_failed: 'Impossibile caricare i pacchetti di monete. Riprova più tardi.',
+  coin_shop_added: '{count} monete sono state aggiunte al tuo saldo.',
+  coin_shop_pack: '{count} monete · {price}',
+  coin_shop_payment:
+    'I pacchetti di monete sono acquisti una tantum da utilizzare in LiLove. Le monete non scadono e non sono trasferibili. Il pagamento viene addebitato al tuo account Apple al momento della conferma.',
+  password_minimum_hint: 'Password (almeno {count} caratteri)',
+  password_minimum_error: 'Utilizza una password di almeno {count} caratteri.',
+
   deletion_intro:
     'Elimina il tuo account LiLove e i relativi dati dell’app. Dovrai confermare la tua identità. Una volta avviata l’eliminazione, alcuni passaggi non possono essere annullati.',
   deletion_subscription_notice:

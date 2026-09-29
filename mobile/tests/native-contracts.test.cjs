@@ -180,7 +180,8 @@ function mount(relative, imports = {}, props = {}) {
 
 function mountProfile(getUserStats, imports = {}) {
   return mount('src/screens/profile/ProfileScreen.tsx', {
-    '../../lib/api': { default: { getUserStats } },
+    '../../lib/api': { default: { getUserStats }, resolveProfilePhotoUrl: (value) => value },
+    '../../lib/firebase': { updateUserProfile: async () => {} },
     '../../lib/subscriptionAvailability': { areNewSubscriptionsAvailable: () => false },
     '../../services/storage': { default: {} },
     'expo-image-picker': {},
@@ -1130,8 +1131,9 @@ test('actual Coins purchase refreshes common server funds and suppresses success
         },
       },
       '../hooks/useCoinBalance': { useCoinBalance: coins.useCoinBalance },
-      '../i18n': { t: (key) => key },
+      '../i18n': { t: (key) => loadSource('src/i18n/en.ts').en[key] },
       '../lib/accountGate': { purchaseBlockedInDemo: () => false },
+      '../store/authStore': { useAuthStore: (selector) => selector({ isDemo: false }) },
       '../theme/ThemeProvider': {
         useTheme: () => ({ color: (value) => value }),
         useThemedStyles: (styles) => styles,
@@ -1141,7 +1143,7 @@ test('actual Coins purchase refreshes common server funds and suppresses success
     await flush();
     const buy = findTree(
       screen.render(),
-      (node) => node.props?.accessibilityLabel === '100 coins for $1.99'
+      (node) => node.props?.accessibilityLabel === '100 coins · $1.99'
     );
     assert(buy);
     await buy.props.onPress();
@@ -1181,6 +1183,7 @@ test('Coins balance retry after a verified purchase never buys again or claims u
       '../hooks/useCoinBalance': { useCoinBalance: coins.useCoinBalance },
       '../i18n': { t: (key) => catalog[key] },
       '../lib/accountGate': { purchaseBlockedInDemo: () => false },
+      '../store/authStore': { useAuthStore: (selector) => selector({ isDemo: false }) },
       '../theme/ThemeProvider': {
         useTheme: () => ({ color: (value) => value }),
         useThemedStyles: (styles) => styles,
@@ -1190,7 +1193,9 @@ test('Coins balance retry after a verified purchase never buys again or claims u
     await flush();
     await findTree(
       screen.render(),
-      (node) => node.props?.accessibilityLabel === '100 coins for $1.99'
+      (node) =>
+        node.props?.accessibilityLabel ===
+        catalog.coin_shop_pack.replace('{count}', '100').replace('{price}', '$1.99')
     ).props.onPress();
     assert.deepEqual(alerts, [], 'unverified balance must not display a credited success alert');
     assert(
@@ -1210,6 +1215,52 @@ test('Coins balance retry after a verified purchase never buys again or claims u
     assert.equal(byId(screen.render(), 'button-retry-coin-balance'), undefined);
     assert.deepEqual(calls, [product.id]);
     assert.deepEqual(alerts, []);
+  }
+});
+
+test('Coins shows localized empty, failed and demo states without diagnosing an unavailable network', async () => {
+  for (const locale of locales) {
+    const catalog = loadSource(`src/i18n/${locale}.ts`)[locale];
+    for (const mode of ['empty', 'failed', 'demo']) {
+      let loads = 0;
+      const screen = mount('src/screens/CoinsScreen.tsx', {
+        '../config/products': loadSource('src/config/products.ts'),
+        '../services/iap': {
+          loadCoinProducts: async () => {
+            loads++;
+            if (mode === 'failed') throw new Error('INTERNAL_STORE_CODE: private detail');
+            return [];
+          },
+          buyCoins: () => assert.fail('No purchase may start in these states'),
+        },
+        '../hooks/useCoinBalance': {
+          useCoinBalance: () => ({ balance: 100, status: 'ready', refresh: async () => {} }),
+        },
+        '../i18n': { t: (key) => catalog[key] },
+        '../lib/accountGate': { purchaseBlockedInDemo: () => mode === 'demo' },
+        '../store/authStore': { useAuthStore: (selector) => selector({ isDemo: mode === 'demo' }) },
+        '../theme/ThemeProvider': {
+          useTheme: () => ({ color: (value) => value }),
+          useThemedStyles: (styles) => styles,
+        },
+      });
+      screen.effects();
+      await flush();
+      const tree = screen.render();
+      const notice =
+        catalog[
+          mode === 'empty'
+            ? 'coin_shop_unavailable'
+            : mode === 'failed'
+              ? 'coin_shop_load_failed'
+              : 'coin_shop_demo'
+        ];
+      assert(notice?.trim(), `${locale}: missing ${mode} notice`);
+      assert(findTree(tree, (node) => node.props?.children === notice));
+      assert.equal(loads, mode === 'demo' ? 0 : 1);
+      assert(!JSON.stringify(tree).includes('INTERNAL_STORE_CODE'));
+      assert(!JSON.stringify(tree).includes('The App Store is not reachable'));
+    }
   }
 });
 

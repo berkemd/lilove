@@ -1,6 +1,25 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  profile_photo_save_incomplete:
+    'The photo uploaded, but your profile could not be updated. Please try again.',
+
+  profile_photo_format_unsupported: 'Choose a JPEG, PNG, or WebP photo.',
+
+  coin_shop_about:
+    'Earn coins through goals, habits and achievements. Use your balance for avatar traits and shop items; purchases are optional.',
+  coin_shop_unavailable:
+    'Coin packs are currently unavailable. You can still use your existing balance and earn coins in the app.',
+  coin_shop_demo:
+    'This demo uses sample data. Create an account to start recording your own progress and coin balance. Demo data is not transferred; purchases are unavailable in the demo.',
+  coin_shop_load_failed: 'We could not load coin packs. Please try again later.',
+  coin_shop_added: '{count} coins have been added to your balance.',
+  coin_shop_pack: '{count} coins · {price}',
+  coin_shop_payment:
+    'Coin packs are one-time purchases for use in LiLove. Coins do not expire and cannot be transferred. Payment is charged to your Apple Account when you confirm.',
+  password_minimum_hint: 'Password (at least {count} characters)',
+  password_minimum_error: 'Use a password with at least {count} characters.',
+
   deletion_intro:
     'Delete your LiLove account and its app data. You will need to confirm your identity. Once deletion starts, some steps cannot be undone.',
   deletion_subscription_notice:

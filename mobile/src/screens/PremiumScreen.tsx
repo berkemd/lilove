@@ -395,11 +395,19 @@ export default function PremiumScreen({ navigation }: any) {
         )}
 
         <View style={styles.legalRow}>
-          <TouchableOpacity onPress={() => Linking.openURL('https://lilove.org/legal/privacy')}>
+          <TouchableOpacity
+            onPress={() =>
+              Linking.openURL('https://berkemd.github.io/wristsuite/lilove/privacy.html')
+            }
+          >
             <Text style={styles.legalLink}>{t('privacy_policy')}</Text>
           </TouchableOpacity>
           <Text style={styles.legalDot}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('https://lilove.org/legal/terms')}>
+          <TouchableOpacity
+            onPress={() =>
+              Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')
+            }
+          >
             <Text style={styles.legalLink}>{t('terms_of_service')}</Text>
           </TouchableOpacity>
         </View>

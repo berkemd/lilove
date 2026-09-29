@@ -1,6 +1,25 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  profile_photo_save_incomplete:
+    'Fotoğraf yüklendi ancak profilin güncellenemedi. Lütfen tekrar dene.',
+
+  profile_photo_format_unsupported: 'JPEG, PNG veya WebP biçiminde bir fotoğraf seç.',
+
+  coin_shop_about:
+    'Hedefler, alışkanlıklar ve başarımlarla jeton kazan. Bakiyeni avatar özellikleri ve mağaza öğeleri için kullan; satın almak zorunlu değil.',
+  coin_shop_unavailable:
+    'Jeton paketleri şu anda kullanılamıyor. Mevcut bakiyeni kullanmaya ve uygulamada jeton kazanmaya devam edebilirsin.',
+  coin_shop_demo:
+    'Bu demo örnek veriler kullanır. Kendi ilerlemeni ve jeton bakiyeni kaydetmeye başlamak için hesap oluştur. Demo verileri aktarılmaz; demoda satın alma yapılamaz.',
+  coin_shop_load_failed: 'Jeton paketleri yüklenemedi. Lütfen daha sonra tekrar dene.',
+  coin_shop_added: 'Bakiyene {count} jeton eklendi.',
+  coin_shop_pack: '{count} jeton · {price}',
+  coin_shop_payment:
+    'Jeton paketleri LiLove içinde kullanılan tek seferlik satın alımlardır. Jetonların süresi dolmaz ve başkasına aktarılamaz. Ödeme, onayladığında Apple hesabından alınır.',
+  password_minimum_hint: 'Parola (en az {count} karakter)',
+  password_minimum_error: 'En az {count} karakterli bir parola kullan.',
+
   deletion_intro:
     'LiLove hesabınızı ve uygulama verilerinizi silin. Kimliğinizi doğrulamanız gerekecek. Silme işlemi başladıktan sonra bazı adımlar geri alınamaz.',
   deletion_subscription_notice:
