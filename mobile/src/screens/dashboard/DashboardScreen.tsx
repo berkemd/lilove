@@ -4,6 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { MainStackParamList, MainTabParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
 import { useCoinBalance } from '../../hooks/useCoinBalance';
 import { api } from '../../lib/api';
@@ -11,14 +14,6 @@ import { loadDashboardStats, type DashboardStats } from '../../lib/dashboard';
 import MoodSelector from '../../components/MoodSelector';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
-
-type TabParamList = {
-  Dashboard: undefined;
-  Goals: undefined;
-  Habits: undefined;
-  Coach: undefined;
-  Profile: undefined;
-};
 
 function SkeletonBox({
   width,
@@ -75,7 +70,13 @@ export default function DashboardScreen() {
 
   const { user, userProfile, updateMood } = useAuthStore();
   const coins = useCoinBalance();
-  const navigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
+  const navigation =
+    useNavigation<
+      CompositeNavigationProp<
+        BottomTabNavigationProp<MainTabParamList, 'Dashboard'>,
+        StackNavigationProp<MainStackParamList>
+      >
+    >();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -241,7 +242,13 @@ export default function DashboardScreen() {
             <Text style={styles.statLabel}>{t('active_goals')}</Text>
           </View>
 
-          <View style={styles.statCard}>
+          <TouchableOpacity
+            style={styles.statCard}
+            accessibilityRole="button"
+            accessibilityLabel={t('my_tasks')}
+            testID="button-open-tasks"
+            onPress={() => navigation.navigate('Tasks')}
+          >
             <View
               style={[
                 styles.statIconContainer,
@@ -252,7 +259,8 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.statValue}>{stats?.completedTasks || 0}</Text>
             <Text style={styles.statLabel}>{t('completed')}</Text>
-          </View>
+            <Ionicons name="chevron-forward" size={16} color={themeColor('#6B7280', 'text')} />
+          </TouchableOpacity>
 
           <View style={styles.statCard}>
             <View
