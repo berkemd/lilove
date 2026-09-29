@@ -507,7 +507,7 @@ export const en = {
   well_done: '✅ Well Done!',
   purchase_needs_account_title: 'Create a free account first',
   purchase_needs_account_body:
-    "Your subscription is linked to your LiLove account, so your coach and your history follow you to every device. You're in the sample tour, and nothing has been charged.",
+    'The demo uses sample data and cannot make or restore purchases. No payment has been taken. Use your LiLove account to check existing purchases.',
   habits_today: 'Today’s habits',
   habits_completed_today: 'Completed today',
   habits_check: 'Mark done today',

@@ -507,7 +507,7 @@ export const ja = {
   well_done: '✅ お見事！',
   purchase_needs_account_title: 'まず無料アカウントを作成してください',
   purchase_needs_account_body:
-    'サブスクリプションはLiLoveアカウントに紐づくため、コーチと記録はどのデバイスにも引き継がれます。現在はサンプルツアー中で、料金は発生していません。',
+    'デモではサンプルデータを使用しており、購入や購入の復元はできません。料金は発生していません。既存の購入を確認するには、LiLoveアカウントをご利用ください。',
   habits_today: '今日の習慣',
   habits_completed_today: '今日完了済み',
   habits_check: '今日完了としてマーク',

@@ -505,7 +505,7 @@ export const tr = {
   well_done: '✅ Aferin!',
   purchase_needs_account_title: 'Önce ücretsiz bir hesap aç',
   purchase_needs_account_body:
-    'Aboneliğin LiLove hesabına bağlanır; böylece koçun ve geçmişin her cihazda seninle olur. Şu an örnek turdasın, hiçbir ücret alınmadı.',
+    'Örnek turda deneme verileri kullanılır; satın alma veya satın alımları geri yükleme yapılamaz. Hiçbir ödeme alınmadı. Mevcut satın alımlarını kontrol etmek için LiLove hesabını kullan.',
   habits_today: 'Bugünün alışkanlıkları',
   habits_completed_today: 'Bugün tamamlandı',
   habits_check: 'Bugün tamamla',

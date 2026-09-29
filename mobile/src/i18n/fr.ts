@@ -521,7 +521,7 @@ export const fr = {
   well_done: '✅ Bien joué !',
   purchase_needs_account_title: "Créez d'abord un compte gratuit",
   purchase_needs_account_body:
-    "Votre abonnement est lié à votre compte LiLove : votre coach et votre historique vous suivent sur tous vos appareils. Vous êtes dans la visite d'exemple ; rien n'a été facturé.",
+    'La démo utilise des données d’exemple et ne permet ni d’effectuer des achats ni de les restaurer. Aucun paiement n’a été prélevé. Utilisez votre compte LiLove pour vérifier vos achats existants.',
   habits_today: 'Habitudes d’aujourd’hui',
   habits_completed_today: 'Terminé aujourd’hui',
   habits_check: 'Marquer comme fait aujourd’hui',

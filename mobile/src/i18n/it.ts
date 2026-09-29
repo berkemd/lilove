@@ -515,7 +515,7 @@ export const it = {
   well_done: '✅ Ben fatto!',
   purchase_needs_account_title: 'Prima crea un account gratuito',
   purchase_needs_account_body:
-    'Il tuo abbonamento è collegato al tuo account LiLove, così coach e cronologia ti seguono su ogni dispositivo. Sei nel tour di esempio e non ti è stato addebitato nulla.',
+    'La demo usa dati di esempio e non consente di effettuare o ripristinare acquisti. Nessun pagamento è stato effettuato. Usa il tuo account LiLove per controllare gli acquisti esistenti.',
   habits_today: 'Abitudini di oggi',
   habits_completed_today: 'Completate oggi',
   habits_check: 'Contrassegna come completato oggi',

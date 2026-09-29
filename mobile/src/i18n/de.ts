@@ -529,7 +529,7 @@ export const de = {
   well_done: '✅ Gut gemacht!',
   purchase_needs_account_title: 'Erstelle zuerst ein kostenloses Konto',
   purchase_needs_account_body:
-    'Dein Abo ist mit deinem LiLove-Konto verknüpft, damit Coach und Verlauf dir auf jedes Gerät folgen. Du bist gerade in der Beispieltour – es wurde nichts berechnet.',
+    'Die Demo verwendet Beispieldaten. Käufe und deren Wiederherstellung sind hier nicht möglich. Es wurde nichts berechnet. Prüfe bestehende Käufe mit deinem LiLove-Konto.',
   habits_today: 'Heutige Gewohnheiten',
   habits_completed_today: 'Heute erledigt',
   habits_check: 'Heute als erledigt markieren',
