@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,8 @@ export default function PremiumScreen({ navigation }: any) {
   const [isLoading, setIsLoading] = useState(newSubscriptionsAvailable);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseNeedsCheck, setPurchaseNeedsCheck] = useState(false);
+  const [restoreNeedsRetry, setRestoreNeedsRetry] = useState(false);
+  const restoreInFlight = useRef(false);
   const isPremium =
     subscription.status === 'verified' && subscription.subscription?.isPremium === true;
   const isFree =
@@ -50,6 +52,7 @@ export default function PremiumScreen({ navigation }: any) {
 
   useEffect(() => {
     setPurchaseNeedsCheck(false);
+    setRestoreNeedsRetry(false);
   }, [subscription.accountId]);
 
   useEffect(() => {
@@ -129,22 +132,39 @@ export default function PremiumScreen({ navigation }: any) {
   // GERİ YÜKLEME GERÇEKTEN GERİ YÜKLER: cihazdaki her abonelik işlemi
   // sunucuya yeniden doğrulatılır, sonra yetki sunucudan okunur.
   const handleRestore = async () => {
+    if (restoreInFlight.current) return;
     if (purchaseBlockedInDemo()) return;
+    restoreInFlight.current = true;
     try {
       setIsPurchasing(true);
       const result = await subscription.confirm(restore);
       if (result === 'account-changed') return;
       if (result === 'active') {
         setPurchaseNeedsCheck(false);
+        setRestoreNeedsRetry(false);
         Alert.alert(t('subscription'), t('subscription_active_confirmed'));
       } else if (result === 'inactive') {
+        setRestoreNeedsRetry(false);
         Alert.alert(t('no_subscription_found'), t('no_active_subscription_found_to_restore'));
       } else {
+        setRestoreNeedsRetry(true);
         Alert.alert(t('subscription_unverified'), t('subscription_unavailable'));
       }
     } catch (error) {
-      Alert.alert(t('restore_failed'), t('failed_to_restore_purchases_please_try_again'));
+      setRestoreNeedsRetry(true);
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'RESTORE_INCOMPLETE' &&
+        'stage' in error &&
+        error.stage === 'verification'
+      ) {
+        Alert.alert(t('subscription_unverified'), t('subscription_unavailable'));
+      } else {
+        Alert.alert(t('restore_failed'), t('failed_to_restore_purchases_please_try_again'));
+      }
     } finally {
+      restoreInFlight.current = false;
       setIsPurchasing(false);
     }
   };
@@ -228,7 +248,9 @@ export default function PremiumScreen({ navigation }: any) {
               onPress={handleRestore}
               disabled={isPurchasing}
             >
-              <Text style={styles.restoreButtonText}>{t('restore_purchases')}</Text>
+              <Text style={styles.restoreButtonText}>
+                {restoreNeedsRetry ? t('retry') : t('restore_purchases')}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -248,15 +270,17 @@ export default function PremiumScreen({ navigation }: any) {
         {!isDemo && (
           <View style={styles.subscriptionStatus} accessibilityLiveRegion="polite">
             <Text style={styles.subscriptionStatusText}>
-              {purchaseNeedsCheck
-                ? t('subscription_verification_pending')
-                : subscription.status === 'loading'
-                  ? t('subscription_checking')
-                  : subscription.status === 'error'
-                    ? t('subscription_unavailable')
-                    : isFree
-                      ? t('subscription_free')
-                      : t('subscription_unverified')}
+              {restoreNeedsRetry
+                ? t('subscription_unavailable')
+                : purchaseNeedsCheck
+                  ? t('subscription_verification_pending')
+                  : subscription.status === 'loading'
+                    ? t('subscription_checking')
+                    : subscription.status === 'error'
+                      ? t('subscription_unavailable')
+                      : isFree
+                        ? t('subscription_free')
+                        : t('subscription_unverified')}
             </Text>
             <TouchableOpacity
               onPress={checkSubscriptionStatus}
@@ -357,7 +381,9 @@ export default function PremiumScreen({ navigation }: any) {
           onPress={handleRestore}
           disabled={isPurchasing}
         >
-          <Text style={styles.restoreButtonText}>{t('restore_purchases')}</Text>
+          <Text style={styles.restoreButtonText}>
+            {restoreNeedsRetry ? t('retry') : t('restore_purchases')}
+          </Text>
         </TouchableOpacity>
 
         {newSubscriptionsAvailable && (

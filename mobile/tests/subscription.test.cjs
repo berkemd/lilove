@@ -341,6 +341,11 @@ function premiumHarness({ releaseReadyForTest = false } = {}) {
   const products = loadSource('src/config/products.ts');
   const Screen = loadSource('src/screens/PremiumScreen.tsx', {
     react: {
+      useRef: (initial) => {
+        const i = stateIndex++;
+        if (!(i in states)) states[i] = { current: initial };
+        return states[i];
+      },
       useState: (initial) => {
         const i = stateIndex++;
         if (!(i in states)) states[i] = initial;
@@ -382,6 +387,7 @@ function premiumHarness({ releaseReadyForTest = false } = {}) {
       },
       restore: async () => {
         fixture.restoreCalls++;
+        if (fixture.restores instanceof Error) throw fixture.restores;
         return fixture.restores;
       },
     },
@@ -498,6 +504,73 @@ test('actual Premium screen does not call a receipt error a declined payment or 
   await result;
   assert.deepEqual(changed.fixture.alerts, []);
   assert.deepEqual(changed.fixture.writes, []);
+});
+
+test('failed restore keeps verified paid status and shows an explicit retry without claiming Free', async () => {
+  for (const tier of ['free', 'team']) {
+    const h = premiumHarness();
+    h.fixture.response = status(tier);
+    const tree = await h.boot();
+    h.fixture.restores = Object.assign(new Error('Receipt verification incomplete'), {
+      code: 'RESTORE_INCOMPLETE',
+      stage: 'verification',
+      verifiedCount: 1,
+      failedCount: 1,
+    });
+    await button(tree, 'restore_purchases').props.onPress();
+    const retryTree = h.render();
+    assert.equal(h.fixture.alerts[0][0], 'subscription_unverified');
+    assert(!nodes(retryTree).some((node) => node.props?.children === 'subscription_free'));
+    assert.equal(h.store.getSnapshot().subscription.subscriptionTier, tier);
+    if (tier === 'team') {
+      assert(nodes(retryTree).some((node) => node.props?.children === 'Team'));
+      assert(button(retryTree, 'manage_subscription'));
+    }
+    assert.equal(button(retryTree, 'retry').props.disabled, false);
+    h.fixture.restores = 2;
+    h.fixture.response = status('team');
+    await button(retryTree, 'retry').props.onPress();
+    assert.equal(h.fixture.restoreCalls, 2);
+    assert.equal(h.fixture.alerts[1][1], 'subscription_active_confirmed');
+    assert(button(h.render(), 'restore_purchases'));
+    assert.deepEqual(h.fixture.buys, []);
+    assert.deepEqual(h.fixture.writes, []);
+  }
+});
+
+test('StoreKit restore failure offers retry and cannot become no subscription found', async () => {
+  const h = premiumHarness();
+  const tree = await h.boot();
+  h.fixture.restores = Object.assign(new Error('Store unavailable'), {
+    code: 'RESTORE_INCOMPLETE',
+    stage: 'store',
+  });
+  await button(tree, 'restore_purchases').props.onPress();
+  assert.equal(h.fixture.alerts[0][0], 'restore_failed');
+  assert.equal(h.fixture.alerts[0][1], 'failed_to_restore_purchases_please_try_again');
+  assert(button(h.render(), 'retry'));
+});
+
+test('double taps start one restore and changing account suppresses its success or error', async () => {
+  for (const rejection of [false, true]) {
+    const h = premiumHarness();
+    const tree = await h.boot();
+    const action = deferred();
+    h.fixture.restores = action.promise;
+    const onPress = button(tree, 'restore_purchases').props.onPress;
+    const first = onPress();
+    const second = onPress();
+    await flush();
+    const restoreCalls = h.fixture.restoreCalls;
+    h.store.setAccount('B');
+    rejection ? action.reject(new Error('Old account restore failed')) : action.resolve(1);
+    await Promise.all([first, second]);
+    assert.equal(restoreCalls, 1);
+    assert.deepEqual(h.fixture.alerts, []);
+    assert.equal(h.store.getSnapshot().subscription, null);
+    assert.equal(button(h.render(), 'restore_purchases').props.disabled, false);
+    assert.equal(button(h.render(), 'retry'), undefined);
+  }
 });
 
 const unsupportedSalesLabels = [
