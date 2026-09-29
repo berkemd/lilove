@@ -181,6 +181,8 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
       useFocusEffect: (callback) => (focus = callback),
       useNavigation: () => ({ navigate: (route) => navigated.push(route) }),
     },
+    '../../hooks/useDailyFocus': { refreshDailyFocus: async () => {} },
+    '../../components/DailyFocusCard': { default: 'DailyFocusCard' },
     '../../store/authStore': {
       useAuthStore: () => ({ user: {}, userProfile: { coinBalance: 100 } }),
     },
@@ -312,6 +314,8 @@ function mountTasks(api) {
     '@react-navigation/native': {
       useNavigation: () => ({ addListener: () => () => {}, navigate() {} }),
     },
+    '../../hooks/useDailyFocus': { refreshDailyFocus: async () => {} },
+    '../../components/DailyFocusCard': { default: 'DailyFocusCard' },
     '../../store/authStore': {
       useAuthStore: {
         getState: () => ({ user: { uid: 'reader' }, isAuthenticated: true }),

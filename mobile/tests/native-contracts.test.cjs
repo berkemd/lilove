@@ -181,6 +181,7 @@ function mount(relative, imports = {}, props = {}) {
 function mountProfile(getUserStats, imports = {}) {
   return mount('src/screens/profile/ProfileScreen.tsx', {
     '../../lib/api': { default: { getUserStats } },
+    '../../lib/subscriptionAvailability': { areNewSubscriptionsAvailable: () => false },
     '../../services/storage': { default: {} },
     'expo-image-picker': {},
     'expo-constants': { default: { expoConfig: { version: '1.2', ios: { buildNumber: '125' } } } },
@@ -972,7 +973,7 @@ test('Avatar localizes all known fields and rarity labels without changing trait
   }
 });
 
-test('free Profile links to plan details without promising unlimited access in every locale', async () => {
+test('free Profile offers restore without closed new-sales promises in every locale', async () => {
   for (const locale of locales) {
     const { catalog, imports } = localeCopy(locale);
     const screen = mountProfile(async () => stats(), {
@@ -983,8 +984,10 @@ test('free Profile links to plan details without promising unlimited access in e
     });
     screen.focus();
     await flush();
-    const action = byId(screen.render(), 'button-unlock-premium');
-    assert(textContent(action).includes(catalog.choose_your_plan));
+    const action = byId(screen.render(), 'button-subscription-settings');
+    assert.equal(byId(screen.render(), 'button-upgrade-premium'), undefined);
+    assert(textContent(action).includes(catalog.restore_purchases));
+    assert.equal(textContent(action).includes(catalog.choose_your_plan), false);
     assert.equal(textContent(action).includes(catalog.get_unlimited_access), false);
     action.props.onPress();
     assert.deepEqual(screen.navigated, ['Premium']);
@@ -1477,4 +1480,22 @@ test('Avatar purchase failure stays visible inside its modal, preserves ownershi
   assert.equal(owned, true);
   assert.equal(findTree(tree, (n) => n.type === 'Modal').props.visible, false);
   assert.equal(byId(tree, 'avatar-purchase-error'), undefined);
+});
+
+test('existing subscriber keeps a working manage route while new sales stay closed', async () => {
+  const screen = mountProfile(async () => stats(), {
+    '../../hooks/useSubscription': {
+      useSubscription: () => ({
+        status: 'verified',
+        subscription: { isPremium: true, subscriptionTier: 'pro' },
+      }),
+    },
+  });
+  screen.focus();
+  await flush();
+  const action = byId(screen.render(), 'button-subscription-settings');
+  assert(textContent(action).includes('manage_subscription'));
+  assert.equal(byId(screen.render(), 'button-upgrade-premium'), undefined);
+  action.props.onPress();
+  assert.deepEqual(screen.navigated, ['Premium']);
 });

@@ -490,4 +490,16 @@ export const de = {
   profile_unavailable_body:
     'Du bist angemeldet, aber dein Profil ist nicht verfügbar. Versuche es erneut oder melde dich ab.',
   profile_loading: 'Dein Profil wird geladen…',
+  focus_title: 'Dein nächster kleiner Schritt',
+  focus_choose_goal: 'Wähle ein Ziel, auf das du dich konzentrieren möchtest.',
+  focus_change_goal: 'Ziel ändern',
+  focus_no_goals: 'Beginne mit einem Ziel, das dir wichtig ist.',
+  focus_no_task: 'Wähle einen kleinen Schritt für dieses Ziel.',
+  focus_add_task: 'Nächsten Schritt hinzufügen',
+  focus_complete: 'Diesen Schritt als erledigt markieren',
+  focus_week: 'Letzte 7 Tage',
+  focus_week_count: '{count} Aufgaben als erledigt markiert · {days} Tage mit Eintrag',
+  focus_day_count: '{date}: {count} Aufgaben als erledigt markiert',
+  focus_restart: 'Einen Tag verpasst? Mach mit einem kleinen Schritt weiter.',
+  focus_utc: 'Zeitzone des Geräts nicht verfügbar; Tage werden in UTC angezeigt.',
 } as const;

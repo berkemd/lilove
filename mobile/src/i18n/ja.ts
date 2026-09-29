@@ -476,4 +476,16 @@ export const ja = {
   profile_unavailable_body:
     'アカウントにサインインしていますが、プロフィールを利用できません。もう一度試すか、サインアウトしてください。',
   profile_loading: 'プロフィールを読み込んでいます…',
+  focus_title: 'あなたの次の小さな一歩',
+  focus_choose_goal: '集中したい目標を選んでください。',
+  focus_change_goal: '目標を変更',
+  focus_no_goals: 'あなたにとって意味のある目標から始めてください。',
+  focus_no_task: 'この目標に対する小さな行動を1つ選んでください。',
+  focus_add_task: '次のステップを追加',
+  focus_complete: 'このステップを完了としてマーク',
+  focus_week: '過去7日間',
+  focus_week_count: '{count}件のタスクを完了としてマーク · {days}日間の記録あり',
+  focus_day_count: '{date}: {count}件のタスクを完了としてマーク',
+  focus_restart: '記録のない日があっても、小さな一歩から再開できます。',
+  focus_utc: '端末のタイムゾーンが利用できません。日付はUTCで表示されます。',
 } as const;

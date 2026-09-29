@@ -473,4 +473,16 @@ export const en = {
   profile_unavailable_body:
     'Your account is signed in, but your profile is unavailable. Try again or sign out.',
   profile_loading: 'Loading your profile…',
+  focus_title: 'Your next small step',
+  focus_choose_goal: 'Choose a goal to focus on.',
+  focus_change_goal: 'Change goal',
+  focus_no_goals: 'Start with a goal that matters to you.',
+  focus_no_task: 'Choose one small action for this goal.',
+  focus_add_task: 'Add your next step',
+  focus_complete: 'Mark this step complete',
+  focus_week: 'Last 7 days',
+  focus_week_count: '{count} tasks marked complete · {days} days with a record',
+  focus_day_count: '{date}: {count} tasks marked complete',
+  focus_restart: 'Missed a day? Continue with one small step.',
+  focus_utc: 'Device time zone unavailable; days are shown in UTC.',
 } as const;
