@@ -150,6 +150,7 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
   const state = [];
   let cursor = 0;
   let focus;
+  const navigated = [];
   let offline = false;
   let balance = 1000;
   let balanceRefreshes = 0;
@@ -178,7 +179,7 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     '@react-navigation/native': {
       useFocusEffect: (callback) => (focus = callback),
-      useNavigation: () => ({ navigate() {} }),
+      useNavigation: () => ({ navigate: (route) => navigated.push(route) }),
     },
     '../../store/authStore': {
       useAuthStore: () => ({ user: {}, userProfile: { coinBalance: 100 } }),
@@ -217,6 +218,14 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
   focus();
   await flush();
   let tree = render();
+  find(tree, (node) => node.props?.testID === 'button-open-tasks').props.onPress();
+  assert.deepEqual(navigated, ['Tasks']);
+  assert(
+    find(
+      find(tree, (node) => node.props?.testID === 'button-open-tasks'),
+      (node) => node.props?.name === 'chevron-forward'
+    )
+  );
   assert(find(tree, (node) => node.type === 'Text' && node.props.children === 137));
   assert(
     find(
@@ -266,7 +275,15 @@ function mountTasks(api) {
     useState: (initial) => {
       const index = cursor++;
       if (!(index in state)) state[index] = initial;
-      return [state[index], (value) => (state[index] = value)];
+      return [
+        state[index],
+        (value) => (state[index] = typeof value === 'function' ? value(state[index]) : value),
+      ];
+    },
+    useRef: (initial) => {
+      const index = cursor++;
+      if (!(index in state)) state[index] = { current: initial };
+      return state[index];
     },
     useEffect: (callback) => (effect = callback),
   };
@@ -292,7 +309,16 @@ function mountTasks(api) {
       StyleSheet: { create: (styles) => styles },
       Alert: { alert() {} },
     },
-    '../../lib/api': { api },
+    '@react-navigation/native': {
+      useNavigation: () => ({ addListener: () => () => {}, navigate() {} }),
+    },
+    '../../store/authStore': {
+      useAuthStore: {
+        getState: () => ({ user: { uid: 'reader' }, isAuthenticated: true }),
+        subscribe: () => () => {},
+      },
+    },
+    '../../lib/api': { api: { getGoals: async () => [], ...api } },
     '../../i18n': { t: (key) => key },
     '../../theme/ThemeProvider': {
       useTheme: () => ({ color: (value) => value }),

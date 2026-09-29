@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '../../store/authStore';
 import {
   View,
   Text,
@@ -9,6 +10,7 @@ import {
   Modal,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,14 +97,17 @@ function GoalCardSkeleton() {
   );
 }
 
-export default function GoalsScreen() {
+export default function GoalsScreen({ navigation, route }: any = {}) {
+  const createForTask = route?.params?.createForTask === true;
+  const taskSessionValid = useRef(true);
+  const pendingTaskReturn = useRef(false);
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
 
   const [goals, setGoals] = useState<Goal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(createForTask);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,7 +118,34 @@ export default function GoalsScreen() {
 
   useEffect(() => {
     loadGoals();
+    if (!createForTask) return;
+    taskSessionValid.current = true;
+    pendingTaskReturn.current = false;
+    const owner = useAuthStore.getState();
+    const unsubscribe = useAuthStore.subscribe((next) => {
+      if (!taskSessionValid.current) return;
+      if (
+        next.user !== owner.user ||
+        next.isDemo !== owner.isDemo ||
+        next.isAuthenticated !== owner.isAuthenticated
+      ) {
+        closeModal();
+      }
+    });
+    return () => {
+      taskSessionValid.current = false;
+      unsubscribe();
+    };
   }, []);
+
+  const closeModal = () => {
+    setIsModalVisible(false);
+    if (createForTask && taskSessionValid.current) {
+      taskSessionValid.current = false;
+      pendingTaskReturn.current = Platform.OS === 'ios';
+      if (Platform.OS !== 'ios') navigation.goBack();
+    }
+  };
 
   const loadGoals = async () => {
     setError(null);
@@ -153,6 +185,7 @@ export default function GoalsScreen() {
   };
 
   const handleSaveGoal = async () => {
+    if (createForTask && !taskSessionValid.current) return;
     if (!title.trim()) {
       Alert.alert(t('missing_title'), t('please_enter_a_goal_title'));
       return;
@@ -172,12 +205,14 @@ export default function GoalsScreen() {
         Alert.alert(t('success'), t('goal_updated_successfully'));
       } else {
         await api.createGoal(goalData);
+        if (createForTask && !taskSessionValid.current) return;
         Alert.alert(t('success'), t('goal_created_successfully'));
       }
 
-      setIsModalVisible(false);
-      loadGoals();
+      closeModal();
+      if (!createForTask) loadGoals();
     } catch (err: any) {
+      if (createForTask && !taskSessionValid.current) return;
       Alert.alert(
         t('error'),
         t(err?.outcomeUnknown ? 'request_outcome_unknown' : 'failed_to_save_goal_please_try_again')
@@ -409,14 +444,19 @@ export default function GoalsScreen() {
         visible={isModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={closeModal}
+        onDismiss={() => {
+          if (!pendingTaskReturn.current) return;
+          pendingTaskReturn.current = false;
+          navigation.goBack();
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editingGoal ? t('edit_goal') : t('new_goal')}</Text>
               <TouchableOpacity
-                onPress={() => setIsModalVisible(false)}
+                onPress={closeModal}
                 style={styles.modalCloseButton}
                 accessibilityLabel={t('close')}
                 data-testid="button-close-modal"
@@ -494,7 +534,7 @@ export default function GoalsScreen() {
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={() => setIsModalVisible(false)}
+                  onPress={closeModal}
                   data-testid="button-cancel-goal"
                 >
                   <Text style={styles.cancelButtonText}>{t('cancel')}</Text>

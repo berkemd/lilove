@@ -1,6 +1,17 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  task_priority_low: 'Düşük',
+  task_priority_medium: 'Orta',
+  task_priority_high: 'Yüksek',
+  task_priority_urgent: 'Acil',
+  task_status_pending: 'Bekliyor',
+  task_status_skipped: 'Atlandı',
+  task_status_blocked: 'Engellendi',
+  task_status_cancelled: 'İptal edildi',
+
+  task_select_goal: 'Bir hedef seçin',
+  task_no_active_goals: 'Görev eklemeden önce aktif bir hedef oluşturun.',
   account_name_update_failed_body:
     'Profilin kaydedildi, ancak hesabının görünen adı güncellenemedi. Bu hesapla giriş yapabilirsin.',
   verification_email_failed_title: 'Hesap oluşturuldu',
