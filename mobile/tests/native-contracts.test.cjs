@@ -765,6 +765,95 @@ test('Goals localizes edit/create controls and labels while preserving source ID
   }
 });
 
+test('Goals preserves drafts and asks for result verification after uncertain create, edit and delete', async () => {
+  const alerts = [];
+  let writes = 0;
+  const fail = async () => {
+    writes++;
+    throw { outcomeUnknown: true };
+  };
+  const goal = {
+    id: 'one',
+    title: 'Existing goal',
+    category: 'personal',
+    status: 'active',
+    progress: '0',
+    targetOutcome: '',
+  };
+  const screen = mount('src/screens/goals/GoalsScreen.tsx', {
+    'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
+    '../../lib/api': {
+      api: { getGoals: async () => [goal], createGoal: fail, updateGoal: fail, deleteGoal: fail },
+    },
+  });
+  screen.effects();
+  await flush();
+  byId(screen.render(), 'card-goal-one').props.onPress();
+  await byId(screen.render(), 'button-save-goal').props.onPress();
+  assert.deepEqual(alerts.at(-1), ['error', 'request_outcome_unknown']);
+  assert.equal(byId(screen.render(), 'input-goal-title').props.value, goal.title);
+  byId(screen.render(), 'button-new-goal').props.onPress();
+  byId(screen.render(), 'input-goal-title').props.onChangeText('Unconfirmed draft');
+  await byId(screen.render(), 'button-save-goal').props.onPress();
+  assert.deepEqual(alerts.at(-1), ['error', 'request_outcome_unknown']);
+  assert.equal(byId(screen.render(), 'input-goal-title').props.value, 'Unconfirmed draft');
+  byId(screen.render(), 'card-goal-one').props.onLongPress();
+  await alerts
+    .at(-1)[2]
+    .find((button) => button.style === 'destructive')
+    .onPress();
+  assert.deepEqual(alerts.at(-1), ['error', 'request_outcome_unknown']);
+  assert.equal(writes, 3);
+});
+
+test('Tasks preserves an unconfirmed draft and does not encourage blindly repeating a completion', async () => {
+  const alerts = [];
+  let writes = 0;
+  const fail = async () => {
+    writes++;
+    throw { outcomeUnknown: true };
+  };
+  const screen = mount('src/screens/tasks/TasksScreen.tsx', {
+    'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
+    '../../lib/api': {
+      api: {
+        getTasks: async () => ({
+          tasks: [{ id: 'one', title: 'Pending', status: 'pending', priority: 'medium' }],
+          totalCount: 1,
+        }),
+        createTask: fail,
+        completeTask: fail,
+      },
+    },
+  });
+  screen.effects();
+  await flush();
+  await findTree(screen.render(), (node) => node.key === 'one').props.onPress();
+  assert.deepEqual(alerts.at(-1), ['error', 'request_outcome_unknown']);
+  findTree(screen.render(), (node) => node.props?.placeholder === 'task_title').props.onChangeText(
+    'Draft task'
+  );
+  await findTree(
+    screen.render(),
+    (node) => node.type === 'TouchableOpacity' && textContent(node) === 'create'
+  ).props.onPress();
+  assert.deepEqual(alerts.at(-1), ['error', 'request_outcome_unknown']);
+  assert.equal(
+    findTree(screen.render(), (node) => node.props?.placeholder === 'task_title').props.value,
+    'Draft task'
+  );
+  assert.equal(writes, 2);
+});
+
+test('all seven locales explain an uncertain write result before suggesting another attempt', () => {
+  for (const locale of locales) {
+    const { catalog } = localeCopy(locale);
+    assert.equal(typeof catalog.request_outcome_unknown, 'string');
+    assert(catalog.request_outcome_unknown.length > 40);
+    assert.notEqual(catalog.request_outcome_unknown, catalog.request_timeout);
+  }
+});
+
 test('Avatar localizes all known fields and rarity labels without changing trait content or API IDs', async () => {
   const categories = {
     appearance: ['skin', 'body', 'face_shape', 'eyes', 'eyebrows', 'nose', 'mouth', 'ears'],

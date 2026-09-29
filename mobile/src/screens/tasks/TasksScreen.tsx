@@ -110,7 +110,14 @@ export default function TasksScreen() {
       Alert.alert(t('success'), t('task_created_successfully'));
       loadTasks();
     } catch (error: any) {
-      Alert.alert(t('error'), t('failed_to_create_task_please_try_again'));
+      Alert.alert(
+        t('error'),
+        t(
+          error?.outcomeUnknown
+            ? 'request_outcome_unknown'
+            : 'failed_to_create_task_please_try_again'
+        )
+      );
     }
   };
 
@@ -120,7 +127,14 @@ export default function TasksScreen() {
       loadTasks();
       Alert.alert(t('well_done'), t('task_completed_successfully'));
     } catch (error: any) {
-      Alert.alert(t('error'), t('failed_to_complete_task_please_try_again'));
+      Alert.alert(
+        t('error'),
+        t(
+          error?.outcomeUnknown
+            ? 'request_outcome_unknown'
+            : 'failed_to_complete_task_please_try_again'
+        )
+      );
     }
   };
 

@@ -178,7 +178,10 @@ export default function GoalsScreen() {
       setIsModalVisible(false);
       loadGoals();
     } catch (err: any) {
-      Alert.alert(t('error'), t('failed_to_save_goal_please_try_again'));
+      Alert.alert(
+        t('error'),
+        t(err?.outcomeUnknown ? 'request_outcome_unknown' : 'failed_to_save_goal_please_try_again')
+      );
     }
   };
 
@@ -195,8 +198,11 @@ export default function GoalsScreen() {
             try {
               await api.deleteGoal(goal.id);
               loadGoals();
-            } catch (err) {
-              Alert.alert(t('error'), t('failed_to_delete_goal'));
+            } catch (err: any) {
+              Alert.alert(
+                t('error'),
+                t(err?.outcomeUnknown ? 'request_outcome_unknown' : 'failed_to_delete_goal')
+              );
             }
           },
         },

@@ -320,6 +320,8 @@ export const es = {
   registration_failed: 'No se pudo completar el registro',
   reply_to_elif: 'Responder a Lucía',
   request_timeout: 'Tiempo de espera agotado',
+  request_outcome_unknown:
+    'No pudimos confirmar si este cambio se guardó. Actualiza la vista y comprueba el resultado antes de intentarlo de nuevo.',
   restore_failed: 'No se pudo restaurar',
   restore_purchases: 'Restaurar compras',
   retry: 'Reintentar',

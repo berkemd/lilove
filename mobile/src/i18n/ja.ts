@@ -320,6 +320,8 @@ export const ja = {
   registration_failed: '登録に失敗しました',
   reply_to_elif: 'ゆいに返信する',
   request_timeout: 'リクエストがタイムアウトしました',
+  request_outcome_unknown:
+    'この変更が保存されたかどうかを確認できませんでした。再試行する前に、画面を更新して結果を確認してください。',
   restore_failed: '復元できませんでした',
   restore_purchases: '購入を復元',
   retry: '再試行',

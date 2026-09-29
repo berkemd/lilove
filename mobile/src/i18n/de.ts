@@ -329,6 +329,8 @@ export const de = {
   registration_failed: 'Registrierung fehlgeschlagen',
   reply_to_elif: 'Anna antworten',
   request_timeout: 'Zeitüberschreitung der Anfrage',
+  request_outcome_unknown:
+    'Wir konnten nicht bestätigen, ob die Änderung gespeichert wurde. Aktualisieren Sie die Ansicht und prüfen Sie das Ergebnis, bevor Sie es erneut versuchen.',
   restore_failed: 'Wiederherstellung fehlgeschlagen',
   restore_purchases: 'Käufe wiederherstellen',
   retry: 'Wiederholen',
