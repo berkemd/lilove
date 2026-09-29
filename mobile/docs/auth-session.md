@@ -27,4 +27,30 @@ The following remain unverified:
 - Firebase native persistence, signed-in cold-start restoration, background token expiration, and refresh when returning to the foreground.
 - Real Apple/Google SSO, provider cancellation and failure behavior, and end-to-end authenticated service access on a device.
 
+## Explicit React Native persistence — task 0084
+
+`src/lib/firebaseAuth.ts` now initializes native Auth with the existing
+AsyncStorage dependency through Firebase's public `getReactNativePersistence`
+adapter. The installed Firebase 11.10.0 / Auth 1.10.8 RN entry documents and
+exports this API. Its shared type entry omits the platform-only function, so a
+local type describes that verified export and a runtime check rejects a missing
+RN implementation. Web continues to use Firebase's default `getAuth` behavior.
+
+Only `auth/already-initialized` reuses the existing Auth instance, supporting
+module re-evaluation without creating a second instance. Other errors propagate.
+An instance already created with memory persistence is not silently migrated by
+Fast Refresh; validation must start with a fresh application process.
+
+This uses Firebase's AsyncStorage persistence, not encrypted SecureStore. The
+separate API-token cache still uses SecureStore. No credential, account or provider
+configuration is added by this change.
+
+The new tests cover native adapter configuration, web behavior, error propagation
+and missing exports. An additional test loads the installed RN SDK with an
+in-memory AsyncStorage substitute, observes its persisted-user lookup, and
+verifies instance reuse after helper re-evaluation with no network requests.
+It does not sign in or simulate a successful native restart. The native
+persistence, signed restart, background expiration and real SSO gates above
+remain open until device validation.
+
 These safeguards are not a complete authentication or release certification.

@@ -1,6 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
-  getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -33,6 +32,7 @@ import {
 import type { Timestamp } from 'firebase/firestore';
 import Constants from 'expo-constants';
 import { t } from '../i18n';
+import { initializeAppAuth } from './firebaseAuth';
 
 const extra = Constants.expoConfig?.extra;
 
@@ -45,7 +45,7 @@ const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const auth = getAuth(app);
+export const auth = initializeAppAuth(app);
 export const db = getFirestore(app);
 
 export interface UserProfile {

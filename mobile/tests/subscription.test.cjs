@@ -312,7 +312,7 @@ test('actual hook binds Firebase identity, ignores an old token lookup and keeps
   assert.equal(await demo.confirm(() => assert.fail('demo purchase')), 'account-changed');
 });
 
-function premiumHarness() {
+function premiumHarness({ releaseReadyForTest = false } = {}) {
   const fixture = {
     response: status('free', null),
     buys: [],
@@ -320,6 +320,8 @@ function premiumHarness() {
     writes: [],
     buy: async () => {},
     restores: 0,
+    restoreCalls: 0,
+    offeringCalls: 0,
     backs: 0,
   };
   const store = new SubscriptionStore(
@@ -370,15 +372,25 @@ function premiumHarness() {
       }),
     },
     '../services/iap': {
-      loadSubscriptionProducts: async () => [
-        { id: products.SUBSCRIPTION_IDS[0], displayPrice: 'store-price' },
-      ],
+      loadSubscriptionProducts: async () => {
+        fixture.offeringCalls++;
+        return [{ id: products.SUBSCRIPTION_IDS[0], displayPrice: 'store-price' }];
+      },
       buySubscription: async (id) => {
         fixture.buys.push(id);
         return fixture.buy();
       },
-      restore: async () => fixture.restores,
+      restore: async () => {
+        fixture.restoreCalls++;
+        return fixture.restores;
+      },
     },
+    '../lib/subscriptionAvailability': releaseReadyForTest
+      ? {
+          areNewSubscriptionsAvailable: () => true,
+          SUBSCRIPTIONS_UNAVAILABLE: 'SUBSCRIPTIONS_UNAVAILABLE',
+        }
+      : loadSource('src/lib/subscriptionAvailability.ts'),
     '../config/products': products,
     '../hooks/useSubscription': {
       useSubscription: () => ({
@@ -432,7 +444,7 @@ function button(tree, label) {
 }
 
 test('Premium loading state keeps its close button available before offerings resolve', () => {
-  const h = premiumHarness();
+  const h = premiumHarness({ releaseReadyForTest: true });
   const close = nodes(h.render()).find((node) => node.props?.accessibilityLabel === 'close');
   assert(close);
   close.props.onPress();
@@ -440,7 +452,7 @@ test('Premium loading state keeps its close button available before offerings re
 });
 
 test('actual Premium screen ignores legacy profile grants and failed post-purchase status never writes or announces active access', async () => {
-  const h = premiumHarness();
+  const h = premiumHarness({ releaseReadyForTest: true });
   const tree = await h.boot();
   assert(button(tree, 'subscribe'), 'legacy premium flags must not select the active screen');
   h.fixture.response = new Error('503');
@@ -452,7 +464,7 @@ test('actual Premium screen ignores legacy profile grants and failed post-purcha
 });
 
 test('actual Premium screen displays server Team after buying a Pro SKU; restore count with Free is not success', async () => {
-  const h = premiumHarness();
+  const h = premiumHarness({ releaseReadyForTest: true });
   const tree = await h.boot();
   h.fixture.response = status('team');
   await button(tree, 'subscribe').props.onPress();
@@ -467,7 +479,7 @@ test('actual Premium screen displays server Team after buying a Pro SKU; restore
 });
 
 test('actual Premium screen does not call a receipt error a declined payment or show old-account alerts', async () => {
-  const h = premiumHarness();
+  const h = premiumHarness({ releaseReadyForTest: true });
   const tree = await h.boot();
   h.fixture.buy = async () => {
     throw new Error('Receipt verification unavailable');
@@ -476,7 +488,7 @@ test('actual Premium screen does not call a receipt error a declined payment or 
   assert.equal(h.fixture.alerts[0][0], 'subscription_unverified');
   assert.equal(h.fixture.alerts[0][1], 'subscription_unavailable');
   assert.equal(button(h.render(), 'subscribe').props.disabled, true);
-  const changed = premiumHarness();
+  const changed = premiumHarness({ releaseReadyForTest: true });
   const changedTree = await changed.boot();
   const purchase = deferred();
   changed.fixture.buy = () => purchase.promise;
@@ -486,6 +498,91 @@ test('actual Premium screen does not call a receipt error a declined payment or 
   await result;
   assert.deepEqual(changed.fixture.alerts, []);
   assert.deepEqual(changed.fixture.writes, []);
+});
+
+const unsupportedSalesLabels = [
+  'advanced_ai_coaching',
+  'personalized_guidance_from_our_ai_mentor',
+  'unlimited_goals_habits',
+  'advanced_analytics',
+  'premium_challenges',
+  'priority_support',
+  'custom_themes',
+  'get_unlimited_access_to_all_premium_features',
+  'unlock_your_full_potential',
+];
+
+function assertNoSales(tree) {
+  assert.equal(button(tree, 'subscribe'), undefined);
+  const labels = nodes(tree).map((node) => node.props?.children);
+  for (const label of unsupportedSalesLabels) {
+    assert(!labels.includes(label), `Unsupported sales claim: ${label}`);
+  }
+  assert(!labels.includes('store-price'));
+}
+
+test('closed release exposes restore immediately without loading products or making sales promises', async () => {
+  const h = premiumHarness();
+  const initial = h.render();
+  assertNoSales(initial);
+  assert(button(initial, 'restore_purchases'));
+  assert.equal(button(initial, 'restore_purchases').props.disabled, false);
+  assert(nodes(initial).some((node) => node.props?.children === 'subscription_not_available'));
+  assert.equal(h.fixture.offeringCalls, 0);
+  const free = await h.boot();
+  await button(free, 'restore_purchases').props.onPress();
+  assert.equal(h.fixture.restoreCalls, 1);
+  assert.equal(h.fixture.alerts[0][0], 'no_subscription_found');
+  assert.deepEqual(h.fixture.buys, []);
+  assert.deepEqual(h.fixture.writes, []);
+});
+
+test('closed sales preserve verified paid status, management and restore even with AI entitlement true', async () => {
+  const h = premiumHarness();
+  h.fixture.response = status('team');
+  const tree = await h.boot();
+  assert.equal(h.fixture.response.features.aiCoaching, true);
+  assertNoSales(tree);
+  assert(nodes(tree).some((node) => node.props?.children === 'Team'));
+  assert(nodes(tree).some((node) => node.props?.children === 'subscription_active_confirmed'));
+  button(tree, 'manage_subscription').props.onPress();
+  assert.equal(h.fixture.alerts[0][0], 'manage_subscription');
+  await button(tree, 'restore_purchases').props.onPress();
+  assert.equal(h.fixture.restoreCalls, 1);
+  assert.equal(h.fixture.alerts[1][1], 'subscription_active_confirmed');
+  assert.equal(h.fixture.offeringCalls, 0);
+  assert.deepEqual(h.fixture.buys, []);
+  assert.deepEqual(h.fixture.writes, []);
+});
+
+test('failed entitlement reads do not hide restore or convert unknown access into Free', async () => {
+  const h = premiumHarness();
+  h.fixture.response = new Error('Status unavailable');
+  const tree = await h.boot();
+  assertNoSales(tree);
+  assert.equal(button(tree, 'restore_purchases').props.disabled, false);
+  assert(nodes(tree).some((node) => node.props?.children === 'subscription_unavailable'));
+  assert(!nodes(tree).some((node) => node.props?.children === 'subscription_free'));
+  h.fixture.response = status('pro');
+  await button(tree, 'restore_purchases').props.onPress();
+  assert.equal(h.fixture.restoreCalls, 1);
+  assert(nodes(h.render()).some((node) => node.props?.children === 'Pro'));
+});
+
+test('pre-StoreKit policy rejection is not presented as an uncertain payment', async () => {
+  const h = premiumHarness({ releaseReadyForTest: true });
+  h.fixture.buy = async () => {
+    throw Object.assign(new Error('Release closed'), { code: 'SUBSCRIPTIONS_UNAVAILABLE' });
+  };
+  const tree = await h.boot();
+  await button(tree, 'subscribe').props.onPress();
+  assert.deepEqual(h.fixture.alerts, [
+    ['subscription_not_available', 'in_app_purchases_are_being_configured_please'],
+  ]);
+  assert.equal(button(h.render(), 'subscribe').props.disabled, false);
+  assert(
+    !nodes(h.render()).some((node) => node.props?.children === 'subscription_verification_pending')
+  );
 });
 
 test('all seven locales contain the same seven non-empty subscription status messages', () => {

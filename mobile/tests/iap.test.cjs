@@ -25,6 +25,7 @@ function loadSource(relative, imports = {}, globals = {}) {
 }
 
 const products = loadSource('src/config/products.ts');
+const subscriptionAvailability = loadSource('src/lib/subscriptionAvailability.ts');
 const coinId = products.COIN_IDS[0];
 const subscriptionId = products.SUBSCRIPTION_IDS[0];
 const accountA = 'bdd9fe22-f678-486b-96a6-8fdff0d7d905';
@@ -40,7 +41,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-function harness() {
+function harness({ releaseReadyForTest = false } = {}) {
   const state = {
     token: 'signed-in-account',
     accountResponse: { appAccountToken: accountA },
@@ -109,6 +110,9 @@ function harness() {
         },
       },
       '../config/products': products,
+      '../lib/subscriptionAvailability': releaseReadyForTest
+        ? { assertNewSubscriptionAvailable() {} }
+        : subscriptionAvailability,
       './tokenManager': { tokenManager: { getToken: async () => state.token } },
       '../lib/demoData': { DEMO_TOKEN: demoToken },
     },
@@ -225,7 +229,9 @@ test('failed account preflight stops before StoreKit and permits a later retry',
 });
 
 test('coin and subscription requests fetch a fresh account token and stay pending until verified', async () => {
-  const h = harness();
+  // Keep the existing transaction lifecycle test independent of the closed
+  // release policy. Real-policy tests below prove new sales remain blocked.
+  const h = harness({ releaseReadyForTest: true });
   await h.iap.initIAP();
   for (const [productId, kind, accountToken] of [
     [coinId, 'inapp', accountA],
@@ -267,6 +273,39 @@ test('coin and subscription requests fetch a fresh account token and stay pendin
     'verify',
     'finish',
   ]);
+});
+
+test('new subscriptions stop before account preflight, StoreKit and pending timers', async () => {
+  const { iap, state } = harness();
+  await iap.initIAP();
+  assert.equal(subscriptionAvailability.areNewSubscriptionsAvailable(), false);
+  await assert.rejects(iap.buySubscription(subscriptionId), {
+    code: 'SUBSCRIPTIONS_UNAVAILABLE',
+  });
+  // An incorrect caller must not bypass closure by using the coin wrapper.
+  await assert.rejects(iap.buyCoins(subscriptionId), {
+    code: 'SUBSCRIPTIONS_UNAVAILABLE',
+  });
+  assert.deepEqual(state.accountCalls, []);
+  assert.deepEqual(state.requests, []);
+  assert.deepEqual(state.verifyCalls, []);
+  assert.equal(state.timers.size, 0);
+});
+
+test('closed new sales do not block delivery and verification of existing subscription transactions', async () => {
+  const h = harness();
+  await h.iap.initIAP();
+  const transaction = { productId: subscriptionId, transactionId: 'existing-subscription' };
+  h.state.verify = async () => {
+    throw new Error('Verification offline');
+  };
+  await h.purchase(transaction);
+  assert.deepEqual(h.state.finishes, []);
+  h.state.verify = async () => ({ success: true });
+  await h.purchase(transaction);
+  assert.deepEqual(h.state.verifyCalls, ['existing-subscription', 'existing-subscription']);
+  assert.deepEqual(h.state.finishes, [{ purchase: transaction, isConsumable: false }]);
+  assert.deepEqual(h.state.requests, []);
 });
 
 test('HTTP success without explicit success true rejects the purchase and never finishes StoreKit', async () => {
