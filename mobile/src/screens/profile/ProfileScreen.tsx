@@ -23,6 +23,7 @@ import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
 import { useCoinBalance } from '../../hooks/useCoinBalance';
+import { areNewSubscriptionsAvailable } from '../../lib/subscriptionAvailability';
 import { readUserStats, type UserStats } from '../../lib/userStats';
 
 function SkeletonBox({
@@ -143,6 +144,7 @@ export default function ProfileScreen({ navigation }: any) {
 
   const isPremium =
     subscription.status === 'verified' && subscription.subscription?.isPremium === true;
+  const newSalesAvailable = areNewSubscriptionsAvailable();
   const isFree =
     subscription.status === 'verified' && subscription.subscription?.isPremium === false;
 
@@ -290,7 +292,7 @@ export default function ProfileScreen({ navigation }: any) {
                 {subscription.subscription?.subscriptionTier === 'team' ? 'Team' : 'Pro'}
               </Text>
             </View>
-          ) : isFree ? (
+          ) : isFree && newSalesAvailable ? (
             <TouchableOpacity
               style={styles.upgradeBadge}
               onPress={handlePremiumClick}
@@ -300,7 +302,7 @@ export default function ProfileScreen({ navigation }: any) {
               <Ionicons name="sparkles" size={16} color={themeColor('#8B5CF6', 'text')} />
               <Text style={styles.upgradeText}>{t('upgrade_to_premium')}</Text>
             </TouchableOpacity>
-          ) : (
+          ) : !isFree ? (
             <TouchableOpacity
               style={styles.upgradeBadge}
               onPress={() => subscription.refresh(true)}
@@ -317,18 +319,18 @@ export default function ProfileScreen({ navigation }: any) {
                     : t('subscription_unverified')}
               </Text>
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {renderStatsSection()}
 
         <View style={styles.menuContainer}>
-          {!isPremium && (
+          {
             <TouchableOpacity
               style={styles.premiumMenuItem}
               onPress={handlePremiumClick}
               activeOpacity={0.7}
-              data-testid="button-unlock-premium"
+              data-testid="button-subscription-settings"
             >
               <View style={styles.menuItemLeft}>
                 <View
@@ -341,16 +343,20 @@ export default function ProfileScreen({ navigation }: any) {
                 </View>
                 <View>
                   <Text style={styles.menuItemText}>
-                    {isFree ? t('unlock_premium') : t('subscription')}
+                    {isFree && newSalesAvailable ? t('unlock_premium') : t('subscription')}
                   </Text>
                   <Text style={styles.menuItemSubtext}>
-                    {isFree ? t('choose_your_plan') : t('subscription_unverified')}
+                    {isFree && newSalesAvailable
+                      ? t('choose_your_plan')
+                      : isPremium
+                        ? t('manage_subscription')
+                        : t('restore_purchases')}
                   </Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={themeColor('#F59E0B', 'text')} />
             </TouchableOpacity>
-          )}
+          }
 
           {menuItems.map((item, index) => (
             <TouchableOpacity

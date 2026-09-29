@@ -243,6 +243,8 @@ function tohum(): DemoStore {
     tasks: [
       {
         id: 't1',
+        goalId: 'g1',
+        createdAt: gunOnce(2),
         title: t('book_the_dentist'),
         status: 'pending',
         priority: 'medium',
@@ -251,6 +253,9 @@ function tohum(): DemoStore {
       },
       {
         id: 't2',
+        goalId: 'g1',
+        createdAt: gunOnce(3),
+        completedAt: gunOnce(1),
         title: t('reply_to_elif'),
         status: 'completed',
         priority: 'medium',
@@ -259,6 +264,8 @@ function tohum(): DemoStore {
       },
       {
         id: 't3',
+        goalId: 'g2',
+        createdAt: gunOnce(1),
         title: t('plan_saturday'),
         status: 'pending',
         priority: 'medium',
@@ -376,6 +383,95 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
         return depo.habits;
       case '/api/goals':
         return depo.goals;
+      case '/api/progress/overview': {
+        const query = new Map(
+          (endpoint.split('?')[1] ?? '').split('&').map((parameter) => {
+            const [key, value = ''] = parameter.split('=');
+            return [decodeURIComponent(key), decodeURIComponent(value)] as const;
+          })
+        );
+        const timeZone = query.get('timeZone') || 'UTC';
+        const selectedGoalId = query.get('goalId') || null;
+        const goals = depo.goals
+          .filter((goal) => goal.status === 'active')
+          .map((goal) => ({
+            id: goal.id,
+            title: goal.title,
+            targetOutcome: goal.targetOutcome ?? null,
+          }));
+        if (selectedGoalId && !goals.some((goal) => goal.id === selectedGoalId))
+          throw { status: 404 };
+        const now = new Date();
+        const dateOf = (date: Date) => {
+          const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).formatToParts(date);
+          const value = (type: string) => parts.find((part) => part.type === type)?.value;
+          return `${value('year')}-${value('month')}-${value('day')}`;
+        };
+        const today = dateOf(now);
+        const days = selectedGoalId
+          ? Array.from({ length: 7 }, (_, index) => {
+              const date = new Date(`${today}T12:00:00Z`);
+              date.setUTCDate(date.getUTCDate() - 6 + index);
+              const key = date.toISOString().slice(0, 10);
+              return {
+                date: key,
+                completed: depo.tasks.filter(
+                  (task) =>
+                    task.goalId === selectedGoalId &&
+                    task.status === 'completed' &&
+                    task.completedAt &&
+                    new Date(task.completedAt) <= now &&
+                    dateOf(new Date(task.completedAt)) === key
+                ).length,
+              };
+            })
+          : [];
+        const priority: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+        const task = selectedGoalId
+          ? depo.tasks
+              .filter(
+                (task) =>
+                  task.goalId === selectedGoalId && ['active', 'pending'].includes(task.status)
+              )
+              .sort(
+                (a, b) =>
+                  Number(b.status === 'active') - Number(a.status === 'active') ||
+                  priority[a.priority] - priority[b.priority] ||
+                  String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? '')) ||
+                  a.id.localeCompare(b.id)
+              )[0]
+          : null;
+        return {
+          version: 1,
+          timeZone,
+          asOf: now.toISOString(),
+          goals,
+          selectedGoalId,
+          days,
+          summary: selectedGoalId
+            ? {
+                completedTasks: days.reduce((sum, day) => sum + day.completed, 0),
+                activeDays: days.filter((day) => day.completed > 0).length,
+              }
+            : null,
+          nextTask: task
+            ? {
+                id: task.id,
+                goalId: task.goalId,
+                title: task.title,
+                description: task.description ?? null,
+                priority: task.priority,
+                status: task.status,
+                estimatedDuration: task.estimatedDuration ?? null,
+              }
+            : null,
+        };
+      }
       case '/api/tasks': {
         // React Native's bundled URLSearchParams does not implement get().
         const query = new Map(
@@ -486,7 +582,13 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
       return yeni;
     }
     if (yol === '/api/tasks') {
-      const yeni = { id: `t${Date.now()}`, status: 'pending', ...body };
+      const yeni = {
+        id: `t${Date.now()}`,
+        status: 'pending',
+        priority: 'medium',
+        createdAt: new Date().toISOString(),
+        ...body,
+      };
       depo.tasks = [yeni, ...depo.tasks];
       return yeni;
     }

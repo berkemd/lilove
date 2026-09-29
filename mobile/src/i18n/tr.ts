@@ -473,4 +473,16 @@ export const tr = {
   profile_unavailable_body:
     'Oturumun açık, ancak profilin şu anda yüklenemiyor. Yeniden dene veya çıkış yap.',
   profile_loading: 'Profilin yükleniyor…',
+  focus_title: 'Sıradaki küçük adım',
+  focus_choose_goal: 'Odaklanacağın hedefi seç.',
+  focus_change_goal: 'Hedefi değiştir',
+  focus_no_goals: 'Senin için anlamlı bir hedefle başla.',
+  focus_no_task: 'Bu hedef için küçük bir adım seç.',
+  focus_add_task: 'Sıradaki adımı ekle',
+  focus_complete: 'Bu adımı tamamlandı olarak işaretle',
+  focus_week: 'Son 7 gün',
+  focus_week_count: '{count} görev tamamlandı olarak işaretlendi · {days} kayıt günü',
+  focus_day_count: '{date}: {count} görev tamamlandı olarak işaretlendi',
+  focus_restart: 'Bir gün kaçırdıysan küçük bir adımla devam et.',
+  focus_utc: 'Cihazın saat dilimi alınamadı; günler UTC ile gösteriliyor.',
 } as const;

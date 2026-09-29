@@ -250,11 +250,6 @@ export default function GoalsScreen({ navigation, route }: GoalsScreenProps = {}
     );
   };
 
-  const getProgressPercentage = (progress: string): number => {
-    const num = parseFloat(progress);
-    return isNaN(num) ? 0 : Math.min(Math.max(num, 0), 100);
-  };
-
   const getCategoryColor = (cat: string): string => {
     const colors: { [key: string]: string } = {
       personal: '#8B5CF6',
@@ -278,7 +273,6 @@ export default function GoalsScreen({ navigation, route }: GoalsScreenProps = {}
   };
 
   const renderGoalCard = (goal: Goal) => {
-    const progressPercentage = getProgressPercentage(goal.progress);
     const categoryColor = getCategoryColor(goal.category);
     const statusConfig = getStatusConfig(goal.status);
 
@@ -315,17 +309,13 @@ export default function GoalsScreen({ navigation, route }: GoalsScreenProps = {}
               {goalLabel(GOAL_CATEGORY_LABELS, goal.category)}
             </Text>
           </View>
-          <Text style={styles.progressText}>{progressPercentage}%</Text>
         </View>
 
-        <View style={styles.progressBarContainer}>
-          <View
-            style={[
-              styles.progressBar,
-              { width: `${progressPercentage}%`, backgroundColor: categoryColor },
-            ]}
-          />
-        </View>
+        {!!goal.targetOutcome && (
+          <Text style={styles.goalDescription}>
+            {t('target_outcome')}: {goal.targetOutcome}
+          </Text>
+        )}
       </TouchableOpacity>
     );
   };
@@ -665,22 +655,6 @@ const baseStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'capitalize',
-  },
-  progressText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  progressBarContainer: {
-    height: 6,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 3,
-    marginTop: 12,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 3,
   },
   emptyState: {
     alignItems: 'center',

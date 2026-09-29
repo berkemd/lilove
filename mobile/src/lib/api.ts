@@ -335,7 +335,17 @@ export const api = {
   getCompletedTasks: async () => apiClient.get('/api/tasks?status=completed&limit=1'),
   createTask: async (taskData: any) => apiClient.post('/api/tasks', taskData),
   updateTask: async (id: string, taskData: any) => apiClient.patch(`/api/tasks/${id}`, taskData),
-  completeTask: async (id: string) => apiClient.post(`/api/tasks/${id}/complete`),
+  completeTask: async (id: string, authorizationToken?: string) =>
+    apiClient.post(`/api/tasks/${id}/complete`, undefined, { authorizationToken }),
+  getProgressOverview: async (
+    timeZone: string,
+    goalId: string | null,
+    authorizationToken?: string
+  ) =>
+    apiClient.get(
+      `/api/progress/overview?timeZone=${encodeURIComponent(timeZone)}${goalId ? `&goalId=${encodeURIComponent(goalId)}` : ''}`,
+      { authorizationToken }
+    ),
 
   ...createHabitsApi(apiClient),
 

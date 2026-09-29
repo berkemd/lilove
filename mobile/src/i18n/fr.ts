@@ -487,4 +487,16 @@ export const fr = {
   profile_unavailable_body:
     'Vous êtes connecté à votre compte, mais votre profil est indisponible. Réessayez ou déconnectez-vous.',
   profile_loading: 'Chargement de votre profil…',
+  focus_title: 'Votre prochaine petite étape',
+  focus_choose_goal: 'Choisissez un objectif sur lequel vous concentrer.',
+  focus_change_goal: 'Changer d’objectif',
+  focus_no_goals: 'Commencez par un objectif qui compte pour vous.',
+  focus_no_task: 'Choisissez une petite action pour cet objectif.',
+  focus_add_task: 'Ajoutez votre prochaine étape',
+  focus_complete: 'Marquer cette étape comme terminée',
+  focus_week: '7 derniers jours',
+  focus_week_count: '{count} tâches marquées comme terminées · {days} jours avec une activité',
+  focus_day_count: '{date} : {count} tâches marquées comme terminées',
+  focus_restart: 'Vous avez manqué un jour ? Reprenez avec une petite étape.',
+  focus_utc: 'Fuseau horaire de l’appareil indisponible ; les jours sont affichés en UTC.',
 } as const;

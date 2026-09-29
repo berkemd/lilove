@@ -480,4 +480,17 @@ export const it = {
   profile_unavailable_body:
     'Sei connesso al tuo account, ma il tuo profilo non è disponibile. Riprova o esci.',
   profile_loading: 'Caricamento del tuo profilo…',
+  focus_title: 'Il tuo prossimo piccolo passo',
+  focus_choose_goal: 'Scegli un obiettivo su cui concentrarti.',
+  focus_change_goal: 'Cambia obiettivo',
+  focus_no_goals: 'Inizia con un obiettivo che conta per te.',
+  focus_no_task: 'Scegli una piccola azione per questo obiettivo.',
+  focus_add_task: 'Aggiungi il tuo prossimo passo',
+  focus_complete: 'Contrassegna questo passo come completato',
+  focus_week: 'Ultimi 7 giorni',
+  focus_week_count:
+    '{count} attività contrassegnate come completate · {days} giorni con attività registrate',
+  focus_day_count: '{date}: {count} attività contrassegnate come completate',
+  focus_restart: 'Hai perso un giorno? Riprendi con un piccolo passo.',
+  focus_utc: 'Fuso orario del dispositivo non disponibile; i giorni sono mostrati in UTC.',
 } as const;

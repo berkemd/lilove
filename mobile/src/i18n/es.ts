@@ -479,4 +479,16 @@ export const es = {
   profile_unavailable_body:
     'Has iniciado sesión, pero tu perfil no está disponible. Inténtalo de nuevo o cierra la sesión.',
   profile_loading: 'Cargando tu perfil…',
+  focus_title: 'Tu siguiente pequeño paso',
+  focus_choose_goal: 'Elige una meta sobre la que centrarte.',
+  focus_change_goal: 'Cambiar meta',
+  focus_no_goals: 'Empieza con una meta que tenga sentido para ti.',
+  focus_no_task: 'Elige una acción pequeña para esta meta.',
+  focus_add_task: 'Añade tu siguiente paso',
+  focus_complete: 'Marcar este paso como completado',
+  focus_week: 'Últimos 7 días',
+  focus_week_count: '{count} tareas marcadas como completadas · {days} días con registro',
+  focus_day_count: '{date}: {count} tareas marcadas como completadas',
+  focus_restart: '¿Te has saltado un día? Continúa con un pequeño paso.',
+  focus_utc: 'Zona horaria del dispositivo no disponible; los días se muestran en UTC.',
 } as const;

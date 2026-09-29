@@ -8,9 +8,11 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import type { MainStackParamList, MainTabParamList } from '../../types/navigation';
 import { useAuthStore } from '../../store/authStore';
+import { refreshDailyFocus } from '../../hooks/useDailyFocus';
 import { useCoinBalance } from '../../hooks/useCoinBalance';
 import { api } from '../../lib/api';
 import { loadDashboardStats, type DashboardStats } from '../../lib/dashboard';
+import DailyFocusCard from '../../components/DailyFocusCard';
 import MoodSelector from '../../components/MoodSelector';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
@@ -77,6 +79,12 @@ export default function DashboardScreen() {
         StackNavigationProp<MainStackParamList>
       >
     >();
+  const focusCard = (
+    <DailyFocusCard
+      onGoals={() => navigation.navigate('Goals')}
+      onTasks={() => navigation.navigate('Tasks')}
+    />
+  );
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -117,6 +125,7 @@ export default function DashboardScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     void coins.refresh();
+    void refreshDailyFocus();
     loadDashboard();
   };
 
@@ -128,6 +137,7 @@ export default function DashboardScreen() {
           <SkeletonBox width={180} height={32} />
         </View>
 
+        {focusCard}
         <View style={styles.coinBadgeContainer}>
           <SkeletonBox width={120} height={36} style={{ borderRadius: 20 }} />
         </View>
@@ -156,25 +166,28 @@ export default function DashboardScreen() {
   if (error) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.errorContainer}>
-          <View style={styles.errorIconContainer}>
-            <Ionicons
-              name="cloud-offline-outline"
-              size={48}
-              color={themeColor('#9CA3AF', 'text')}
-            />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {focusCard}
+          <View style={styles.errorContainer}>
+            <View style={styles.errorIconContainer}>
+              <Ionicons
+                name="cloud-offline-outline"
+                size={48}
+                color={themeColor('#9CA3AF', 'text')}
+              />
+            </View>
+            <Text style={styles.errorTitle}>{t('something_went_wrong')}</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={loadDashboard}
+              data-testid="button-retry-dashboard"
+            >
+              <Ionicons name="refresh" size={20} color={themeColor('#FFFFFF', 'text')} />
+              <Text style={styles.retryButtonText}>{t('try_again')}</Text>
+            </TouchableOpacity>
           </View>
-          <Text style={styles.errorTitle}>{t('something_went_wrong')}</Text>
-          <Text style={styles.errorMessage}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={loadDashboard}
-            data-testid="button-retry-dashboard"
-          >
-            <Ionicons name="refresh" size={20} color={themeColor('#FFFFFF', 'text')} />
-            <Text style={styles.retryButtonText}>{t('try_again')}</Text>
-          </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -205,6 +218,7 @@ export default function DashboardScreen() {
           </Text>
         </View>
 
+        {focusCard}
         <View style={styles.coinBadgeContainer}>
           <TouchableOpacity
             style={styles.coinBadge}
