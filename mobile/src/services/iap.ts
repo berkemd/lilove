@@ -51,6 +51,7 @@ import { api } from '../lib/api';
 import { COIN_IDS, SUBSCRIPTION_IDS, isCoinProduct } from '../config/products';
 import { tokenManager } from './tokenManager';
 import { DEMO_TOKEN } from '../lib/demoData';
+import { assertNewSubscriptionAvailable } from '../lib/subscriptionAvailability';
 
 /**
  * No purchase or restore is ever STARTED in the demo tour.
@@ -233,6 +234,9 @@ export async function loadSubscriptionProducts(): Promise<StoreProduct[]> {
  */
 async function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> {
   await hesapGerekir();
+  if (tur === 'subs' || (SUBSCRIPTION_IDS as readonly string[]).includes(productId)) {
+    assertNewSubscriptionAvailable();
+  }
   const hesap = await api.getIapAccountToken(productId);
   const appAccountToken = hesap?.appAccountToken;
   if (

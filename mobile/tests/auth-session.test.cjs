@@ -264,12 +264,22 @@ test('signed-out Firebase callback preserves an active sample-data tour', async 
 
 test('Firebase observer includes ID-token refresh events', () => {
   let observed = false;
+  let initialized = 0;
+  const app = {};
+  const auth = {};
   const firebase = load('src/lib/firebase.ts', {
-    'firebase/app': { getApps: () => [], initializeApp: () => ({}) },
+    'firebase/app': { getApps: () => [], initializeApp: () => app },
+    './firebaseAuth': {
+      initializeAppAuth: (received) => {
+        assert.equal(received, app);
+        initialized++;
+        return auth;
+      },
+    },
     'firebase/auth': {
-      getAuth: () => ({}),
       onAuthStateChanged: () => () => {},
-      onIdTokenChanged: (_auth, listener) => {
+      onIdTokenChanged: (received, listener) => {
+        assert.equal(received, auth);
         observed = true;
         listener(null);
         return () => {};
@@ -281,6 +291,7 @@ test('Firebase observer includes ID-token refresh events', () => {
   });
   let callbackValue = 'not-called';
   firebase.subscribeToAuthState((value) => (callbackValue = value));
+  assert.equal(initialized, 1);
   assert.equal(observed, true);
   assert.equal(callbackValue, null);
 });

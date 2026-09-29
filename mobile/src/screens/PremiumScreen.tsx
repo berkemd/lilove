@@ -24,35 +24,10 @@ import { useSubscription } from '../hooks/useSubscription';
 import { t } from '../i18n';
 import { purchaseBlockedInDemo } from '../lib/accountGate';
 import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
-
-const features = [
-  {
-    icon: 'sparkles',
-    title: t('advanced_ai_coaching'),
-    description: t('personalized_guidance_from_our_ai_mentor'),
-  },
-  {
-    icon: 'infinite',
-    title: t('unlimited_goals_habits'),
-    description: t('track_as_many_goals_and_habits_as_you_want'),
-  },
-  {
-    icon: 'analytics',
-    title: t('advanced_analytics'),
-    description: t('deep_insights_into_your_progress'),
-  },
-  {
-    icon: 'trophy',
-    title: t('premium_challenges'),
-    description: t('access_exclusive_challenges_and_rewards'),
-  },
-  { icon: 'people', title: t('priority_support'), description: t('get_help_when_you_need_it') },
-  {
-    icon: 'color-palette',
-    title: t('custom_themes'),
-    description: t('personalize_your_experience'),
-  },
-];
+import {
+  areNewSubscriptionsAvailable,
+  SUBSCRIPTIONS_UNAVAILABLE,
+} from '../lib/subscriptionAvailability';
 
 export default function PremiumScreen({ navigation }: any) {
   const styles = useThemedStyles(baseStyles);
@@ -60,24 +35,26 @@ export default function PremiumScreen({ navigation }: any) {
 
   const { isDemo } = useAuthStore();
   const subscription = useSubscription();
+  const newSubscriptionsAvailable = areNewSubscriptionsAvailable();
   const [packages, setPackages] = useState<StoreProduct[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<StoreProduct | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(newSubscriptionsAvailable);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [purchaseNeedsCheck, setPurchaseNeedsCheck] = useState(false);
   const isPremium =
     subscription.status === 'verified' && subscription.subscription?.isPremium === true;
   const isFree =
     subscription.status === 'verified' && subscription.subscription?.isPremium === false;
-  const purchaseDisabled = isPurchasing || purchaseNeedsCheck || (!isDemo && !isFree);
+  const purchaseDisabled =
+    !newSubscriptionsAvailable || isPurchasing || purchaseNeedsCheck || (!isDemo && !isFree);
 
   useEffect(() => {
     setPurchaseNeedsCheck(false);
   }, [subscription.accountId]);
 
   useEffect(() => {
-    loadOfferings();
-  }, []);
+    if (newSubscriptionsAvailable) loadOfferings();
+  }, [newSubscriptionsAvailable]);
 
   const loadOfferings = async () => {
     try {
@@ -106,6 +83,7 @@ export default function PremiumScreen({ navigation }: any) {
 
   const handlePurchase = async () => {
     if (purchaseBlockedInDemo()) return;
+    if (!newSubscriptionsAvailable) return;
     if (purchaseDisabled) return;
     if (!selectedPackage) {
       Alert.alert(t('please_select_a_subscription_plan'));
@@ -126,6 +104,14 @@ export default function PremiumScreen({ navigation }: any) {
       ]);
     } catch (error: any) {
       const kod = String(error?.code ?? '');
+      if (kod === SUBSCRIPTIONS_UNAVAILABLE) {
+        // No StoreKit request was started; this is not an uncertain payment.
+        Alert.alert(
+          t('subscription_not_available'),
+          t('in_app_purchases_are_being_configured_please')
+        );
+        return;
+      }
       const iptal =
         kod.includes('USER_CANCELLED') ||
         kod.includes('E_USER_CANCELLED') ||
@@ -174,6 +160,13 @@ export default function PremiumScreen({ navigation }: any) {
     return `${katman} ${donem}`;
   };
 
+  const availabilityNotice = !newSubscriptionsAvailable ? (
+    <View style={styles.noPackagesContainer} accessibilityLiveRegion="polite">
+      {!isPremium && <Text style={styles.noPackagesTitle}>{t('subscription_not_available')}</Text>}
+      <Text style={styles.noPackagesText}>{t('in_app_purchases_are_being_configured_please')}</Text>
+    </View>
+  ) : null;
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -217,21 +210,7 @@ export default function PremiumScreen({ navigation }: any) {
             </Text>
             <Text style={styles.premiumActiveSubtitle}>{t('subscription_active_confirmed')}</Text>
 
-            <View style={styles.featuresContainer}>
-              {features.map((feature, index) => (
-                <View key={index} style={styles.featureRow}>
-                  <Ionicons
-                    name={feature.icon as any}
-                    size={24}
-                    color={themeColor('#8B5CF6', 'text')}
-                  />
-                  <View style={styles.featureTextContainer}>
-                    <Text style={styles.featureTitle}>{feature.title}</Text>
-                    <Text style={styles.featureDescription}>{feature.description}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+            {availabilityNotice}
 
             <TouchableOpacity
               style={styles.manageButton}
@@ -243,6 +222,13 @@ export default function PremiumScreen({ navigation }: any) {
               }
             >
               <Text style={styles.manageButtonText}>{t('manage_subscription')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.restoreButton}
+              onPress={handleRestore}
+              disabled={isPurchasing}
+            >
+              <Text style={styles.restoreButtonText}>{t('restore_purchases')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -286,98 +272,85 @@ export default function PremiumScreen({ navigation }: any) {
           <View style={styles.premiumBadge}>
             <Ionicons name="star" size={32} color={themeColor('#F59E0B', 'text')} />
           </View>
-          <Text style={styles.heroTitle}>{t('unlock_your_full_potential')}</Text>
-          <Text style={styles.heroSubtitle}>
-            {t('get_unlimited_access_to_all_premium_features')}
-          </Text>
+          <Text style={styles.heroTitle}>{t('subscription')}</Text>
         </View>
 
-        <View style={styles.featuresContainer}>
-          {features.map((feature, index) => (
-            <View key={index} style={styles.featureRow}>
-              <View style={styles.featureIconContainer}>
-                <Ionicons
-                  name={feature.icon as any}
-                  size={20}
-                  color={themeColor('#8B5CF6', 'text')}
-                />
-              </View>
-              <View style={styles.featureTextContainer}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
+        {availabilityNotice}
 
-        {packages.length > 0 ? (
-          <View style={styles.plansContainer}>
-            <Text style={styles.plansTitle}>{t('choose_your_plan')}</Text>
+        {newSubscriptionsAvailable &&
+          (packages.length > 0 ? (
+            <View style={styles.plansContainer}>
+              <Text style={styles.plansTitle}>{t('choose_your_plan')}</Text>
 
-            {/* TASARRUF ROZETİ KALDIRILDI.
+              {/* TASARRUF ROZETİ KALDIRILDI.
                 Eskiden yıllık planın üstünde sabit "Save 25%" yazıyordu.
                 Mağazadaki gerçek oran bu değil ve bölgeye göre de
                 değişiyor; doğrulanamayan bir tasarruf iddiası 2.3.1'dir.
                 Fiyatlar zaten yan yana duruyor. */}
-            {packages.map((pkg) => (
-              <TouchableOpacity
-                key={pkg.id}
-                style={[styles.planCard, selectedPackage?.id === pkg.id && styles.planCardSelected]}
-                onPress={() => setSelectedPackage(pkg)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: selectedPackage?.id === pkg.id }}
-                accessibilityLabel={`${planName(pkg)}, ${formatPrice(pkg)}`}
-              >
-                <View style={styles.planHeader}>
-                  <View>
-                    <Text style={styles.planName}>{planName(pkg)}</Text>
-                    <Text style={styles.planPrice}>{formatPrice(pkg)}</Text>
+              {packages.map((pkg) => (
+                <TouchableOpacity
+                  key={pkg.id}
+                  style={[
+                    styles.planCard,
+                    selectedPackage?.id === pkg.id && styles.planCardSelected,
+                  ]}
+                  onPress={() => setSelectedPackage(pkg)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedPackage?.id === pkg.id }}
+                  accessibilityLabel={`${planName(pkg)}, ${formatPrice(pkg)}`}
+                >
+                  <View style={styles.planHeader}>
+                    <View>
+                      <Text style={styles.planName}>{planName(pkg)}</Text>
+                      <Text style={styles.planPrice}>{formatPrice(pkg)}</Text>
+                    </View>
                   </View>
-                </View>
 
-                {selectedPackage?.id === pkg.id && (
-                  <View style={styles.selectedIndicator}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={24}
-                      color={themeColor('#8B5CF6', 'text')}
-                    />
-                  </View>
-                )}
+                  {selectedPackage?.id === pkg.id && (
+                    <View style={styles.selectedIndicator}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color={themeColor('#8B5CF6', 'text')}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.noPackagesContainer}>
+              <Ionicons
+                name="cloud-offline-outline"
+                size={48}
+                color={themeColor('#9CA3AF', 'text')}
+              />
+              <Text style={styles.noPackagesTitle}>{t('subscription_not_available')}</Text>
+              <Text style={styles.noPackagesText}>
+                {t('in_app_purchases_are_being_configured_please')}
+              </Text>
+              <TouchableOpacity style={styles.retryButton} onPress={loadOfferings}>
+                <Text style={styles.retryButtonText}>{t('retry')}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.noPackagesContainer}>
-            <Ionicons
-              name="cloud-offline-outline"
-              size={48}
-              color={themeColor('#9CA3AF', 'text')}
-            />
-            <Text style={styles.noPackagesTitle}>{t('subscription_not_available')}</Text>
-            <Text style={styles.noPackagesText}>
-              {t('in_app_purchases_are_being_configured_please')}
-            </Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadOfferings}>
-              <Text style={styles.retryButtonText}>{t('retry')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+            </View>
+          ))}
 
-        <TouchableOpacity
-          style={[styles.purchaseButton, purchaseDisabled && styles.purchaseButtonDisabled]}
-          onPress={handlePurchase}
-          disabled={purchaseDisabled}
-        >
-          {/* "Start Free Trial" ÇIKARILDI: ürünlerde tanımlı bir deneme
+        {newSubscriptionsAvailable && (
+          <TouchableOpacity
+            style={[styles.purchaseButton, purchaseDisabled && styles.purchaseButtonDisabled]}
+            onPress={handlePurchase}
+            disabled={purchaseDisabled}
+          >
+            {/* "Start Free Trial" ÇIKARILDI: ürünlerde tanımlı bir deneme
               olduğunu doğrulamadım ve olmayan bir denemeyi vaat etmek
               3.1.2'dir. Düğme ne yapacağını söylüyor. */}
-          {isPurchasing ? (
-            <ActivityIndicator color={themeColor('#fff', 'text')} />
-          ) : (
-            <Text style={styles.purchaseButtonText}>{t('subscribe')}</Text>
-          )}
-        </TouchableOpacity>
+            {isPurchasing ? (
+              <ActivityIndicator color={themeColor('#fff', 'text')} />
+            ) : (
+              <Text style={styles.purchaseButtonText}>{t('subscribe')}</Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.restoreButton}
@@ -387,11 +360,13 @@ export default function PremiumScreen({ navigation }: any) {
           <Text style={styles.restoreButtonText}>{t('restore_purchases')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.disclaimer}>
-          • {t('sub_cancel_anytime')}
-          {'\n'}• {t('sub_auto_renews')}
-          {'\n'}• {t('sub_charged_apple')}
-        </Text>
+        {newSubscriptionsAvailable && (
+          <Text style={styles.disclaimer}>
+            • {t('sub_cancel_anytime')}
+            {'\n'}• {t('sub_auto_renews')}
+            {'\n'}• {t('sub_charged_apple')}
+          </Text>
+        )}
 
         <View style={styles.legalRow}>
           <TouchableOpacity onPress={() => Linking.openURL('https://lilove.org/legal/privacy')}>
