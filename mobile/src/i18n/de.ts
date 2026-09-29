@@ -1,6 +1,17 @@
 // LiLove · de arayuz katalogu — URETILDI, elle duzenleme
 
 export const de = {
+  task_priority_low: 'Niedrig',
+  task_priority_medium: 'Mittel',
+  task_priority_high: 'Hoch',
+  task_priority_urgent: 'Dringend',
+  task_status_pending: 'Ausstehend',
+  task_status_skipped: 'Übersprungen',
+  task_status_blocked: 'Blockiert',
+  task_status_cancelled: 'Abgebrochen',
+
+  task_select_goal: 'Ziel auswählen',
+  task_no_active_goals: 'Erstelle ein aktives Ziel, bevor du eine Aufgabe hinzufügst.',
   account_name_update_failed_body:
     'Dein Profil wurde gespeichert, aber der Anzeigename deines Kontos konnte nicht aktualisiert werden. Du kannst dich mit diesem Konto anmelden.',
   verification_email_failed_title: 'Konto erstellt',

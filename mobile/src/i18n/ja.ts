@@ -1,6 +1,17 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  task_priority_low: '低',
+  task_priority_medium: '中',
+  task_priority_high: '高',
+  task_priority_urgent: '緊急',
+  task_status_pending: '未着手',
+  task_status_skipped: 'スキップ済み',
+  task_status_blocked: '保留',
+  task_status_cancelled: 'キャンセル済み',
+
+  task_select_goal: '目標を選択',
+  task_no_active_goals: 'タスクを追加する前に、進行中の目標を作成してください。',
   account_name_update_failed_body:
     'プロフィールは保存されましたが、アカウントの表示名の更新に失敗しました。このアカウントでサインインできます。',
   verification_email_failed_title: 'アカウントが作成されました',
