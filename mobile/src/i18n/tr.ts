@@ -1,6 +1,12 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  account_name_update_failed_body:
+    'Profilin kaydedildi, ancak hesabının görünen adı güncellenemedi. Bu hesapla giriş yapabilirsin.',
+  verification_email_failed_title: 'Hesap oluşturuldu',
+  verification_email_failed_body:
+    'Hesabın ve profilin oluşturuldu, ancak doğrulama e-postası gönderilemedi. Bu hesapla giriş yapabilirsin.',
+
   edit_goal: 'Hedefi Düzenle',
   update: 'Güncelle',
   other_goals: 'Diğer Hedefler',

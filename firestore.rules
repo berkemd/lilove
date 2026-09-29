@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validSettings(settings) {
+      return settings is map
+        && settings.keys().hasAll(['theme', 'notifications', 'language'])
+        && settings.keys().hasOnly(['theme', 'notifications', 'language'])
+        && settings.theme in ['light', 'dark']
+        && settings.notifications is bool
+        && settings.language in ['en', 'tr', 'de', 'es', 'fr', 'it', 'ja'];
+    }
+
+    function validPhoto(photo) {
+      return photo == null || (photo is string && photo.size() <= 2048
+        && (photo.matches('https://[^ /]+/.*')
+          || photo.matches('/uploads/profile-pictures/[^/]+')));
+    }
+
+    function validEditableFields(data) {
+      return data.displayName is string && data.displayName.size() <= 100
+        && validPhoto(data.photoURL)
+        && data.onboardingCompleted is bool
+        && data.mood in ['energized', 'happy', 'peaceful', 'focused', 'motivated',
+          'grateful', 'neutral', 'tired', 'calm']
+        && validSettings(data.settings);
+    }
+
+    function validChangedFields(data, changed) {
+      // Legacy/server-owned values outside this edit are preserved, not reset.
+      return (!changed.hasAny(['displayName'])
+          || (data.displayName is string && data.displayName.size() <= 100))
+        && (!changed.hasAny(['photoURL']) || validPhoto(data.photoURL))
+        && (!changed.hasAny(['onboardingCompleted']) || data.onboardingCompleted is bool)
+        && (!changed.hasAny(['mood'])
+          || data.mood in ['energized', 'happy', 'peaceful', 'focused', 'motivated',
+            'grateful', 'neutral', 'tired', 'calm'])
+        && (!changed.hasAny(['settings']) || validSettings(data.settings));
+    }
+
+    function initialStats(stats) {
+      return stats is map
+        && stats == {'totalGoals': 0, 'completedGoals': 0, 'currentStreak': 0,
+          'longestStreak': 0, 'totalXP': 0, 'level': 1}
+        && stats.totalGoals is int && stats.completedGoals is int
+        && stats.currentStreak is int && stats.longestStreak is int
+        && stats.totalXP is int && stats.level is int;
+    }
+
+    function validCreation(uid) {
+      let data = request.resource.data;
+      let keys = ['uid', 'email', 'displayName', 'photoURL', 'isPremium',
+        'subscriptionTier', 'coinBalance', 'onboardingCompleted', 'mood',
+        'createdAt', 'updatedAt', 'settings', 'stats'];
+      return data.keys().hasAll(keys) && data.keys().hasOnly(keys)
+        && data.uid == uid
+        && data.email is string && data.email.size() <= 320
+        && data.email == request.auth.token.get('email', '')
+        && validEditableFields(data)
+        && data.isPremium == false && data.subscriptionTier == 'free'
+        && data.coinBalance is int && data.coinBalance == 100
+        && data.onboardingCompleted == false && data.mood == 'neutral'
+        && data.settings == {'theme': 'light', 'notifications': true, 'language': 'en'}
+        && initialStats(data.stats)
+        && data.createdAt == request.time && data.updatedAt == request.time;
+    }
+
+    function validUpdate() {
+      let data = request.resource.data;
+      let changed = data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['displayName', 'photoURL', 'onboardingCompleted',
+          'mood', 'settings', 'lastLoginAt', 'updatedAt'])
+        && validChangedFields(data, changed)
+        && data.updatedAt == request.time
+        && (!changed.hasAny(['lastLoginAt']) || data.lastLoginAt == request.time);
+    }
+
+    match /users/{uid} {
+      // A missing own document can be read by the create-if-missing transaction.
+      allow get: if owner(uid);
+      allow create: if owner(uid) && validCreation(uid);
+      allow update: if owner(uid) && validUpdate();
+      allow list, delete: if false;
+    }
+
+    // No discovery, chat, goals, nested profile data or other client collections.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

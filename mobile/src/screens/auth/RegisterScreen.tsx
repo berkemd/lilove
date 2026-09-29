@@ -40,6 +40,10 @@ export default function RegisterScreen({ navigation }: any) {
       clearError();
       await register(email, password, displayName || email.split('@')[0]);
     } catch (error: any) {
+      if (error?.code === 'auth/account-setup-incomplete') {
+        Alert.alert(t('verification_email_failed_title'), error.message);
+        return;
+      }
       Alert.alert(t('registration_failed'), error.message || t('please_try_again'));
     }
   };
