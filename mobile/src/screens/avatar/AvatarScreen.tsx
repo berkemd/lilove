@@ -18,6 +18,8 @@ import { useNavigation } from '@react-navigation/native';
 import { api } from '../../lib/api';
 import { useCoinBalance } from '../../hooks/useCoinBalance';
 import LivingForest from '../../components/LivingForest';
+import AvatarPreview from '../../components/AvatarPreview';
+import { avatarTraitLabel } from '../../lib/avatarPreview';
 import { t, type Anahtar } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 import { readUserStats, type UserStats } from '../../lib/userStats';
@@ -188,6 +190,16 @@ export default function AvatarScreen() {
 
   const coins = useCoinBalance();
   const navigation = useNavigation();
+  const accountScope = useRef({ key: coins.accountKey, isCurrent: coins.captureAccount() });
+  if (
+    accountScope.current.key !== coins.accountKey ||
+    (coins.accountKey !== null && !accountScope.current.isCurrent())
+  ) {
+    accountScope.current = { key: coins.accountKey, isCurrent: coins.captureAccount() };
+  }
+  const scope = accountScope.current;
+  const [loadedScope, setLoadedScope] = useState<typeof scope | null>(null);
+  const loadSequence = useRef(0);
   const [activeCategory, setActiveCategory] = useState('appearance');
   const [zones, setZones] = useState<AvatarZone[]>([]);
   const [userTraits, setUserTraits] = useState<UserAvatarTrait[]>([]);
@@ -197,6 +209,7 @@ export default function AvatarScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [selectedTrait, setSelectedTrait] = useState<AvatarTrait | null>(null);
   const [selectedZone, setSelectedZone] = useState<AvatarZone | null>(null);
@@ -232,6 +245,8 @@ export default function AvatarScreen() {
   }, [activeCategory, zonesByKey]);
 
   const loadData = async () => {
+    const request = ++loadSequence.current;
+    const isCurrent = () => scope.isCurrent() && request === loadSequence.current;
     setError(null);
     setLoading(true);
     try {
@@ -242,6 +257,7 @@ export default function AvatarScreen() {
         api.getAvatar() as Promise<Avatar>,
         api.getUserStats(),
       ]);
+      if (!isCurrent()) return;
       const stats = readUserStats(statsData);
       if (
         !Array.isArray(zonesData) ||
@@ -261,6 +277,7 @@ export default function AvatarScreen() {
       setEquippedTraits(equippedData);
       setAvatar(avatarData);
       setUserStats(stats);
+      setLoadedScope(scope);
 
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -268,24 +285,30 @@ export default function AvatarScreen() {
         useNativeDriver: true,
       }).start();
     } catch {
+      if (!isCurrent()) return;
+      setLoadedScope(scope);
       setUserStats(null);
       setError(t('failed_to_load_avatar_data'));
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isCurrent()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   const loadZoneTraits = async (zone: AvatarZone) => {
-    if (zoneTraits[zone.id] || loadingZones.has(zone.id)) return;
+    if (zoneTraits[zone.id] || loadingZones.has(zone.id) || !scope.isCurrent()) return;
 
     setLoadingZones((prev) => new Set(prev).add(zone.id));
     try {
       const traits = (await api.getTraitsByZone(zone.id)) as AvatarTrait[];
+      if (!scope.isCurrent()) return;
       setZoneTraits((prev) => ({ ...prev, [zone.id]: Array.isArray(traits) ? traits : [] }));
     } catch (err) {
       console.error(`[AvatarScreen] Error loading traits for zone ${zone.id}:`, err);
     } finally {
+      if (!scope.isCurrent()) return;
       setLoadingZones((prev) => {
         const next = new Set(prev);
         next.delete(zone.id);
@@ -295,27 +318,45 @@ export default function AvatarScreen() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    setActionError(null);
+    setZones([]);
+    setUserTraits([]);
+    setEquippedTraits([]);
+    setAvatar(null);
+    setUserStats(null);
+    setZoneTraits({});
+    setLoadingZones(new Set());
+    setPurchaseModalOpen(false);
+    setSelectedTrait(null);
+    setSelectedZone(null);
+    setIsEquipping(false);
+    setIsPurchasing(false);
+    setRefreshing(false);
+    if (scope.key !== null) void loadData();
+  }, [scope]);
 
   useEffect(() => {
+    if (loadedScope !== scope) return;
     currentCategoryZones.forEach((zone) => {
       loadZoneTraits(zone);
     });
-  }, [currentCategoryZones]);
+  }, [currentCategoryZones, loadedScope, scope]);
 
   const onRefresh = useCallback(() => {
+    setActionError(null);
     setRefreshing(true);
     setZoneTraits({});
     void coins.refresh();
     loadData();
-  }, [coins.refresh]);
+  }, [coins.refresh, scope]);
 
   const handleTraitPress = (trait: AvatarTrait, zone: AvatarZone) => {
+    if (!scope.isCurrent()) return;
     const isOwned = ownedTraitIds.has(trait.id) || trait.isDefault;
     const isEquipped = equippedTraitMap.get(zone.id) === trait.id;
 
     if (isEquipped) return;
+    setActionError(null);
 
     if (isOwned) {
       equipTrait(zone.id, trait.id);
@@ -327,35 +368,56 @@ export default function AvatarScreen() {
   };
 
   const equipTrait = async (zoneId: string, traitId: string) => {
+    let writeConfirmed = false;
+    setActionError(null);
     setIsEquipping(true);
     try {
       await api.equipTrait(zoneId, traitId);
+      writeConfirmed = true;
+      if (!scope.isCurrent()) return;
       const equippedData = (await api.getMyEquipped()) as EquippedTrait[];
-      setEquippedTraits(Array.isArray(equippedData) ? equippedData : []);
+      if (!scope.isCurrent()) return;
+      if (!Array.isArray(equippedData)) throw new Error('Invalid equipped traits');
+      setEquippedTraits(equippedData);
     } catch (err: any) {
-      console.error('[AvatarScreen] Error equipping trait:', err);
+      if (scope.isCurrent()) {
+        setActionError(
+          writeConfirmed || err?.outcomeUnknown
+            ? t('request_outcome_unknown')
+            : `${t('error')}. ${t('please_try_again_2')}`
+        );
+      }
     } finally {
-      setIsEquipping(false);
+      if (scope.isCurrent()) setIsEquipping(false);
     }
   };
 
   const purchaseTrait = async () => {
     if (!selectedTrait) return;
     const accountIsCurrent = coins.captureAccount();
-
+    let writeConfirmed = false;
+    setActionError(null);
     setIsPurchasing(true);
     try {
       const result = await coins.confirm(() => api.unlockTrait(selectedTrait.id));
       if (result === 'account-changed') return;
+      writeConfirmed = true;
       const userTraitsData = (await api.getMyTraits()) as UserAvatarTrait[];
       if (!accountIsCurrent()) return;
-      setUserTraits(Array.isArray(userTraitsData) ? userTraitsData : []);
+      if (!Array.isArray(userTraitsData)) throw new Error('Invalid owned traits');
+      setUserTraits(userTraitsData);
       setPurchaseModalOpen(false);
       setSelectedTrait(null);
     } catch (err: any) {
-      console.error('[AvatarScreen] Error purchasing trait:', err);
+      if (accountIsCurrent()) {
+        setActionError(
+          writeConfirmed || err?.outcomeUnknown
+            ? t('request_outcome_unknown')
+            : `${t('purchase_failed')}. ${t('please_try_again_2')}`
+        );
+      }
     } finally {
-      setIsPurchasing(false);
+      if (scope.isCurrent()) setIsPurchasing(false);
     }
   };
 
@@ -367,7 +429,7 @@ export default function AvatarScreen() {
     coinBalance >= selectedTrait.coinCost;
   const currentLevel = userStats?.currentLevel;
 
-  if (loading && !refreshing) {
+  if (loadedScope !== scope || (loading && !refreshing)) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
@@ -423,6 +485,17 @@ export default function AvatarScreen() {
           </TouchableOpacity>
         </View>
 
+        {actionError && !purchaseModalOpen && (
+          <Text
+            accessibilityRole="alert"
+            accessibilityLiveRegion="assertive"
+            style={[styles.actionError, { marginHorizontal: 16 }]}
+            testID="avatar-action-error"
+          >
+            {actionError}
+          </Text>
+        )}
+
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -442,37 +515,7 @@ export default function AvatarScreen() {
               </View>
             </View>
 
-            <View style={styles.avatarPreview}>
-              <View style={styles.avatarCircle}>
-                <Ionicons name="person" size={64} color={themeColor('#8B5CF6', 'text')} />
-              </View>
-
-              {equippedTraits.length > 0 && (
-                <View style={styles.equippedList}>
-                  {equippedTraits.slice(0, 3).map((eq) => (
-                    <View key={eq.id} style={styles.equippedItem}>
-                      <Text style={styles.equippedZone}>{zoneLabel(eq.zone)}:</Text>
-                      <View
-                        style={[
-                          styles.equippedBadge,
-                          { borderColor: RARITY_COLORS[eq.trait?.rarity || 'common'] },
-                        ]}
-                      >
-                        <Text style={styles.equippedTrait}>{eq.trait?.name}</Text>
-                      </View>
-                    </View>
-                  ))}
-                  {equippedTraits.length > 3 && (
-                    <Text style={styles.equippedMore}>
-                      {t('avatar_more_equipped').replace(
-                        '{count}',
-                        String(equippedTraits.length - 3)
-                      )}
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
+            <AvatarPreview equipped={equippedTraits} demo={coins.accountKey === 'demo'} />
 
             {avatar && (
               <View style={styles.statsContainer}>
@@ -604,7 +647,7 @@ export default function AvatarScreen() {
                             )}
                           </View>
                           <Text style={styles.traitName} numberOfLines={1}>
-                            {trait.name}
+                            {avatarTraitLabel(zone.key, trait.name, t, coins.accountKey === 'demo')}
                           </Text>
                           <View
                             style={[
@@ -707,6 +750,16 @@ export default function AvatarScreen() {
               </View>
             )}
 
+            {actionError && (
+              <Text
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                style={styles.actionError}
+                testID="avatar-purchase-error"
+              >
+                {actionError}
+              </Text>
+            )}
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.cancelButton}
@@ -767,6 +820,12 @@ const baseStyles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     marginTop: 16,
+  },
+  actionError: {
+    color: '#991B1B',
+    fontSize: 14,
+    lineHeight: 21,
+    marginBottom: 12,
   },
   errorMessage: {
     fontSize: 14,
@@ -837,6 +896,8 @@ const baseStyles = StyleSheet.create({
   },
   previewHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
@@ -859,49 +920,6 @@ const baseStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#065F46',
-  },
-  avatarPreview: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  avatarCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#E9D5FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  equippedList: {
-    width: '100%',
-    gap: 6,
-  },
-  equippedItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  equippedZone: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  equippedBadge: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  equippedTrait: {
-    fontSize: 12,
-    color: '#1F2937',
-  },
-  equippedMore: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 4,
   },
   statsContainer: {
     marginBottom: 16,
