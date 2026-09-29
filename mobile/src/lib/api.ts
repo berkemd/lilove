@@ -329,16 +329,18 @@ export const api = {
 
   ...createHabitsApi(apiClient),
 
+  getCoachCapabilities: async (): Promise<{ available: boolean; code?: string }> =>
+    apiClient.get('/api/ai/capabilities', { maxRetries: 0 }),
   getCoachResponse: async (
     message: string
   ): Promise<{ response?: string; message?: string; suggestions?: string[] }> =>
-    apiClient.post('/api/ai-coach/chat', { message }),
+    apiClient.post('/api/ai-coach/chat', { message }, { maxRetries: 0 }),
   getDailyInsight: async (): Promise<{
     insight?: string;
     motivation?: string;
     focusArea?: string;
     challenge?: string;
-  }> => apiClient.get('/api/ai-coach/daily-insight'),
+  }> => apiClient.get('/api/ai-coach/daily-insight', { maxRetries: 0 }),
   getPerformanceAnalysis: async () => apiClient.get('/api/ai-coach/performance-analysis'),
   getCoachRecommendations: async () => apiClient.get('/api/ai-coach/recommendations'),
 

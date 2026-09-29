@@ -1,6 +1,15 @@
 // LiLove · es arayuz katalogu — URETILDI, elle duzenleme
 
 export const es = {
+  nav_home: 'Inicio',
+  nav_coach: 'Asistente',
+  nav_profile: 'Perfil',
+  nav_back: 'Atrás',
+  coach_checking_availability: 'Comprobando disponibilidad de IA…',
+  coach_unavailable:
+    'El coaching con IA no está disponible actualmente. Puedes seguir gestionando tus objetivos.',
+  coach_availability_failed:
+    'No se pudo comprobar la disponibilidad de la IA. Inténtalo de nuevo o gestiona tus objetivos.',
   coach_d0_intro:
     'No doy discursos de ánimo. Leo tu registro y te digo lo que dice. Ahora mismo está vacío — ¿escribimos la primera línea?',
   coach_d0_ask_habit: '¿Qué única cosa, y a qué hora del día? Con una basta para empezar.',

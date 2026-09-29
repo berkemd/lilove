@@ -362,11 +362,15 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
         return depo.profile;
       case '/api/user/stats':
         return {
-          profile: {
-            currentLevel: depo.profile.stats.level,
-            totalXp: depo.profile.stats.totalXP,
-            streakCount: depo.profile.stats.currentStreak,
-          },
+          activeGoals: depo.goals.filter((goal) => goal.status === 'active').length,
+          completedGoals: depo.goals.filter((goal) => goal.status === 'completed').length,
+          totalGoals: depo.goals.length,
+          currentLevel: depo.profile.stats.level,
+          totalXp: depo.profile.stats.totalXP,
+          streakCount: depo.profile.stats.currentStreak,
+          longestStreak: depo.profile.stats.longestStreak,
+          achievementsUnlocked: depo.achievements.length,
+          performanceScore: 0,
         };
       case '/api/habits':
         return depo.habits;
@@ -420,6 +424,8 @@ export function demoCevap(method: string, endpoint: string, body?: any): unknown
       }
       case '/api/health':
         return { ok: true };
+      case '/api/ai/capabilities':
+        return { available: false, code: 'AI_UNAVAILABLE' };
       case '/api/subscription/status':
         return {
           subscriptionTier: 'free',

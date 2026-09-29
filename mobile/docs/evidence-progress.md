@@ -24,7 +24,7 @@ Run `npx tsc --noEmit`
 from `mobile/` to check TypeScript. Native device and live-server verification
 remain release gates; these isolated tests do not establish either.
 
-Final local result on 2026-09-29: all 59 mobile tests passed, including 10
+Task 0081 local result on 2026-09-29: all 59 mobile tests passed, including 10
 progress/task regressions. TypeScript, Prettier for all seven changed files,
 and `git diff --check` passed. Logs are recorded in the portfolio workspace
 at `work/lilove-audit/task0081-evidence-progress/mobile-*-final.log`.
@@ -35,17 +35,15 @@ integration of those earlier release changes remains separate work.
 
 ## Open findings outside this change
 
-- `src/screens/profile/ProfileScreen.tsx` requests `/api/analytics`, while
-  the canonical server exposes routes such as `/api/analytics/overview`.
-  The profile's Analytics action navigates to Home; no dedicated native
-  analytics screen is registered.
-- `src/screens/avatar/AvatarScreen.tsx` reads `profile.currentLevel` from
-  `/api/user/stats`; the canonical server returns `currentLevel` at the top
-  level. Its demo wrapper masks that mismatch.
+- Task 0082 corrected the profile's nonexistent `/api/analytics` request and
+  the avatar's nested `profile.currentLevel` read to use the verified flat
+  `/api/user/stats` response. Its demo now matches that contract. The former
+  Analytics action is labelled “Track your progress” and still opens Home;
+  no dedicated native analytics screen is registered. See [native-contracts.md](native-contracts.md).
 - `src/components/GrowthSanctuaryMobile.tsx` initializes stage 3, 2500 XP
   and four unlocked elements without an account-data read. The screen is
-  registered, but no normal navigation entry to it was found. Connect it to
-  verified account state or identify it explicitly as a sample before exposing it.
+  registered, but no normal navigation entry to it was found. Task 0082 adds
+  a visible sample-data label; verified account integration remains open.
 - Native Home has no historical chart and does not fetch stats history.
   Its existing “total streaks” remains the sum of habit streaks, not a measure
   of consecutive active days.

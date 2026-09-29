@@ -20,6 +20,7 @@ import { useAuthStore } from '../../store/authStore';
 import LivingForest from '../../components/LivingForest';
 import { t } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
+import { readUserStats, type UserStats } from '../../lib/userStats';
 
 interface AvatarZone {
   id: string;
@@ -77,14 +78,6 @@ interface Avatar {
   maxHealth: number;
   mana: number;
   maxMana: number;
-}
-
-interface UserStats {
-  profile?: {
-    currentLevel: number;
-    totalXp: number;
-    streakCount: number;
-  };
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -193,44 +186,43 @@ export default function AvatarScreen() {
 
   const loadData = async () => {
     setError(null);
+    setLoading(true);
     try {
       const [zonesData, userTraitsData, equippedData, avatarData, statsData] = await Promise.all([
-        api.getAvatarZones().catch((err) => {
-          console.warn('[AvatarScreen] Failed to load zones:', err);
-          return [];
-        }) as Promise<AvatarZone[]>,
-        api.getMyTraits().catch((err) => {
-          console.warn('[AvatarScreen] Failed to load user traits:', err);
-          return [];
-        }) as Promise<UserAvatarTrait[]>,
-        api.getMyEquipped().catch((err) => {
-          console.warn('[AvatarScreen] Failed to load equipped traits:', err);
-          return [];
-        }) as Promise<EquippedTrait[]>,
-        api.getAvatar().catch((err) => {
-          console.warn('[AvatarScreen] Failed to load avatar:', err);
-          return null;
-        }) as Promise<Avatar | null>,
-        api.getUserStats().catch((err) => {
-          console.warn('[AvatarScreen] Failed to load user stats, using fallback:', err);
-          return { profile: { currentLevel: 1, totalXp: 0, streakCount: 0 } };
-        }) as Promise<UserStats>,
+        api.getAvatarZones() as Promise<AvatarZone[]>,
+        api.getMyTraits() as Promise<UserAvatarTrait[]>,
+        api.getMyEquipped() as Promise<EquippedTrait[]>,
+        api.getAvatar() as Promise<Avatar>,
+        api.getUserStats(),
       ]);
-
-      setZones(Array.isArray(zonesData) ? zonesData : []);
-      setUserTraits(Array.isArray(userTraitsData) ? userTraitsData : []);
-      setEquippedTraits(Array.isArray(equippedData) ? equippedData : []);
-      setAvatar(avatarData || null);
-      setUserStats(statsData || { profile: { currentLevel: 1, totalXp: 0, streakCount: 0 } });
+      const stats = readUserStats(statsData);
+      if (
+        !Array.isArray(zonesData) ||
+        !Array.isArray(userTraitsData) ||
+        !Array.isArray(equippedData) ||
+        !avatarData ||
+        ![avatarData.health, avatarData.maxHealth, avatarData.mana, avatarData.maxMana].every(
+          (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0
+        ) ||
+        avatarData.maxHealth === 0 ||
+        avatarData.maxMana === 0
+      ) {
+        throw new Error('Invalid avatar data');
+      }
+      setZones(zonesData);
+      setUserTraits(userTraitsData);
+      setEquippedTraits(equippedData);
+      setAvatar(avatarData);
+      setUserStats(stats);
 
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
       }).start();
-    } catch (err: any) {
-      console.error('[AvatarScreen] Error loading data:', err);
-      setError(err?.message || t('failed_to_load_avatar_data'));
+    } catch {
+      setUserStats(null);
+      setError(t('failed_to_load_avatar_data'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -321,7 +313,7 @@ export default function AvatarScreen() {
     selectedTrait &&
     (selectedTrait.unlockType === 'purchase' || selectedTrait.isDefault) &&
     coinBalance >= selectedTrait.coinCost;
-  const currentLevel = userStats?.profile?.currentLevel || 1;
+  const currentLevel = userStats?.currentLevel;
 
   if (loading && !refreshing) {
     return (
@@ -334,7 +326,7 @@ export default function AvatarScreen() {
     );
   }
 
-  if (error) {
+  if (error || !userStats) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>

@@ -1,6 +1,14 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  nav_home: 'ホーム',
+  nav_coach: 'コーチ',
+  nav_profile: 'プロフィール',
+  nav_back: '戻る',
+  coach_checking_availability: 'AIが利用できるか確認しています…',
+  coach_unavailable: 'AIコーチングは現在利用できません。目標の管理は引き続き行えます。',
+  coach_availability_failed:
+    'AIが利用できるか確認できませんでした。再試行するか、目標を管理してください。',
   coach_d0_intro:
     '励ましの言葉は言いません。あなたの記録を読み、そこに書いてあることを伝えます。今は空です — 最初の一行を一緒に書きませんか？',
   coach_d0_ask_habit: 'どれか一つ、一日のどの時間にしますか？始めるには一つで十分です。',

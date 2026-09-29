@@ -1,6 +1,13 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  nav_home: 'Home',
+  nav_coach: 'Coach',
+  nav_profile: 'Profile',
+  nav_back: 'Back',
+  coach_checking_availability: 'Checking AI availability…',
+  coach_unavailable: 'AI coaching is currently unavailable. You can still manage your goals.',
+  coach_availability_failed: 'Could not check AI availability. Try again or manage your goals.',
   coach_d0_intro:
     "I don't do pep talks. I read your record and tell you what it says. Right now it's empty — shall we write the first line?",
   coach_d0_ask_habit: 'Which one thing, and at what time of day? One is enough to start.',
