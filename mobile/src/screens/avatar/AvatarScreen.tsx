@@ -308,12 +308,13 @@ export default function AvatarScreen() {
     } catch (err) {
       console.error(`[AvatarScreen] Error loading traits for zone ${zone.id}:`, err);
     } finally {
-      if (!scope.isCurrent()) return;
-      setLoadingZones((prev) => {
-        const next = new Set(prev);
-        next.delete(zone.id);
-        return next;
-      });
+      if (scope.isCurrent()) {
+        setLoadingZones((prev) => {
+          const next = new Set(prev);
+          next.delete(zone.id);
+          return next;
+        });
+      }
     }
   };
 

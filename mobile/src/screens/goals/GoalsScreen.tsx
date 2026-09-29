@@ -97,7 +97,12 @@ function GoalCardSkeleton() {
   );
 }
 
-export default function GoalsScreen({ navigation, route }: any = {}) {
+type GoalsScreenProps = {
+  navigation?: { goBack: () => void };
+  route?: { params?: { createForTask?: boolean } };
+};
+
+export default function GoalsScreen({ navigation, route }: GoalsScreenProps = {}) {
   const createForTask = route?.params?.createForTask === true;
   const taskSessionValid = useRef(true);
   const pendingTaskReturn = useRef(false);
@@ -143,7 +148,7 @@ export default function GoalsScreen({ navigation, route }: any = {}) {
     if (createForTask && taskSessionValid.current) {
       taskSessionValid.current = false;
       pendingTaskReturn.current = Platform.OS === 'ios';
-      if (Platform.OS !== 'ios') navigation.goBack();
+      if (Platform.OS !== 'ios') navigation?.goBack();
     }
   };
 
@@ -448,7 +453,7 @@ export default function GoalsScreen({ navigation, route }: any = {}) {
         onDismiss={() => {
           if (!pendingTaskReturn.current) return;
           pendingTaskReturn.current = false;
-          navigation.goBack();
+          navigation?.goBack();
         }}
       >
         <View style={styles.modalOverlay}>

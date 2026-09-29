@@ -1377,14 +1377,12 @@ test('failed Avatar equip preserves the preview, announces failure, and only ret
       long = trait('Long');
     const row = (trait) => ({ id: 'eq', zoneId: zone.id, traitId: trait.id, zone, trait });
     let current = short,
-      calls = 0,
-      reads = 0;
+      calls = 0;
     const screen = mountAvatar(
       {
         getAvatarZones: async () => [zone],
         getTraitsByZone: async () => [short, long],
         getMyEquipped: async () => {
-          reads++;
           if (calls === 1 && mode === 'read-failed') throw Error('offline');
           if (calls === 1 && mode === 'malformed-read') return null;
           return [row(current)];
