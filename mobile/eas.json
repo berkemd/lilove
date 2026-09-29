@@ -29,7 +29,7 @@
         "simulator": false
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lilove.org"
+        "EXPO_PUBLIC_API_URL": "https://lilove-api.onrender.com"
       }
     },
     "production": {
@@ -41,7 +41,7 @@
         "image": "macos-tahoe-26.5-xcode-26.6"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lilove.org",
+        "EXPO_PUBLIC_API_URL": "https://lilove-api.onrender.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3.apps.googleusercontent.com",
         "SENTRY_DSN": "${SENTRY_DSN}"
