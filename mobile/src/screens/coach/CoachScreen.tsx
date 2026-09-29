@@ -349,7 +349,7 @@ export default function CoachScreen() {
               placeholderTextColor={themeColor('#9CA3AF', 'text')}
               multiline
               maxLength={500}
-              editable={!isLoading}
+              editable={!isLoading && availability === 'available'}
               data-testid="input-coach-message"
             />
           </View>

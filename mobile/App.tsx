@@ -19,6 +19,7 @@ import {
 } from './src/services/pushNotifications';
 import { api } from './src/services/api';
 import { tokenManager } from './src/services/tokenManager';
+import { COACH_RELEASE_AVAILABLE } from './src/lib/coachAvailability';
 import { t } from './src/i18n';
 
 // Screens
@@ -153,6 +154,8 @@ function MainTabs() {
         component={CoachScreen}
         options={{
           tabBarLabel: t('nav_coach'),
+          tabBarButton: COACH_RELEASE_AVAILABLE ? undefined : () => null,
+          tabBarItemStyle: COACH_RELEASE_AVAILABLE ? undefined : { display: 'none' },
           tabBarIcon: ({ color, size }: TabBarIconProps) => (
             <Ionicons name="sparkles" size={size} color={color} />
           ),

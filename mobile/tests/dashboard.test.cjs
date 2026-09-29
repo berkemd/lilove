@@ -196,6 +196,7 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
       }),
     },
     '../../lib/api': { api },
+    '../../lib/coachAvailability': loadSource('src/lib/coachAvailability.ts'),
     '../../lib/dashboard': dashboard,
     '../../components/MoodSelector': { default: 'MoodSelector' },
     '../../i18n': { t: (key) => key },
@@ -220,6 +221,11 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
   focus();
   await flush();
   let tree = render();
+  assert.equal(
+    find(tree, (node) => node.props?.['data-testid'] === 'button-ai-coach'),
+    undefined
+  );
+  assert.equal(JSON.stringify(tree).includes('get_personalized_guidance'), false);
   find(tree, (node) => node.props?.testID === 'button-open-tasks').props.onPress();
   assert.deepEqual(navigated, ['Tasks']);
   assert(

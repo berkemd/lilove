@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { refreshDailyFocus } from '../../hooks/useDailyFocus';
 import { useCoinBalance } from '../../hooks/useCoinBalance';
 import { api } from '../../lib/api';
+import { COACH_RELEASE_AVAILABLE } from '../../lib/coachAvailability';
 import { loadDashboardStats, type DashboardStats } from '../../lib/dashboard';
 import DailyFocusCard from '../../components/DailyFocusCard';
 import MoodSelector from '../../components/MoodSelector';
@@ -348,26 +349,28 @@ export default function DashboardScreen() {
             <Ionicons name="chevron-forward" size={20} color={themeColor('#9CA3AF', 'text')} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('Coach')}
-            activeOpacity={0.7}
-            data-testid="button-ai-coach"
-          >
-            <View
-              style={[
-                styles.actionIconContainer,
-                { backgroundColor: themeColor('#F3E8FF', 'background') },
-              ]}
+          {COACH_RELEASE_AVAILABLE && (
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => navigation.navigate('Coach')}
+              activeOpacity={0.7}
+              data-testid="button-ai-coach"
             >
-              <Ionicons name="sparkles" size={22} color={themeColor('#8B5CF6', 'text')} />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionText}>{t('talk_to_lilove')}</Text>
-              <Text style={styles.actionSubtext}>{t('get_personalized_guidance')}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={themeColor('#9CA3AF', 'text')} />
-          </TouchableOpacity>
+              <View
+                style={[
+                  styles.actionIconContainer,
+                  { backgroundColor: themeColor('#F3E8FF', 'background') },
+                ]}
+              >
+                <Ionicons name="sparkles" size={22} color={themeColor('#8B5CF6', 'text')} />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionText}>{t('talk_to_lilove')}</Text>
+                <Text style={styles.actionSubtext}>{t('get_personalized_guidance')}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={themeColor('#9CA3AF', 'text')} />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
