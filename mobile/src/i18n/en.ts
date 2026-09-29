@@ -1,6 +1,7 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  auth_or: 'OR',
   profile_photo_save_incomplete:
     'The photo uploaded, but your profile could not be updated. Please try again.',
 

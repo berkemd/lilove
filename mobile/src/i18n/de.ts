@@ -1,6 +1,7 @@
 // LiLove · de arayuz katalogu — URETILDI, elle duzenleme
 
 export const de = {
+  auth_or: 'ODER',
   profile_photo_save_incomplete:
     'Das Foto wurde hochgeladen, aber Ihr Profil konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.',
 

@@ -1,6 +1,7 @@
 // LiLove · es arayuz katalogu — URETILDI, elle duzenleme
 
 export const es = {
+  auth_or: 'O',
   profile_photo_save_incomplete:
     'La foto se cargó, pero no se pudo actualizar su perfil. Inténtelo de nuevo.',
 

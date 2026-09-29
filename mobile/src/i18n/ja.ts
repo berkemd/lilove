@@ -1,6 +1,7 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  auth_or: 'または',
   profile_photo_save_incomplete:
     '写真はアップロードされましたが、プロフィールを更新できませんでした。もう一度お試しください。',
 

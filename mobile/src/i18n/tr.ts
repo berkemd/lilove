@@ -1,6 +1,7 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  auth_or: 'VEYA',
   profile_photo_save_incomplete:
     'Fotoğraf yüklendi ancak profilin güncellenemedi. Lütfen tekrar dene.',
 
