@@ -439,4 +439,9 @@ export const de = {
     'Ihr Kauf ist eingegangen, aber der aktive Zugriff konnte nicht bestätigt werden. Prüfen Sie den Status erneut, bevor Sie einen weiteren Kauf tätigen.',
   subscription_active_confirmed: 'Ihr Abonnement ist aktiv.',
   subscription_free: 'Kostenlos',
+  progress_today_title: 'Heute, Schritt für Schritt',
+  progress_today_count: '{done} / {total} erledigt',
+  progress_today_remaining: 'Heute verbleibend: {count}',
+  progress_today_complete: 'Alle aktiven Gewohnheiten sind heute als erledigt markiert.',
+  progress_today_scope: 'Basierend auf deinen heutigen Einträgen für aktive Gewohnheiten.',
 } as const;
