@@ -138,6 +138,9 @@ function mount(relative, imports = {}, props = {}) {
       useNavigation: () => ({ navigate: (route) => navigated.push(route) }),
     },
     '../../store/authStore': { useAuthStore: () => ({ user: {}, userProfile: {} }) },
+    '../../hooks/useCoinBalance': {
+      useCoinBalance: () => ({ balance: null, refresh: async () => null }),
+    },
     '../../i18n': { t: (key) => key },
     '../../theme/ThemeProvider': {
       useTheme: () => ({ color: (value) => value, isDark: false }),
@@ -864,5 +867,259 @@ test('free Profile links to plan details without promising unlimited access in e
     assert.equal(textContent(action).includes(catalog.get_unlimited_access), false);
     action.props.onPress();
     assert.deepEqual(screen.navigated, ['Premium']);
+  }
+});
+
+const coinLibrary = loadSource('src/lib/coinBalance.ts');
+function coinFixture(initialBalance = 1000) {
+  const fixture = { response: { balance: initialBalance }, reads: 0 };
+  const store = new coinLibrary.CoinBalanceStore(async () => {
+    fixture.reads++;
+    if (fixture.response instanceof Error) throw fixture.response;
+    return fixture.response;
+  });
+  store.setAccount('user:A');
+  const useCoinBalance = () => ({
+    ...store.getSnapshot(),
+    refresh: store.refresh,
+    confirm: store.confirm,
+    captureAccount: store.captureAccount,
+  });
+  return {
+    fixture,
+    store,
+    imports: { '../../hooks/useCoinBalance': { useCoinBalance } },
+    useCoinBalance,
+  };
+}
+
+test('Profile and Avatar share the verified server balance, including zero and unknown; ignore the Firestore value', async () => {
+  const coins = coinFixture();
+  const imports = {
+    ...coins.imports,
+    '../../store/authStore': {
+      useAuthStore: () => ({ user: {}, userProfile: { coinBalance: 100 } }),
+    },
+  };
+  const profile = mountProfile(async () => stats(), imports);
+  const avatar = mountAvatar({}, imports);
+  profile.focus();
+  avatar.effects();
+  await flush();
+  for (const response of [{ balance: 1000 }, { balance: 0 }, new Error('offline')]) {
+    coins.fixture.response = response;
+    await coins.store.refresh();
+    const expected = response instanceof Error ? '—' : response.balance;
+    assert(
+      findTree(profile.render(), (node) => node.type === 'Text' && node.props.children === expected)
+    );
+    assert.equal(byId(avatar.render(), 'text-coin-balance').props.children, expected);
+  }
+});
+
+test('actual Avatar unlock uses server funds and updates the common balance after success', async () => {
+  const coins = coinFixture();
+  await coins.store.refresh();
+  const zone = { id: 'skin-zone', key: 'skin', name: 'Skin' };
+  const trait = {
+    id: 'paid-trait',
+    name: 'Trait',
+    coinCost: 250,
+    rarity: 'common',
+    unlockType: 'purchase',
+  };
+  const unlocks = [];
+  const screen = mountAvatar(
+    {
+      getAvatarZones: async () => [zone],
+      getTraitsByZone: async () => [trait],
+      unlockTrait: async (id) => {
+        unlocks.push(id);
+        coins.fixture.response = { balance: 750 };
+      },
+    },
+    coins.imports
+  );
+  screen.effects();
+  await flush();
+  screen.render();
+  screen.effects();
+  await flush();
+  byId(screen.render(), 'trait-card-paid-trait').props.onPress();
+  const purchase = byId(screen.render(), 'button-confirm-purchase');
+  assert.equal(purchase.props.disabled, false);
+  await purchase.props.onPress();
+  assert.deepEqual(unlocks, ['paid-trait']);
+  assert.equal(coins.fixture.reads, 2);
+  assert.equal(byId(screen.render(), 'text-coin-balance').props.children, 750);
+  coins.fixture.response = new Error('offline');
+  await coins.store.refresh();
+  byId(screen.render(), 'trait-card-paid-trait').props.onPress();
+  const unknown = screen.render();
+  assert.equal(byId(unknown, 'text-coin-balance').props.children, '—');
+  assert.equal(byId(unknown, 'button-confirm-purchase').props.disabled, true);
+  assert.equal(
+    byId(unknown, 'button-need-coins'),
+    undefined,
+    'unknown balance is not insufficient funds'
+  );
+});
+
+test('actual Coins purchase refreshes common server funds and suppresses success on account change', async () => {
+  for (const switchAccount of [false, true]) {
+    const coins = coinFixture();
+    await coins.store.refresh();
+    const products = loadSource('src/config/products.ts');
+    const product = { id: products.COIN_IDS[0], displayPrice: '$1.99', title: 'Coins' };
+    const calls = [],
+      alerts = [];
+    const screen = mount('src/screens/CoinsScreen.tsx', {
+      'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
+      '../config/products': products,
+      '../services/iap': {
+        loadCoinProducts: async () => [product],
+        buyCoins: async (id) => {
+          calls.push(id);
+          coins.fixture.response = { balance: 1100 };
+          if (switchAccount) coins.store.setAccount('user:B');
+        },
+      },
+      '../hooks/useCoinBalance': { useCoinBalance: coins.useCoinBalance },
+      '../i18n': { t: (key) => key },
+      '../lib/accountGate': { purchaseBlockedInDemo: () => false },
+      '../theme/ThemeProvider': {
+        useTheme: () => ({ color: (value) => value }),
+        useThemedStyles: (styles) => styles,
+      },
+    });
+    screen.effects();
+    await flush();
+    const buy = findTree(
+      screen.render(),
+      (node) => node.props?.accessibilityLabel === '100 coins for $1.99'
+    );
+    assert(buy);
+    await buy.props.onPress();
+    assert.deepEqual(calls, [product.id]);
+    assert.equal(coins.fixture.reads, switchAccount ? 1 : 2);
+    assert.equal(alerts.length, switchAccount ? 0 : 1);
+    assert.equal(coins.store.getSnapshot().balance, switchAccount ? null : 1100);
+    assert(
+      findTree(
+        screen.render(),
+        (node) => node.type === 'Text' && node.props.children === (switchAccount ? '—' : 1100)
+      )
+    );
+  }
+});
+
+test('Coins balance retry after a verified purchase never buys again or claims unverified credit', async () => {
+  for (const locale of locales) {
+    const catalog = loadSource(`src/i18n/${locale}.ts`)[locale];
+    assert(catalog.coin_balance_unavailable?.trim(), `Missing ${locale} balance notice`);
+    const coins = coinFixture();
+    await coins.store.refresh();
+    const products = loadSource('src/config/products.ts');
+    const product = { id: products.COIN_IDS[0], displayPrice: '$1.99', title: 'Coins' };
+    const calls = [],
+      alerts = [];
+    const screen = mount('src/screens/CoinsScreen.tsx', {
+      'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
+      '../config/products': products,
+      '../services/iap': {
+        loadCoinProducts: async () => [product],
+        buyCoins: async (id) => {
+          calls.push(id);
+          coins.fixture.response = new Error('offline');
+        },
+      },
+      '../hooks/useCoinBalance': { useCoinBalance: coins.useCoinBalance },
+      '../i18n': { t: (key) => catalog[key] },
+      '../lib/accountGate': { purchaseBlockedInDemo: () => false },
+      '../theme/ThemeProvider': {
+        useTheme: () => ({ color: (value) => value }),
+        useThemedStyles: (styles) => styles,
+      },
+    });
+    screen.effects();
+    await flush();
+    await findTree(
+      screen.render(),
+      (node) => node.props?.accessibilityLabel === '100 coins for $1.99'
+    ).props.onPress();
+    assert.deepEqual(alerts, [], 'unverified balance must not display a credited success alert');
+    assert(
+      findTree(screen.render(), (node) => node.props?.children === catalog.coin_balance_unavailable)
+    );
+    assert.equal(coins.store.getSnapshot().balance, null);
+    await byId(screen.render(), 'button-retry-coin-balance').props.onPress();
+    assert.equal(coins.store.getSnapshot().balance, null);
+    assert.deepEqual(
+      calls,
+      [product.id],
+      'retry reads balance; it must never request another payment'
+    );
+    coins.fixture.response = { balance: 1100 };
+    await byId(screen.render(), 'button-retry-coin-balance').props.onPress();
+    assert.equal(coins.store.getSnapshot().balance, 1100);
+    assert.equal(byId(screen.render(), 'button-retry-coin-balance'), undefined);
+    assert.deepEqual(calls, [product.id]);
+    assert.deepEqual(alerts, []);
+  }
+});
+
+test('Avatar discards post-unlock trait responses after switching accounts or re-entering the same UID', async () => {
+  for (const newAccount of ['user:B', 'user:A']) {
+    const coins = coinFixture();
+    await coins.store.refresh();
+    const zone = { id: 'skin-zone', key: 'skin', name: 'Skin' };
+    const trait = {
+      id: 'paid-trait',
+      name: 'Trait',
+      coinCost: 250,
+      rarity: 'common',
+      unlockType: 'purchase',
+    };
+    let resolveTraits,
+      reads = 0,
+      equips = 0;
+    const laterTraits = new Promise((resolve) => {
+      resolveTraits = resolve;
+    });
+    const screen = mountAvatar(
+      {
+        getAvatarZones: async () => [zone],
+        getTraitsByZone: async () => [trait],
+        getMyTraits: () => (++reads === 1 ? Promise.resolve([]) : laterTraits),
+        unlockTrait: async () => {
+          coins.fixture.response = { balance: 750 };
+        },
+        equipTrait: async () => {
+          equips++;
+        },
+      },
+      coins.imports
+    );
+    screen.effects();
+    await flush();
+    screen.render();
+    screen.effects();
+    await flush();
+    byId(screen.render(), 'trait-card-paid-trait').props.onPress();
+    const purchase = byId(screen.render(), 'button-confirm-purchase').props.onPress();
+    await flush();
+    assert.equal(reads, 2, 'post-unlock trait request is in flight');
+    coins.store.setAccount(null);
+    coins.store.setAccount(newAccount);
+    resolveTraits([{ traitId: 'paid-trait' }]);
+    await purchase;
+    assert.equal(
+      findTree(screen.render(), (node) => node.type === 'Modal').props.visible,
+      true,
+      'old response must not close current UI'
+    );
+    byId(screen.render(), 'trait-card-paid-trait').props.onPress();
+    await flush();
+    assert.equal(equips, 0, 'old account ownership must not become current ownership');
   }
 });

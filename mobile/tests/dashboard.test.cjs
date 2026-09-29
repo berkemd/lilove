@@ -151,6 +151,8 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
   let cursor = 0;
   let focus;
   let offline = false;
+  let balance = 1000;
+  let balanceRefreshes = 0;
   const createElement = (type, props) => ({ type, props });
   const api = apiFixture({
     getCompletedTasks: async () => {
@@ -178,7 +180,18 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
       useFocusEffect: (callback) => (focus = callback),
       useNavigation: () => ({ navigate() {} }),
     },
-    '../../store/authStore': { useAuthStore: () => ({ user: {}, userProfile: {} }) },
+    '../../store/authStore': {
+      useAuthStore: () => ({ user: {}, userProfile: { coinBalance: 100 } }),
+    },
+    '../../hooks/useCoinBalance': {
+      useCoinBalance: () => ({
+        balance,
+        refresh: async () => {
+          balanceRefreshes++;
+          return balance;
+        },
+      }),
+    },
     '../../lib/api': { api },
     '../../lib/dashboard': dashboard,
     '../../components/MoodSelector': { default: 'MoodSelector' },
@@ -205,10 +218,25 @@ test('actual dashboard hides stats on refresh failure, offers retry and restores
   await flush();
   let tree = render();
   assert(find(tree, (node) => node.type === 'Text' && node.props.children === 137));
+  assert(
+    find(
+      tree,
+      (node) => node.type === 'Text' && JSON.stringify(node.props.children) === '[1000," Coins"]'
+    )
+  );
+  balance = null;
+  tree = render();
+  assert(
+    find(
+      tree,
+      (node) => node.type === 'Text' && JSON.stringify(node.props.children) === '["—"," Coins"]'
+    )
+  );
   offline = true;
   find(tree, (node) => node.type === 'RefreshControl').props.onRefresh();
   await flush();
   tree = render();
+  assert.equal(balanceRefreshes, 1);
   const retry = find(tree, (node) => node.props?.['data-testid'] === 'button-retry-dashboard');
   assert(retry);
   assert.equal(

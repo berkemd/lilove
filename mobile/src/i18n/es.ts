@@ -129,6 +129,8 @@ export const es = {
   close: 'Cerrar',
   clothing: 'Ropa',
   coin_balance_get_more_coins: 'Saldo de monedas. Conseguir más monedas.',
+  coin_balance_unavailable:
+    'Tu saldo no está disponible. Inténtalo de nuevo para actualizarlo sin realizar otra compra.',
   coins: 'Monedas',
   coins_added: 'Monedas añadidas',
   complete_a_goal_end_to_end: 'Completar una meta de principio a fin',

@@ -129,6 +129,8 @@ export const it = {
   close: 'Chiudi',
   clothing: 'Abbigliamento',
   coin_balance_get_more_coins: 'Saldo monete. Ottieni altre monete.',
+  coin_balance_unavailable:
+    'Il tuo saldo non è disponibile. Riprova ad aggiornarlo senza effettuare un altro acquisto.',
   coins: 'Monete',
   coins_added: 'Monete aggiunte',
   complete_a_goal_end_to_end: "Portare a termine un obiettivo dall'inizio alla fine",

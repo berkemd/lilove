@@ -28,7 +28,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COIN_AMOUNTS, type CoinId } from '../config/products';
 import { buyCoins, loadCoinProducts, type StoreProduct } from '../services/iap';
-import { api } from '../lib/api';
+import { useCoinBalance } from '../hooks/useCoinBalance';
 import { t } from '../i18n';
 import { purchaseBlockedInDemo } from '../lib/accountGate';
 import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
@@ -36,21 +36,12 @@ import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
 export default function CoinsScreen({ navigation }: any) {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
+  const coins = useCoinBalance();
 
   const [urunler, setUrunler] = useState<StoreProduct[]>([]);
-  const [bakiye, setBakiye] = useState<number | null>(null);
   const [yukleniyor, setYukleniyor] = useState(true);
   const [alinan, setAlinan] = useState<string | null>(null);
   const [hata, setHata] = useState<string | null>(null);
-
-  const bakiyeOku = useCallback(async () => {
-    try {
-      const d = await api.getCoinBalance();
-      setBakiye(typeof d?.balance === 'number' ? d.balance : null);
-    } catch {
-      setBakiye(null);
-    }
-  }, []);
 
   const yukle = useCallback(async () => {
     setYukleniyor(true);
@@ -70,15 +61,14 @@ export default function CoinsScreen({ navigation }: any) {
 
   useEffect(() => {
     yukle();
-    bakiyeOku();
-  }, [yukle, bakiyeOku]);
+  }, [yukle]);
 
   const satinAl = async (urun: StoreProduct) => {
     if (purchaseBlockedInDemo()) return;
     try {
       setAlinan(urun.id);
-      await buyCoins(urun.id);
-      await bakiyeOku();
+      const result = await coins.confirm(() => buyCoins(urun.id));
+      if (result !== 'updated') return;
       Alert.alert(
         t('coins_added'),
         `${COIN_AMOUNTS[urun.id as CoinId] ?? ''} coins are now in your balance.`
@@ -110,7 +100,7 @@ export default function CoinsScreen({ navigation }: any) {
         </TouchableOpacity>
         <View style={styles.coinBadge}>
           <Ionicons name="wallet" size={16} color={themeColor('#92400E', 'text')} />
-          <Text style={styles.coinText}>{bakiye ?? '—'}</Text>
+          <Text style={styles.coinText}>{coins.balance ?? '—'}</Text>
         </View>
       </View>
 
@@ -120,6 +110,22 @@ export default function CoinsScreen({ navigation }: any) {
           Coins unlock avatar traits and shop items. You also earn them by completing goals, habits
           and achievements — buying is never required.
         </Text>
+
+        {coins.status === 'error' && (
+          <View style={styles.hataKutu}>
+            <Text style={styles.hataMetin} accessibilityRole="alert">
+              {t('coin_balance_unavailable')}
+            </Text>
+            <TouchableOpacity
+              style={styles.tekrarDugme}
+              onPress={() => coins.refresh()}
+              accessibilityRole="button"
+              testID="button-retry-coin-balance"
+            >
+              <Text style={styles.tekrarMetin}>{t('try_again_2')}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {yukleniyor ? (
           <View style={styles.merkez}>
@@ -133,7 +139,13 @@ export default function CoinsScreen({ navigation }: any) {
               color={themeColor('#B45309', 'text')}
             />
             <Text style={styles.hataMetin}>{hata}</Text>
-            <TouchableOpacity style={styles.tekrarDugme} onPress={yukle}>
+            <TouchableOpacity
+              style={styles.tekrarDugme}
+              onPress={() => {
+                void coins.refresh();
+                void yukle();
+              }}
+            >
               <Text style={styles.tekrarMetin}>{t('try_again_2')}</Text>
             </TouchableOpacity>
           </View>

@@ -127,6 +127,8 @@ export const tr = {
   close: 'Kapat',
   clothing: 'Kıyafet',
   coin_balance_get_more_coins: 'Jeton bakiyesi. Daha fazla jeton al.',
+  coin_balance_unavailable:
+    'Bakiyeniz şu anda görüntülenemiyor. Yenilemek için tekrar deneyin; yeniden satın almanız gerekmez.',
   coins: 'Jeton',
   coins_added: 'Jeton eklendi',
   complete_a_goal_end_to_end: 'Bir hedefi baştan sona tamamla',

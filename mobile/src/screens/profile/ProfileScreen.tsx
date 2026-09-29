@@ -22,6 +22,7 @@ import api from '../../lib/api';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
+import { useCoinBalance } from '../../hooks/useCoinBalance';
 import { readUserStats, type UserStats } from '../../lib/userStats';
 
 function SkeletonBox({
@@ -56,6 +57,7 @@ export default function ProfileScreen({ navigation }: any) {
 
   const { user, userProfile, logout, updateUser } = useAuthStore();
   const subscription = useSubscription();
+  const coins = useCoinBalance();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -84,6 +86,7 @@ export default function ProfileScreen({ navigation }: any) {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    void coins.refresh();
     loadUserStats();
   };
 
@@ -221,7 +224,7 @@ export default function ProfileScreen({ navigation }: any) {
     return (
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{userProfile?.coinBalance || 0}</Text>
+          <Text style={styles.statValue}>{coins.balance ?? '—'}</Text>
           <Text style={styles.statLabel}>{t('coins')}</Text>
         </View>
         <View style={styles.statDivider} />

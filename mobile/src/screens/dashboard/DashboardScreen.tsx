@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuthStore } from '../../store/authStore';
+import { useCoinBalance } from '../../hooks/useCoinBalance';
 import { api } from '../../lib/api';
 import { loadDashboardStats, type DashboardStats } from '../../lib/dashboard';
 import MoodSelector from '../../components/MoodSelector';
@@ -73,6 +74,7 @@ export default function DashboardScreen() {
   const { color: themeColor } = useTheme();
 
   const { user, userProfile, updateMood } = useAuthStore();
+  const coins = useCoinBalance();
   const navigation = useNavigation<BottomTabNavigationProp<TabParamList>>();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +115,7 @@ export default function DashboardScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    void coins.refresh();
     loadDashboard();
   };
 
@@ -210,7 +213,7 @@ export default function DashboardScreen() {
             data-testid="button-coins"
           >
             <Ionicons name="wallet" size={18} color={themeColor('#92400E', 'text')} />
-            <Text style={styles.coinBalance}>{userProfile?.coinBalance || 0} Coins</Text>
+            <Text style={styles.coinBalance}>{coins.balance ?? '—'} Coins</Text>
             <Ionicons name="add-circle" size={16} color={themeColor('#92400E', 'text')} />
           </TouchableOpacity>
         </View>

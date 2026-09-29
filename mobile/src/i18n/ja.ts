@@ -128,6 +128,8 @@ export const ja = {
   close: '閉じる',
   clothing: '衣装',
   coin_balance_get_more_coins: 'コイン残高。コインを追加。',
+  coin_balance_unavailable:
+    '残高を表示できません。再度購入せずに、残高の読み込みをお試しください。',
   coins: 'コイン',
   coins_added: 'コインを追加しました',
   complete_a_goal_end_to_end: '目標を最後までやり遂げる',
