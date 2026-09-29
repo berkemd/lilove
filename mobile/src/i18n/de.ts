@@ -10,7 +10,7 @@ export const de = {
   coin_shop_about:
     'Verdienen Sie Münzen durch Ziele, Gewohnheiten und Erfolge. Nutzen Sie Ihr Guthaben für Avatar-Features und Shop-Artikel; Käufe sind optional.',
   coin_shop_unavailable:
-    'Münzpakete sind derzeit nicht verfügbar. Sie können Ihr bestehendes Guthaben weiterhin nutzen und Münzen in der App verdienen.',
+    'Münzenpakete sind in dieser Version nicht verfügbar. Ihr bestehendes Guthaben bleibt erhalten.',
   coin_shop_demo:
     'Diese Demo verwendet Beispieldaten. Erstellen Sie ein Konto, um Ihre eigenen Fortschritte und Münzbestände zu erfassen. Beispieldaten werden nicht übertragen; Käufe sind in der Demo nicht möglich.',
   coin_shop_load_failed:
@@ -331,7 +331,7 @@ export const de = {
   how_are_you_feeling_today: 'Wie fühlst du dich heute?',
   in_the_zone: 'Voll im Flow',
   in_app_purchases_are_being_configured_please:
-    'In-App-Käufe werden gerade eingerichtet. Bitte versuche es später erneut oder wende dich an den Support.',
+    'Neue Abonnements sind in dieser Version nicht verfügbar. Sie können ein bestehendes Abonnement wiederherstellen oder verwalten.',
   join_lilove_today: 'Werde noch heute Teil von LiLove',
   just_being: 'Einfach sein',
   legal: 'Rechtliches',

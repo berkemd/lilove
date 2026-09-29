@@ -10,7 +10,7 @@ export const it = {
   coin_shop_about:
     'Guadagna monete attraverso obiettivi, abitudini e risultati. Usa il tuo saldo per caratteristiche dell’avatar e articoli del negozio; gli acquisti sono facoltativi.',
   coin_shop_unavailable:
-    'I pacchetti di monete non sono attualmente disponibili. Puoi comunque utilizzare il tuo saldo esistente e guadagnare monete nell’app.',
+    'I pacchetti di monete non sono disponibili in questa versione. Il tuo saldo attuale viene conservato.',
   coin_shop_demo:
     'Questa demo utilizza dati di esempio. Crea un account per iniziare a registrare il tuo progresso e il saldo delle monete. I dati della demo non vengono trasferiti; gli acquisti non sono disponibili nella demo.',
   coin_shop_load_failed: 'Impossibile caricare i pacchetti di monete. Riprova più tardi.',
@@ -315,7 +315,7 @@ export const it = {
   how_are_you_feeling_today: 'Come ti senti oggi?',
   in_the_zone: 'In pieno flow',
   in_app_purchases_are_being_configured_please:
-    "Gli acquisti in-app sono in fase di configurazione. Riprova più tardi o contatta l'assistenza.",
+    'I nuovi abbonamenti non sono disponibili in questa versione. È possibile ripristinare o gestire un abbonamento esistente.',
   join_lilove_today: 'Entra oggi in LiLove',
   just_being: 'Semplicemente esserci',
   legal: 'Note legali',

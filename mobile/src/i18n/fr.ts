@@ -10,7 +10,7 @@ export const fr = {
   coin_shop_about:
     'Gagnez des pièces grâce à vos objectifs, habitudes et réalisations. Utilisez votre solde pour des caractéristiques d’avatar et des articles de la boutique ; les achats sont facultatifs.',
   coin_shop_unavailable:
-    'Les packs de pièces ne sont pas disponibles pour le moment. Vous pouvez toutefois utiliser votre solde existant et gagner des pièces dans l’application.',
+    'Les packs de pièces ne sont pas disponibles dans cette version. Votre solde actuel est conservé.',
   coin_shop_demo:
     'Cette démo utilise des données d’exemple. Créez un compte pour commencer à enregistrer votre propre progression et solde de pièces. Les données de démo ne sont pas transférées ; les achats ne sont pas disponibles en mode démo.',
   coin_shop_load_failed: 'Impossible de charger les packs de pièces. Veuillez réessayer plus tard.',
@@ -321,7 +321,7 @@ export const fr = {
   how_are_you_feeling_today: "Comment vous sentez-vous aujourd'hui ?",
   in_the_zone: 'En pleine concentration',
   in_app_purchases_are_being_configured_please:
-    'Les achats intégrés sont en cours de configuration. Réessayez plus tard ou contactez le support.',
+    'Les nouveaux abonnements ne sont pas disponibles dans cette version. Vous pouvez restaurer ou gérer un abonnement existant.',
   join_lilove_today: "Rejoignez LiLove aujourd'hui",
   just_being: 'Simplement être',
   legal: 'Mentions légales',

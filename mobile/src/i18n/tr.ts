@@ -9,8 +9,7 @@ export const tr = {
 
   coin_shop_about:
     'Hedefler, alışkanlıklar ve başarımlarla jeton kazan. Bakiyeni avatar özellikleri ve mağaza öğeleri için kullan; satın almak zorunlu değil.',
-  coin_shop_unavailable:
-    'Jeton paketleri şu anda kullanılamıyor. Mevcut bakiyeni kullanmaya ve uygulamada jeton kazanmaya devam edebilirsin.',
+  coin_shop_unavailable: 'Bu sürümde jeton paketleri sunulmuyor. Mevcut bakiyen korunur.',
   coin_shop_demo:
     'Bu demo örnek veriler kullanır. Kendi ilerlemeni ve jeton bakiyeni kaydetmeye başlamak için hesap oluştur. Demo verileri aktarılmaz; demoda satın alma yapılamaz.',
   coin_shop_load_failed: 'Jeton paketleri yüklenemedi. Lütfen daha sonra tekrar dene.',
@@ -313,7 +312,7 @@ export const tr = {
   how_are_you_feeling_today: 'Bugün nasıl hissediyorsun?',
   in_the_zone: 'Akışta',
   in_app_purchases_are_being_configured_please:
-    'Uygulama içi satın alma şu an yapılandırılıyor. Lütfen daha sonra dene ya da destekle iletişime geç.',
+    'Bu sürümde yeni abonelikler sunulmuyor. Mevcut aboneliğini geri yükleyebilir veya yönetebilirsin.',
   join_lilove_today: "Bugün LiLove'a katıl",
   just_being: 'Sadece var olmak',
   legal: 'Yasal',

@@ -10,7 +10,7 @@ export const en = {
   coin_shop_about:
     'Earn coins through goals, habits and achievements. Use your balance for avatar traits and shop items; purchases are optional.',
   coin_shop_unavailable:
-    'Coin packs are currently unavailable. You can still use your existing balance and earn coins in the app.',
+    'Coin packs are unavailable in this release. Your existing balance is preserved.',
   coin_shop_demo:
     'This demo uses sample data. Create an account to start recording your own progress and coin balance. Demo data is not transferred; purchases are unavailable in the demo.',
   coin_shop_load_failed: 'We could not load coin packs. Please try again later.',
@@ -312,7 +312,7 @@ export const en = {
   how_are_you_feeling_today: 'How are you feeling today?',
   in_the_zone: 'In the zone',
   in_app_purchases_are_being_configured_please:
-    'In-app purchases are being configured. Please try again later or contact support.',
+    'New subscriptions are unavailable in this release. You can restore or manage an existing subscription.',
   join_lilove_today: 'Join LiLove Today',
   just_being: 'Just being',
   legal: 'Legal',
