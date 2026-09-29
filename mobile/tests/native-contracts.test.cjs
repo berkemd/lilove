@@ -1111,6 +1111,68 @@ test('actual Avatar unlock uses server funds and updates the common balance afte
   );
 });
 
+test('closed coin sales retain balance, its retry and demo explanation without product I/O or sales controls', async () => {
+  const availability = loadSource('src/lib/coinAvailability.ts');
+  assert.equal(availability.areNewCoinPurchasesAvailable(), false);
+  for (const locale of locales) {
+    const catalog = loadSource(`src/i18n/${locale}.ts`)[locale];
+    for (const isDemo of [false, true]) {
+      let refreshes = 0;
+      const coins = {
+        balance: null,
+        status: 'error',
+        refresh: async () => {
+          refreshes++;
+          coins.balance = 450;
+          coins.status = 'ready';
+        },
+      };
+      const screen = mount('src/screens/CoinsScreen.tsx', {
+        '../lib/coinAvailability': availability,
+        '../config/products': loadSource('src/config/products.ts'),
+        '../services/iap': {
+          loadCoinProducts: () => assert.fail('Closed release must not query StoreKit products'),
+          buyCoins: () => assert.fail('Closed release must not start a purchase'),
+        },
+        '../hooks/useCoinBalance': { useCoinBalance: () => coins },
+        '../i18n': { t: (key) => catalog[key] },
+        '../lib/accountGate': { purchaseBlockedInDemo: () => isDemo },
+        '../store/authStore': { useAuthStore: (selector) => selector({ isDemo }) },
+        '../theme/ThemeProvider': {
+          useTheme: () => ({ color: (value) => value }),
+          useThemedStyles: (styles) => styles,
+        },
+      });
+      const initial = screen.render();
+      if (!isDemo)
+        assert(findTree(initial, (node) => node.props?.children === catalog.coin_shop_unavailable));
+      assert(!findTree(initial, (node) => node.type === 'ActivityIndicator'));
+      screen.effects();
+      await flush();
+      await byId(screen.render(), 'button-retry-coin-balance').props.onPress();
+      assert.equal(refreshes, 1);
+      const tree = screen.render();
+      assert(findTree(tree, (node) => node.type === 'Text' && node.props.children === 450));
+      assert(
+        !findTree(tree, (node) => node.props?.children === catalog.try_again_2),
+        'No useless product retry remains'
+      );
+      assert(!findTree(tree, (node) => node.props?.children === catalog.coin_shop_payment));
+      assert(!findTree(tree, (node) => node.props?.children === catalog.coin_shop_about));
+      assert(
+        !findTree(
+          tree,
+          (node) =>
+            node.props?.accessibilityRole === 'button' &&
+            node.props?.accessibilityLabel?.includes('·')
+        )
+      );
+      if (isDemo) assert(findTree(tree, (node) => node.props?.children === catalog.coin_shop_demo));
+      else assert(findTree(tree, (node) => node.props?.children === catalog.coin_shop_unavailable));
+    }
+  }
+});
+
 test('actual Coins purchase refreshes common server funds and suppresses success on account change', async () => {
   for (const switchAccount of [false, true]) {
     const coins = coinFixture();
@@ -1120,6 +1182,8 @@ test('actual Coins purchase refreshes common server funds and suppresses success
     const calls = [],
       alerts = [];
     const screen = mount('src/screens/CoinsScreen.tsx', {
+      // Isolate the existing transaction UI contract from the closed release policy.
+      '../lib/coinAvailability': { areNewCoinPurchasesAvailable: () => true },
       'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
       '../config/products': products,
       '../services/iap': {
@@ -1160,6 +1224,58 @@ test('actual Coins purchase refreshes common server funds and suppresses success
   }
 });
 
+test('Coins keeps cancellation quiet and safely reports unknown purchase failures', async () => {
+  const products = loadSource('src/config/products.ts');
+  const product = { id: products.COIN_IDS[0], displayPrice: '$1.99', title: 'Coins' };
+  const catalog = loadSource('src/i18n/en.ts').en;
+  for (const [error, cancelled] of [
+    [{ code: 'E_USER_CANCELLED' }, true],
+    [new Error('User cancelled the request'), true],
+    [new Error('Store unavailable'), false],
+    [{ code: 500, message: null }, false],
+    [null, false],
+    ['offline', false],
+  ]) {
+    const coins = coinFixture();
+    await coins.store.refresh();
+    const alerts = [];
+    let purchases = 0;
+    const screen = mount('src/screens/CoinsScreen.tsx', {
+      // Exercise error handling independently from the closed release policy.
+      '../lib/coinAvailability': { areNewCoinPurchasesAvailable: () => true },
+      'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
+      '../config/products': products,
+      '../services/iap': {
+        loadCoinProducts: async () => [product],
+        buyCoins: async () => {
+          purchases++;
+          throw error;
+        },
+      },
+      '../hooks/useCoinBalance': { useCoinBalance: coins.useCoinBalance },
+      '../i18n': { t: (key) => catalog[key] },
+      '../lib/accountGate': { purchaseBlockedInDemo: () => false },
+      '../store/authStore': { useAuthStore: (selector) => selector({ isDemo: false }) },
+      '../theme/ThemeProvider': {
+        useTheme: () => ({ color: (value) => value }),
+        useThemedStyles: (styles) => styles,
+      },
+    });
+    screen.effects();
+    await flush();
+    const buy = () =>
+      findTree(screen.render(), (node) => node.props?.accessibilityLabel === '100 coins · $1.99');
+    await buy().props.onPress();
+    assert.equal(purchases, 1);
+    assert.deepEqual(
+      alerts,
+      cancelled ? [] : [[catalog.purchase_failed_2, catalog.please_try_again_2]]
+    );
+    assert.equal(buy().props.disabled, false, 'failed/cancelled purchase releases loading state');
+    assert.equal(coins.store.getSnapshot().balance, 1000);
+  }
+});
+
 test('Coins balance retry after a verified purchase never buys again or claims unverified credit', async () => {
   for (const locale of locales) {
     const catalog = loadSource(`src/i18n/${locale}.ts`)[locale];
@@ -1171,6 +1287,8 @@ test('Coins balance retry after a verified purchase never buys again or claims u
     const calls = [],
       alerts = [];
     const screen = mount('src/screens/CoinsScreen.tsx', {
+      // Isolate the existing transaction UI contract from the closed release policy.
+      '../lib/coinAvailability': { areNewCoinPurchasesAvailable: () => true },
       'react-native': { ...native, Alert: { alert: (...args) => alerts.push(args) } },
       '../config/products': products,
       '../services/iap': {
@@ -1224,6 +1342,8 @@ test('Coins shows localized empty, failed and demo states without diagnosing an 
     for (const mode of ['empty', 'failed', 'demo']) {
       let loads = 0;
       const screen = mount('src/screens/CoinsScreen.tsx', {
+        // Isolate the existing transaction UI contract from the closed release policy.
+        '../lib/coinAvailability': { areNewCoinPurchasesAvailable: () => true },
         '../config/products': loadSource('src/config/products.ts'),
         '../services/iap': {
           loadCoinProducts: async () => {
