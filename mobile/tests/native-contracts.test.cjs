@@ -135,9 +135,17 @@ function mount(relative, imports = {}, props = {}) {
       useFocusEffect: (callback) => {
         focus = callback;
       },
-      useNavigation: () => ({ navigate: (route) => navigated.push(route) }),
+      useNavigation: () => ({
+        navigate: (route) => navigated.push(route),
+        addListener: () => () => {},
+      }),
     },
-    '../../store/authStore': { useAuthStore: () => ({ user: {}, userProfile: {} }) },
+    '../../store/authStore': {
+      useAuthStore: Object.assign(() => ({ user: {}, userProfile: {} }), {
+        getState: () => ({ user: { uid: 'reader' }, isAuthenticated: true }),
+        subscribe: () => () => {},
+      }),
+    },
     '../../hooks/useCoinBalance': {
       useCoinBalance: () => ({ balance: null, refresh: async () => null }),
     },
@@ -651,6 +659,18 @@ test('actual navigator options localize all tabs and Avatar back labels without 
         catalog[key]
       );
     }
+    const stack = module.exports.MainStack();
+    const tasks = findTree(stack, (node) => node.props?.name === 'Tasks');
+    assert.equal(tasks.props.component, 'TasksScreen');
+    assert.equal(tasks.props.options.title, '');
+    assert.equal(tasks.props.options.headerBackTitle, catalog.nav_back);
+    assert.equal(
+      findTree(tabs, (node) => node.props?.name === 'Tasks'),
+      undefined
+    );
+    const taskGoal = findTree(stack, (node) => node.props?.name === 'TaskGoal');
+    assert.equal(taskGoal.props.component, 'GoalsScreen');
+    assert.deepEqual(taskGoal.props.initialParams, { createForTask: true });
     const avatar = findTree(module.exports.MainStack(), (node) => node.props?.name === 'Avatar');
     assert.equal(avatar.props.options.headerBackTitle, catalog.nav_back);
     assert.equal(avatar.props.options.headerBackTruncatedTitle, catalog.nav_back);
@@ -821,6 +841,7 @@ test('Tasks preserves an unconfirmed draft and does not encourage blindly repeat
           tasks: [{ id: 'one', title: 'Pending', status: 'pending', priority: 'medium' }],
           totalCount: 1,
         }),
+        getGoals: async () => [{ id: 'goal-a', title: 'Actual goal', status: 'active' }],
         createTask: fail,
         completeTask: fail,
       },
@@ -833,6 +854,7 @@ test('Tasks preserves an unconfirmed draft and does not encourage blindly repeat
   findTree(screen.render(), (node) => node.props?.placeholder === 'task_title').props.onChangeText(
     'Draft task'
   );
+  findTree(screen.render(), (node) => node.props?.testID === 'task-goal-goal-a').props.onPress();
   await findTree(
     screen.render(),
     (node) => node.type === 'TouchableOpacity' && textContent(node) === 'create'

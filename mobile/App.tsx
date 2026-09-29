@@ -26,6 +26,7 @@ import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 import DashboardScreen from './src/screens/dashboard/DashboardScreen';
 import GoalsScreen from './src/screens/goals/GoalsScreen';
+import TasksScreen from './src/screens/tasks/TasksScreen';
 import HabitsScreen from './src/screens/habits/HabitsScreen';
 import CoachScreen from './src/screens/coach/CoachScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
@@ -58,6 +59,22 @@ function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen
+        name="Tasks"
+        component={TasksScreen}
+        options={{
+          headerShown: true,
+          title: '',
+          headerBackTitle: t('nav_back'),
+          headerBackTruncatedTitle: t('nav_back'),
+          headerBackAccessibilityLabel: t('nav_back'),
+        }}
+      />
+      <Stack.Screen
+        name="TaskGoal"
+        component={GoalsScreen}
+        initialParams={{ createForTask: true }}
+      />
       <Stack.Screen
         name="Premium"
         component={PremiumScreen}

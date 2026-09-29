@@ -1,6 +1,17 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  task_priority_low: 'Low',
+  task_priority_medium: 'Medium',
+  task_priority_high: 'High',
+  task_priority_urgent: 'Urgent',
+  task_status_pending: 'Pending',
+  task_status_skipped: 'Skipped',
+  task_status_blocked: 'Blocked',
+  task_status_cancelled: 'Cancelled',
+
+  task_select_goal: 'Select a goal',
+  task_no_active_goals: 'Create an active goal before adding a task.',
   account_name_update_failed_body:
     'Your profile was saved, but your account display name could not be updated. You can sign in with this account.',
   verification_email_failed_title: 'Account created',

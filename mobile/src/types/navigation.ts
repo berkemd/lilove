@@ -10,6 +10,8 @@ export type AuthStackParamList = {
 
 export type MainStackParamList = {
   MainTabs: undefined;
+  Tasks: undefined;
+  TaskGoal: { createForTask: true };
   Premium: undefined;
   Coins: undefined;
   Settings: undefined;
@@ -20,7 +22,6 @@ export type MainStackParamList = {
 export type MainTabParamList = {
   Dashboard: undefined;
   Goals: undefined;
-  Tasks: undefined;
   Habits: undefined;
   Coach: undefined;
   Profile: undefined;

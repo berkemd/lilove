@@ -11,7 +11,12 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import type { MainStackParamList } from '../../types/navigation';
+import { useAuthStore } from '../../store/authStore';
 import { api } from '../../lib/api';
 import { t } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
@@ -23,13 +28,35 @@ interface Task {
   status: 'pending' | 'active' | 'completed' | 'skipped' | 'blocked' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   goalId?: string;
-  estimatedHours?: number;
+  estimatedDuration?: number;
   dueDate?: string;
   createdAt: string;
   completedAt?: string;
 }
 
+interface TaskGoal {
+  id: string;
+  title: string;
+  status: 'active' | 'paused' | 'completed' | 'abandoned';
+}
+
+const priorityLabels = {
+  low: 'task_priority_low',
+  medium: 'task_priority_medium',
+  high: 'task_priority_high',
+  urgent: 'task_priority_urgent',
+} as const;
+const statusLabels = {
+  pending: 'task_status_pending',
+  active: 'goal_status_active',
+  completed: 'completed',
+  skipped: 'task_status_skipped',
+  blocked: 'task_status_blocked',
+  cancelled: 'task_status_cancelled',
+} as const;
+
 export default function TasksScreen() {
+  const navigation = useNavigation<StackNavigationProp<MainStackParamList, 'Tasks'>>();
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
 
@@ -38,6 +65,22 @@ export default function TasksScreen() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [goals, setGoals] = useState<TaskGoal[]>([]);
+  const [goalsLoading, setGoalsLoading] = useState(true);
+  const [goalsFailed, setGoalsFailed] = useState(false);
+  const [goalId, setGoalId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const saving = React.useRef(false);
+  const resumeForm = React.useRef(false);
+  const pendingGoalNavigation = React.useRef(false);
+  const session = React.useRef(0);
+  const active = React.useRef(false);
+  const taskRead = React.useRef(0);
+  const goalRead = React.useRef(0);
+  const captureSession = () => {
+    const revision = session.current;
+    return () => active.current && session.current === revision;
+  };
 
   // Form state
   const [title, setTitle] = useState('');
@@ -45,10 +88,99 @@ export default function TasksScreen() {
   const [priority, setPriority] = useState<Task['priority']>('medium');
 
   React.useEffect(() => {
-    loadTasks();
-  }, []);
+    let owner = useAuthStore.getState();
+    const reset = () => {
+      session.current++;
+      active.current = owner.isAuthenticated && (owner.isDemo || !!owner.user);
+      saving.current = false;
+      resumeForm.current = false;
+      pendingGoalNavigation.current = false;
+      setTasks([]);
+      setGoals([]);
+      setGoalId('');
+      setTitle('');
+      setDescription('');
+      setPriority('medium');
+      setIsModalVisible(false);
+      setIsSaving(false);
+      setIsRefreshing(false);
+      setLoadFailed(false);
+      setGoalsFailed(false);
+      if (active.current) {
+        void loadTasks();
+        void loadGoals();
+      } else {
+        setIsLoading(false);
+        setGoalsLoading(false);
+      }
+    };
+    const unsubscribe = useAuthStore.subscribe((next) => {
+      if (
+        next.user !== owner.user ||
+        next.isDemo !== owner.isDemo ||
+        next.isAuthenticated !== owner.isAuthenticated
+      ) {
+        owner = next;
+        reset();
+      }
+    });
+    reset();
+    const unfocus = navigation.addListener('focus', () => {
+      if (!active.current) return;
+      if (resumeForm.current) {
+        resumeForm.current = false;
+        setIsModalVisible(true);
+      }
+      void loadGoals();
+    });
+    return () => {
+      active.current = false;
+      session.current++;
+      unsubscribe();
+      unfocus();
+    };
+  }, [navigation]);
+
+  const loadGoals = async () => {
+    const current = captureSession();
+    if (!current()) return;
+    const request = ++goalRead.current;
+    setGoalsLoading(true);
+    setGoalsFailed(false);
+    try {
+      const data = await api.getGoals();
+      if (
+        !Array.isArray(data) ||
+        !data.every(
+          (goal) =>
+            goal &&
+            typeof goal.id === 'string' &&
+            goal.id.length > 0 &&
+            typeof goal.title === 'string' &&
+            goal.title.trim().length > 0 &&
+            ['active', 'paused', 'completed', 'abandoned'].includes(goal.status)
+        )
+      ) {
+        throw new Error('Invalid goal response');
+      }
+      if (!current() || request !== goalRead.current) return;
+      const choices = data.filter((goal) => goal.status === 'active');
+      setGoals(choices);
+      setGoalId((selected) => (choices.some((goal) => goal.id === selected) ? selected : ''));
+    } catch {
+      if (current() && request === goalRead.current) {
+        setGoals([]);
+        setGoalsFailed(true);
+      }
+    } finally {
+      if (current() && request === goalRead.current) setGoalsLoading(false);
+    }
+  };
 
   const loadTasks = async () => {
+    const current = captureSession();
+    if (!current()) return;
+    const request = ++taskRead.current;
     setIsLoading(true);
     setLoadFailed(false);
     try {
@@ -71,45 +203,60 @@ export default function TasksScreen() {
       ) {
         throw new Error('Invalid task page');
       }
-      setTasks(data.tasks);
+      if (current() && request === taskRead.current) setTasks(data.tasks);
     } catch {
-      setLoadFailed(true);
+      if (current() && request === taskRead.current) setLoadFailed(true);
     } finally {
-      setIsLoading(false);
+      if (current() && request === taskRead.current) setIsLoading(false);
     }
   };
 
   const handleRefresh = async () => {
+    const current = captureSession();
     setIsRefreshing(true);
     await loadTasks();
-    setIsRefreshing(false);
+    if (current()) setIsRefreshing(false);
   };
 
   const openCreateModal = () => {
-    setTitle('');
-    setDescription('');
-    setPriority('medium');
+    if (!active.current) return;
     setIsModalVisible(true);
+    void loadGoals();
   };
 
   const handleSaveTask = async () => {
+    const current = captureSession();
+    if (!current() || saving.current) return;
+    if (goalsLoading || goalsFailed || !goals.some((goal) => goal.id === goalId)) {
+      Alert.alert(t('error'), t('task_select_goal'));
+      return;
+    }
     if (!title.trim()) {
       Alert.alert(t('error'), t('please_enter_a_task_title'));
       return;
     }
 
+    saving.current = true;
+    setIsSaving(true);
     try {
       await api.createTask({
+        goalId,
         title: title.trim(),
         description: description.trim(),
         priority,
         status: 'pending',
       });
 
+      if (!current()) return;
+      setTitle('');
+      setDescription('');
+      setPriority('medium');
+      setGoalId('');
       setIsModalVisible(false);
       Alert.alert(t('success'), t('task_created_successfully'));
       loadTasks();
     } catch (error: any) {
+      if (!current()) return;
       Alert.alert(
         t('error'),
         t(
@@ -118,15 +265,24 @@ export default function TasksScreen() {
             : 'failed_to_create_task_please_try_again'
         )
       );
+    } finally {
+      if (current()) {
+        saving.current = false;
+        setIsSaving(false);
+      }
     }
   };
 
   const handleCompleteTask = async (taskId: string) => {
+    const current = captureSession();
+    if (!current()) return;
     try {
       await api.completeTask(taskId);
+      if (!current()) return;
       loadTasks();
       Alert.alert(t('well_done'), t('task_completed_successfully'));
     } catch (error: any) {
+      if (!current()) return;
       Alert.alert(
         t('error'),
         t(
@@ -182,11 +338,11 @@ export default function TasksScreen() {
         <View style={styles.taskFooter}>
           <View style={[styles.priorityBadge, { backgroundColor: priorityColor + '20' }]}>
             <Text style={[styles.priorityText, { color: themeColor(priorityColor, 'text') }]}>
-              {task.priority}
+              {t(priorityLabels[task.priority])}
             </Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(task.status) }]}>
-            <Text style={styles.statusText}>{task.status}</Text>
+            <Text style={styles.statusText}>{t(statusLabels[task.status])}</Text>
           </View>
         </View>
       </TouchableOpacity>
@@ -214,8 +370,12 @@ export default function TasksScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>{t('my_tasks')}</Text>
-        <TouchableOpacity style={styles.addButton} onPress={openCreateModal}>
-          <Text style={styles.addButtonText}>+ New Task</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={openCreateModal}
+          testID="button-new-task"
+        >
+          <Text style={styles.addButtonText}>{t('create_task')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -246,21 +406,27 @@ export default function TasksScreen() {
           <>
             {pendingTasks.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Pending ({pendingTasks.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('task_status_pending')} ({pendingTasks.length})
+                </Text>
                 {pendingTasks.map(renderTaskCard)}
               </View>
             )}
 
             {activeTasks.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Active ({activeTasks.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('goal_status_active')} ({activeTasks.length})
+                </Text>
                 {activeTasks.map(renderTaskCard)}
               </View>
             )}
 
             {completedTasks.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Completed ({completedTasks.length})</Text>
+                <Text style={styles.sectionTitle}>
+                  {t('completed')} ({completedTasks.length})
+                </Text>
                 {completedTasks.map(renderTaskCard)}
               </View>
             )}
@@ -286,69 +452,135 @@ export default function TasksScreen() {
         visible={isModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setIsModalVisible(false)}
+        onRequestClose={() => !saving.current && setIsModalVisible(false)}
+        onDismiss={() => {
+          if (!pendingGoalNavigation.current || !active.current) return;
+          pendingGoalNavigation.current = false;
+          navigation.navigate('TaskGoal', { createForTask: true });
+        }}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{t('create_new_task')}</Text>
-
-            <TextInput
-              style={[styles.input, { color: themeColor('#111827', 'text') }]}
-              placeholder={t('task_title')}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={200}
-              placeholderTextColor={themeColor('#9CA3AF', 'text')}
-            />
-
-            <TextInput
-              style={[[styles.input, styles.textArea], { color: themeColor('#111827', 'text') }]}
-              placeholder={t('description_optional')}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              maxLength={500}
-              placeholderTextColor={themeColor('#9CA3AF', 'text')}
-            />
-
-            <View style={styles.prioritySelector}>
-              {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
-                <TouchableOpacity
-                  key={p}
-                  style={[
-                    styles.priorityOption,
-                    priority === p && styles.priorityOptionSelected,
-                    { borderColor: getPriorityColor(p) },
-                  ]}
-                  onPress={() => setPriority(p)}
-                >
-                  <Text
-                    style={[
-                      styles.priorityOptionText,
-                      priority === p && { color: themeColor(getPriorityColor(p), 'text') },
-                    ]}
-                  >
-                    {p}
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>{t('create_new_task')}</Text>
+              <Text style={styles.sectionTitle}>{t('task_select_goal')}</Text>
+              {goalsLoading ? (
+                <ActivityIndicator testID="task-goals-loading" />
+              ) : goalsFailed ? (
+                <View>
+                  <Text style={styles.emptyStateText}>
+                    {t('unable_to_load_your_goals_please_try_again')}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  <TouchableOpacity onPress={loadGoals} testID="button-retry-task-goals">
+                    <Text style={styles.sectionTitle}>{t('try_again')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : goals.length === 0 ? (
+                <View>
+                  <Text style={styles.emptyStateText}>{t('task_no_active_goals')}</Text>
+                  <TouchableOpacity
+                    style={styles.emptyStateButton}
+                    testID="button-create-task-goal"
+                    onPress={() => {
+                      resumeForm.current = true;
+                      pendingGoalNavigation.current = Platform.OS === 'ios';
+                      setIsModalVisible(false);
+                      if (Platform.OS !== 'ios')
+                        navigation.navigate('TaskGoal', { createForTask: true });
+                    }}
+                  >
+                    <Text style={styles.emptyStateButtonText}>{t('new_goal')}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                goals.map((goal) => (
+                  <TouchableOpacity
+                    key={goal.id}
+                    testID={`task-goal-${goal.id}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: goalId === goal.id, disabled: isSaving }}
+                    disabled={isSaving}
+                    style={[styles.input, goalId === goal.id && styles.priorityOptionSelected]}
+                    onPress={() => setGoalId(goal.id)}
+                  >
+                    <Text style={styles.taskTitle}>{goal.title}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setIsModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={handleSaveTask}
-              >
-                <Text style={styles.saveButtonText}>{t('create')}</Text>
-              </TouchableOpacity>
-            </View>
+              <TextInput
+                style={[styles.input, { color: themeColor('#111827', 'text') }]}
+                placeholder={t('task_title')}
+                value={title}
+                editable={!isSaving}
+                onChangeText={setTitle}
+                maxLength={200}
+                placeholderTextColor={themeColor('#9CA3AF', 'text')}
+              />
+
+              <TextInput
+                style={[[styles.input, styles.textArea], { color: themeColor('#111827', 'text') }]}
+                placeholder={t('description_optional')}
+                value={description}
+                editable={!isSaving}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+                placeholderTextColor={themeColor('#9CA3AF', 'text')}
+              />
+
+              <View style={styles.prioritySelector}>
+                {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
+                  <TouchableOpacity
+                    key={t(priorityLabels[p])}
+                    style={[
+                      styles.priorityOption,
+                      priority === p && styles.priorityOptionSelected,
+                      { borderColor: getPriorityColor(p) },
+                    ]}
+                    disabled={isSaving}
+                    onPress={() => setPriority(p)}
+                  >
+                    <Text
+                      style={[
+                        styles.priorityOptionText,
+                        priority === p && { color: themeColor(getPriorityColor(p), 'text') },
+                      ]}
+                    >
+                      {t(priorityLabels[p])}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  disabled={isSaving}
+                  onPress={() => setIsModalVisible(false)}
+                >
+                  <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  testID="button-save-task"
+                  disabled={
+                    isSaving ||
+                    goalsLoading ||
+                    goalsFailed ||
+                    !goals.some((goal) => goal.id === goalId)
+                  }
+                  onPress={handleSaveTask}
+                >
+                  {isSaving ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>{t('create')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
