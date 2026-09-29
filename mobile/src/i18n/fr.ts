@@ -1,6 +1,46 @@
 // LiLove · fr arayuz katalogu — URETILDI, elle duzenleme
 
 export const fr = {
+  deletion_intro:
+    'Supprimez votre compte LiLove et ses données d’application. Vous devrez confirmer votre identité. Une fois la suppression lancée, certaines étapes ne sont pas annulables.',
+  deletion_subscription_notice:
+    'La suppression de votre compte LiLove n’annule pas un abonnement Apple. Si vous en avez un, gérez-le ou annulez-le dans les Abonnements Apple.',
+  deletion_manage_subscriptions: 'Gérer les abonnements Apple',
+  deletion_confirm: 'Confirmer l’identité et demander la suppression',
+  deletion_status_title: 'Suppression du compte',
+  deletion_check_status: 'Vérifier le statut de suppression',
+  deletion_cancel_request: 'Annuler la demande de suppression',
+  deletion_pending: 'Votre demande de suppression a été acceptée. Vérifiez son statut actuel ici.',
+  deletion_unknown:
+    'Le résultat n’a pas pu être confirmé. Vérifiez la demande sauvegardée avant de réessayer.',
+  deletion_completed: 'La suppression de votre compte LiLove est terminée.',
+  deletion_cancelled: 'Votre demande de suppression a été annulée.',
+  deletion_unavailable:
+    'La suppression de compte est temporairement indisponible. Votre compte n’a pas été supprimé. Veuillez réessayer plus tard.',
+  deletion_reauth: 'Confirmez votre identité avec le même compte que vous utilisez pour LiLove.',
+  deletion_reauth_failed:
+    'Échec de la confirmation d’identité. Utilisez le même compte et réessayez.',
+  deletion_account_changed:
+    'Le compte connecté a changé. Cet écran ne suit plus le compte précédent. Une demande déjà envoyée peut néanmoins se poursuivre.',
+  deletion_storage_failed:
+    'Les informations de récupération n’ont pas pu être sauvegardées en toute sécurité. Aucune suppression n’a été demandée. Veuillez réessayer.',
+  deletion_status_failed:
+    'Le statut de suppression n’a pas pu être récupéré. Ne supposez pas que le compte a été supprimé. Veuillez réessayer.',
+  deletion_retrying:
+    'La suppression est toujours en cours. Une étape sera répétée ; le compte n’est pas encore entièrement supprimé.',
+  deletion_apple_required:
+    'Confirmez à nouveau votre identité via Apple pour poursuivre cette demande de suppression.',
+  deletion_cannot_cancel: 'La suppression a commencé et ne peut plus être annulée.',
+  deletion_processing: 'Veuillez patienter…',
+  deletion_password: 'Entrez votre mot de passe LiLove',
+  deletion_sign_in_required: 'Connectez-vous à votre compte LiLove pour demander la suppression.',
+  deletion_resume: 'Continuer la demande de suppression',
+  deletion_retry_request: 'Réessayer la demande sauvegardée',
+  deletion_record_missing:
+    'Aucune demande acceptée trouvée. Vous pouvez réessayer avec les informations sauvegardées.',
+  deletion_expired:
+    'L’accès aux informations de statut a expiré. Contactez le support si vous avez toujours besoin du statut de cette demande.',
+
   task_priority_low: 'Faible',
   task_priority_medium: 'Moyenne',
   task_priority_high: 'Élevée',

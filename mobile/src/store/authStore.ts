@@ -47,6 +47,25 @@ type AuthSession = {
 let activeSession: AuthSession | null = null;
 let authActionRevision = 0;
 
+// A token refresh keeps this lease; logout or switching away and back invalidates it.
+export function captureAccountSession() {
+  const user = auth.currentUser;
+  const state = useAuthStore.getState();
+  if (!user || state.isDemo || state.user?.uid !== user.uid) {
+    throw Object.assign(new Error('Sign in required'), { code: 'authentication_required' });
+  }
+  const revision = authActionRevision;
+  return {
+    uid: user.uid,
+    user,
+    isCurrent: () =>
+      revision === authActionRevision &&
+      auth.currentUser === user &&
+      useAuthStore.getState().user?.uid === user.uid &&
+      !useAuthStore.getState().isDemo,
+  };
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   userProfile: null,
@@ -152,6 +171,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     activeSession = session;
     unsubscribeAuth = subscribeToAuthState(async (firebaseUser) => {
       if (disposed || suspended || (!firebaseUser && get().isDemo)) return;
+      if (get().user?.uid !== firebaseUser?.uid) authActionRevision++;
       const current = ++revision;
       const isCurrent = () => !disposed && !suspended && current === revision;
       detachProfile();

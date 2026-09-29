@@ -132,6 +132,7 @@ test('a listener-triggered logout does not deliver the superseded token to later
 });
 
 function session() {
+  const auth = { currentUser: null };
   let state;
   let callback;
   let stopped = false;
@@ -145,7 +146,7 @@ function session() {
       currentToken = null;
     },
   };
-  load(
+  const exports = load(
     'src/store/authStore.ts',
     {
       zustand: {
@@ -158,6 +159,10 @@ function session() {
         },
       },
       '../lib/firebase': {
+        auth,
+        logout: async () => {
+          auth.currentUser = null;
+        },
         subscribeToAuthState(fn) {
           callback = fn;
           return () => (stopped = true);
@@ -177,7 +182,11 @@ function session() {
   return {
     state,
     stop,
-    emit: (user) => callback(user),
+    emit: (user) => {
+      auth.currentUser = user;
+      return callback(user);
+    },
+    capture: () => exports.captureAccountSession(),
     profiles,
     get token() {
       return currentToken;
@@ -191,6 +200,22 @@ const user = (uid, token = uid) => ({
   uid,
   email: `${uid}@example.invalid`,
   getIdToken: async () => token,
+});
+
+test('deletion session lease survives a token refresh but rejects logout and A→B→A', async () => {
+  const h = session();
+  const a = user('a');
+  await h.emit(a);
+  const first = h.capture();
+  await h.emit(a);
+  assert.equal(first.isCurrent(), true);
+  await h.emit(user('b'));
+  await h.emit(a);
+  assert.equal(first.isCurrent(), false);
+  const second = h.capture();
+  await h.state.logout();
+  assert.equal(second.isCurrent(), false);
+  assert.throws(() => h.capture(), { code: 'authentication_required' });
 });
 
 test('account change detaches previous profile and rejects its late response', async () => {

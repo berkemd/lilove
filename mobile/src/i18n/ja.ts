@@ -1,6 +1,43 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  deletion_intro:
+    'LiLoveアカウントおよびアプリデータを削除します。本人確認が必要です。削除処理開始後、一部の手順は取り消せません。',
+  deletion_subscription_notice:
+    'LiLoveアカウントを削除しても、Appleのサブスクリプションは解約されません。契約がある場合は、Appleのサブスクリプション設定で管理または解約してください。',
+  deletion_manage_subscriptions: 'Appleサブスクリプションを管理',
+  deletion_confirm: '本人確認後、削除を依頼',
+  deletion_status_title: 'アカウント削除',
+  deletion_check_status: '削除状況を確認',
+  deletion_cancel_request: '削除依頼をキャンセル',
+  deletion_pending: '削除依頼は受理されました。ここで現在の状況を確認できます。',
+  deletion_unknown:
+    '結果を確認できませんでした。再試行する前に、保存された依頼情報をご確認ください。',
+  deletion_completed: 'LiLoveアカウントの削除が完了しました。',
+  deletion_cancelled: '削除依頼はキャンセルされました。',
+  deletion_unavailable:
+    'アカウント削除は一時的に利用できません。アカウントは削除されていません。後ほど再度お試しください。',
+  deletion_reauth: 'LiLoveで使用しているのと同じアカウントで本人確認を行ってください。',
+  deletion_reauth_failed: '本人確認に失敗しました。同じアカウントで再度お試しください。',
+  deletion_account_changed:
+    'ログイン中のアカウントが変更されました。この画面は以前のアカウントの追跡を終了しました。既に送信された依頼は継続される可能性があります。',
+  deletion_storage_failed:
+    '復旧情報が安全に保存できませんでした。削除依頼は行われていません。再度お試しください。',
+  deletion_status_failed:
+    '削除状況を取得できませんでした。アカウントが削除されたとみなさず、再度お試しください。',
+  deletion_retrying:
+    '削除処理は進行中です。一部の手順を再試行しています。アカウントはまだ完全に削除されていません。',
+  deletion_apple_required: 'この削除依頼を続行するには、Appleで再度本人確認を行ってください。',
+  deletion_cannot_cancel: '削除処理が開始されたため、キャンセルできなくなりました。',
+  deletion_processing: 'お待ちください…',
+  deletion_password: 'LiLoveパスワードを入力',
+  deletion_sign_in_required: '削除依頼を行うには、LiLoveアカウントにログインしてください。',
+  deletion_resume: '削除依頼を再開',
+  deletion_retry_request: '保存された依頼を再試行',
+  deletion_record_missing: '受理された依頼が見つかりません。保存された情報で再試行できます。',
+  deletion_expired:
+    '状況確認の有効期限が切れました。引き続き依頼の状況が必要な場合は、サポートまでお問い合わせください。',
+
   task_priority_low: '低',
   task_priority_medium: '中',
   task_priority_high: '高',

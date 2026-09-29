@@ -11,20 +11,21 @@ class AppleAuthService {
     return await AppleAuthentication.isAvailableAsync();
   }
 
-  async signIn(): Promise<{ 
-    identityToken: string; 
-    nonce: string; 
-    fullName?: { givenName?: string | null; familyName?: string | null } 
+  async signIn(): Promise<{
+    identityToken: string;
+    authorizationCode?: string;
+    nonce: string;
+    fullName?: { givenName?: string | null; familyName?: string | null };
   }> {
     try {
       console.log('[Apple Auth] Starting sign in with Firebase...');
-      
+
       const rawNonce = this.generateNonce();
       const hashedNonce = await Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         rawNonce
       );
-      
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -46,16 +47,18 @@ class AppleAuthService {
 
       return {
         identityToken: credential.identityToken,
+        authorizationCode: credential.authorizationCode || undefined,
         nonce: rawNonce,
-        fullName: credential.fullName ? {
-          givenName: credential.fullName.givenName,
-          familyName: credential.fullName.familyName,
-        } : undefined,
+        fullName: credential.fullName
+          ? {
+              givenName: credential.fullName.givenName,
+              familyName: credential.fullName.familyName,
+            }
+          : undefined,
       };
     } catch (e: any) {
-      console.error('[Apple Auth] Error:', e);
       if (e.code === 'ERR_REQUEST_CANCELED') {
-        throw new Error(t('sign_in_was_canceled'));
+        throw Object.assign(new Error(t('sign_in_was_canceled')), { code: 'ERR_REQUEST_CANCELED' });
       } else if (e.message) {
         throw new Error(e.message);
       } else {
@@ -65,16 +68,9 @@ class AppleAuthService {
   }
 
   private generateNonce(length: number = 32): string {
-    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    const randomValues = new Uint8Array(length);
-    for (let i = 0; i < length; i++) {
-      randomValues[i] = Math.floor(Math.random() * charset.length);
-    }
-    for (let i = 0; i < length; i++) {
-      result += charset[randomValues[i] % charset.length];
-    }
-    return result;
+    return Array.from(Crypto.getRandomBytes(length), (byte) =>
+      byte.toString(16).padStart(2, '0')
+    ).join('');
   }
 
   async getCredentialState(user: string) {
