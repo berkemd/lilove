@@ -396,7 +396,8 @@ export const api = {
   getSubscriptionStatus: async (authorizationToken?: string) =>
     apiClient.get<SubscriptionStatus>('/api/subscription/status', { authorizationToken }),
   cancelSubscription: async () => apiClient.post('/api/subscription/cancel'),
-  getCoinBalance: async () => apiClient.get<{ balance: number }>('/api/coin-balance'),
+  getCoinBalance: async (authorizationToken?: string) =>
+    apiClient.get<{ balance: number }>('/api/coin-balance', { authorizationToken }),
 
   getAvatarZones: async () => apiClient.get('/api/avatar-system/zones'),
   getTraitsByZone: async (zoneId: string) =>

@@ -130,6 +130,8 @@ export const fr = {
   close: 'Fermer',
   clothing: 'Vêtements',
   coin_balance_get_more_coins: 'Solde de pièces. Obtenir plus de pièces.',
+  coin_balance_unavailable:
+    'Votre solde n’est pas disponible. Réessayez de le rafraîchir sans effectuer un nouvel achat.',
   coins: 'Pièces',
   coins_added: 'Pièces ajoutées',
   complete_a_goal_end_to_end: 'Mener un objectif de bout en bout',

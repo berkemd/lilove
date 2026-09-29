@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../../lib/api';
-import { useAuthStore } from '../../store/authStore';
+import { useCoinBalance } from '../../hooks/useCoinBalance';
 import LivingForest from '../../components/LivingForest';
 import { t, type Anahtar } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
@@ -186,7 +186,7 @@ export default function AvatarScreen() {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
 
-  const { userProfile } = useAuthStore();
+  const coins = useCoinBalance();
   const navigation = useNavigation();
   const [activeCategory, setActiveCategory] = useState('appearance');
   const [zones, setZones] = useState<AvatarZone[]>([]);
@@ -307,8 +307,9 @@ export default function AvatarScreen() {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setZoneTraits({});
+    void coins.refresh();
     loadData();
-  }, []);
+  }, [coins.refresh]);
 
   const handleTraitPress = (trait: AvatarTrait, zone: AvatarZone) => {
     const isOwned = ownedTraitIds.has(trait.id) || trait.isDefault;
@@ -340,11 +341,14 @@ export default function AvatarScreen() {
 
   const purchaseTrait = async () => {
     if (!selectedTrait) return;
+    const accountIsCurrent = coins.captureAccount();
 
     setIsPurchasing(true);
     try {
-      await api.unlockTrait(selectedTrait.id);
+      const result = await coins.confirm(() => api.unlockTrait(selectedTrait.id));
+      if (result === 'account-changed') return;
       const userTraitsData = (await api.getMyTraits()) as UserAvatarTrait[];
+      if (!accountIsCurrent()) return;
       setUserTraits(Array.isArray(userTraitsData) ? userTraitsData : []);
       setPurchaseModalOpen(false);
       setSelectedTrait(null);
@@ -355,10 +359,11 @@ export default function AvatarScreen() {
     }
   };
 
-  const coinBalance = userProfile?.coinBalance || 0;
+  const coinBalance = coins.balance;
   const canPurchase =
     selectedTrait &&
     (selectedTrait.unlockType === 'purchase' || selectedTrait.isDefault) &&
+    coinBalance !== null &&
     coinBalance >= selectedTrait.coinCost;
   const currentLevel = userStats?.currentLevel;
 
@@ -407,12 +412,12 @@ export default function AvatarScreen() {
             style={styles.coinBadge}
             onPress={() => (navigation as any).navigate('Coins')}
             accessibilityRole="button"
-            accessibilityLabel={`${coinBalance}. ${t('coin_balance_get_more_coins')}`}
+            accessibilityLabel={`${coinBalance ?? '—'}. ${t('coin_balance_get_more_coins')}`}
             data-testid="button-get-coins"
           >
             <Ionicons name="wallet" size={16} color={themeColor('#92400E', 'text')} />
             <Text style={styles.coinText} data-testid="text-coin-balance">
-              {coinBalance}
+              {coinBalance ?? '—'}
             </Text>
             <Ionicons name="add-circle" size={14} color={themeColor('#92400E', 'text')} />
           </TouchableOpacity>
@@ -678,15 +683,15 @@ export default function AvatarScreen() {
                   <Text
                     style={[
                       styles.balanceText,
-                      coinBalance >= (selectedTrait?.coinCost || 0)
+                      coinBalance !== null && coinBalance >= (selectedTrait?.coinCost || 0)
                         ? styles.balanceGreen
                         : styles.balanceRed,
                     ]}
                   >
-                    {coinBalance.toLocaleString()}
+                    {coinBalance?.toLocaleString() ?? '—'}
                   </Text>
                   {/* Bakiye yetmiyorsa çıkmaz sokak değil, bir kapı. */}
-                  {coinBalance < (selectedTrait?.coinCost || 0) && (
+                  {coinBalance !== null && coinBalance < (selectedTrait?.coinCost || 0) && (
                     <TouchableOpacity
                       onPress={() => {
                         setPurchaseModalOpen(false);

@@ -129,6 +129,8 @@ export const de = {
   close: 'Schließen',
   clothing: 'Kleidung',
   coin_balance_get_more_coins: 'Münzguthaben. Mehr Münzen holen.',
+  coin_balance_unavailable:
+    'Ihr Guthaben kann gerade nicht angezeigt werden. Versuchen Sie, es zu aktualisieren. Ein erneuter Kauf ist nicht erforderlich.',
   coins: 'Münzen',
   coins_added: 'Münzen gutgeschrieben',
   complete_a_goal_end_to_end: 'Ein Ziel von Anfang bis Ende abschließen',

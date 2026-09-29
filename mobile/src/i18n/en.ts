@@ -126,6 +126,8 @@ export const en = {
   close: 'Close',
   clothing: 'Clothing',
   coin_balance_get_more_coins: 'Coin balance. Get more coins.',
+  coin_balance_unavailable:
+    'Your balance is unavailable. Try again to refresh it without making another purchase.',
   coins: 'Coins',
   coins_added: 'Coins added',
   complete_a_goal_end_to_end: 'Complete a goal end to end',
