@@ -430,4 +430,8 @@ export const ja = {
   progress_today_remaining: '今日の残り: {count}',
   progress_today_complete: '今日の有効な習慣はすべて完了として記録されています。',
   progress_today_scope: '有効な習慣について、今日記録した内容に基づきます。',
+  profile_unavailable_title: 'プロフィールを読み込めませんでした',
+  profile_unavailable_body:
+    'アカウントにサインインしていますが、プロフィールを利用できません。もう一度試すか、サインアウトしてください。',
+  profile_loading: 'プロフィールを読み込んでいます…',
 } as const;

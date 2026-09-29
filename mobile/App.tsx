@@ -11,6 +11,7 @@ import { useAuthStore } from './src/store/authStore';
 import notificationService from './src/services/notifications';
 import { initIAP } from './src/services/iap';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { ProfileRecovery } from './src/components/ProfileRecovery';
 import {
   registerForPushNotifications,
   addNotificationReceivedListener,
@@ -176,7 +177,16 @@ function AppContent() {
   const { isDark, ready, color } = useTheme();
   const styles = useThemedStyles(baseStyles);
   const navigationTheme = isDark ? DarkTheme : DefaultTheme;
-  const { isAuthenticated, isDemo, isLoading, initializeAuth, userProfile } = useAuthStore();
+  const {
+    isAuthenticated,
+    isDemo,
+    isLoading,
+    initializeAuth,
+    userProfile,
+    profileStatus,
+    retryProfile,
+    logout,
+  } = useAuthStore();
 
   useEffect(() => {
     const cleanupAuth = initializeAuth();
@@ -231,6 +241,19 @@ function AppContent() {
         <ActivityIndicator size="large" color="#8B5CF6" />
         <Text style={styles.loadingText}>Loading LiLove...</Text>
       </View>
+    );
+  }
+
+  if (isAuthenticated && !isDemo && profileStatus !== 'ready') {
+    return (
+      <SafeAreaProvider>
+        <ProfileRecovery
+          pending={profileStatus === 'loading'}
+          onRetry={retryProfile}
+          onLogout={logout}
+        />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </SafeAreaProvider>
     );
   }
 

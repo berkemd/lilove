@@ -444,4 +444,8 @@ export const de = {
   progress_today_remaining: 'Heute verbleibend: {count}',
   progress_today_complete: 'Alle aktiven Gewohnheiten sind heute als erledigt markiert.',
   progress_today_scope: 'Basierend auf deinen heutigen Einträgen für aktive Gewohnheiten.',
+  profile_unavailable_title: 'Dein Profil konnte nicht geladen werden',
+  profile_unavailable_body:
+    'Du bist angemeldet, aber dein Profil ist nicht verfügbar. Versuche es erneut oder melde dich ab.',
+  profile_loading: 'Dein Profil wird geladen…',
 } as const;

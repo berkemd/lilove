@@ -441,4 +441,8 @@ export const fr = {
   progress_today_complete:
     'Toutes vos habitudes actives sont marquées comme terminées aujourd’hui.',
   progress_today_scope: 'D’après vos validations du jour pour les habitudes actives.',
+  profile_unavailable_title: 'Votre profil n’a pas pu être chargé',
+  profile_unavailable_body:
+    'Vous êtes connecté à votre compte, mais votre profil est indisponible. Réessayez ou déconnectez-vous.',
+  profile_loading: 'Chargement de votre profil…',
 } as const;

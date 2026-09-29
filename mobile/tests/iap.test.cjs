@@ -389,17 +389,22 @@ test('StoreKit rejection and cancellation clear pending timers without completin
   assert.equal(h.state.closedConnections, 1);
 });
 
-test('deployment API override routes authenticated requests to staging without changing the production fallback', async () => {
+test('canonical Expo origin takes precedence while legacy API fallbacks preserve authentication', async () => {
   for (const scenario of [
     {
       configured: 'https://lilove.org',
       override: 'https://staging.invalid',
-      expected: 'https://staging.invalid',
+      expected: 'https://lilove.org',
     },
     {
       configured: 'https://configured.invalid',
       override: '',
       expected: 'https://configured.invalid',
+    },
+    {
+      configured: undefined,
+      override: 'https://staging.invalid',
+      expected: 'https://staging.invalid',
     },
     { configured: undefined, override: undefined, expected: 'https://lilove.org' },
   ]) {

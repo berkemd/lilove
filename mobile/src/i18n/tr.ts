@@ -427,4 +427,8 @@ export const tr = {
   progress_today_remaining: 'Bugün kalan: {count}',
   progress_today_complete: 'Etkin tüm alışkanlıkların bugün tamamlandı olarak işaretli.',
   progress_today_scope: 'Etkin alışkanlıkların için bugün yaptığın kayıtlara göre.',
+  profile_unavailable_title: 'Profilin yüklenemedi',
+  profile_unavailable_body:
+    'Oturumun açık, ancak profilin şu anda yüklenemiyor. Yeniden dene veya çıkış yap.',
+  profile_loading: 'Profilin yükleniyor…',
 } as const;

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('../node_modules/typescript');
 
-function load(relative, imports) {
+function load(relative, imports, globals = {}) {
   const source = fs.readFileSync(
     path.join(process.env.LILOVE_AUTH_TEST_SOURCE || path.join(__dirname, '..'), relative),
     'utf8'
@@ -13,14 +13,15 @@ function load(relative, imports) {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', 'console', code)(
+  new Function('require', 'module', 'exports', 'console', ...Object.keys(globals), code)(
     (name) => {
       assert(name in imports, `Unexpected import ${name}`);
       return imports[name];
     },
     module,
     module.exports,
-    { log() {}, warn() {}, error() {} }
+    { log() {}, warn() {}, error() {} },
+    ...Object.values(globals)
   );
   return module.exports;
 }
@@ -144,30 +145,34 @@ function session() {
       currentToken = null;
     },
   };
-  load('src/store/authStore.ts', {
-    zustand: {
-      create(initializer) {
-        state = initializer(
-          (patch) => Object.assign(state, patch),
-          () => state
-        );
-        return { getState: () => state };
+  load(
+    'src/store/authStore.ts',
+    {
+      zustand: {
+        create(initializer) {
+          state = initializer(
+            (patch) => Object.assign(state, patch),
+            () => state
+          );
+          return { getState: () => state };
+        },
       },
+      '../lib/firebase': {
+        subscribeToAuthState(fn) {
+          callback = fn;
+          return () => (stopped = true);
+        },
+        subscribeToUserProfile(uid, fn) {
+          const entry = { uid, callback: fn, detached: false };
+          profiles.push(entry);
+          return () => (entry.detached = true);
+        },
+      },
+      '../services/tokenManager': { tokenManager: manager },
+      '../i18n': { t: (key) => key },
     },
-    '../lib/firebase': {
-      subscribeToAuthState(fn) {
-        callback = fn;
-        return () => (stopped = true);
-      },
-      subscribeToUserProfile(uid, fn) {
-        const entry = { uid, callback: fn, detached: false };
-        profiles.push(entry);
-        return () => (entry.detached = true);
-      },
-    },
-    '../services/tokenManager': { tokenManager: manager },
-    '../i18n': { t: (key) => key },
-  });
+    { setTimeout: () => 1, clearTimeout() {} }
+  );
   const stop = state.initializeAuth();
   return {
     state,
