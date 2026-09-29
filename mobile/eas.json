@@ -42,9 +42,9 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://lilove-api.onrender.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3.apps.googleusercontent.com",
-        "SENTRY_DSN": "${SENTRY_DSN}"
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "135520108428-1agb94pl20q54sahj2bk7ki1pr8kve2j.apps.googleusercontent.com",
+        "SENTRY_DSN": "${SENTRY_DSN}",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "135520108428-67upscprj1nlkfsu149nmh64m8094sua.apps.googleusercontent.com"
       }
     }
   },

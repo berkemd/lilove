@@ -18,15 +18,18 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'org.lilove.app',
-      buildNumber: '125',
+      buildNumber: '131',
+      usesAppleSignIn: true,
+      appleTeamId: '87U9ZK37M2',
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSPhotoLibraryUsageDescription: 'Fotoğraf seçmek için galeri erişimi gerekir.',
         UIBackgroundModes: ['remote-notification'],
         CFBundleURLTypes: [
+          { CFBundleURLSchemes: ['lilove', 'org.lilove.app'] },
           {
             CFBundleURLSchemes: [
-              'com.googleusercontent.apps.889526589579-gvuj12sul4hnb3sjbop2lhbd1bhfb6o3',
+              'com.googleusercontent.apps.135520108428-1agb94pl20q54sahj2bk7ki1pr8kve2j',
             ],
           },
         ],
@@ -36,7 +39,14 @@ export default {
       icon: './assets/icon.png',
       color: '#8B5CF6',
     },
-    plugins: ['./plugins/withInfoPlistLocales', 'expo-iap', './plugins/withFmtXcode26'],
+    plugins: [
+      './plugins/withInfoPlistLocales',
+      'expo-apple-authentication',
+      ['expo-image-picker', { cameraPermission: false, microphonePermission: false }],
+      'expo-iap',
+      './plugins/withFmtXcode26',
+      './plugins/withDeploymentTarget',
+    ],
     extra: {
       eas: {
         projectId: 'ab7bb029-eeb4-4407-a810-a9b27462f0ae',

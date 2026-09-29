@@ -36,6 +36,12 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
+# The reviewed iOS project and lockfile are source; dependencies stay local.
+/ios/Pods/
+/ios/build/
+/ios/.xcode.env.local
+/ios/**/*.xcuserstate
+/ios/**/xcuserdata/
+/vendor/
+/.bundle/
 /android
