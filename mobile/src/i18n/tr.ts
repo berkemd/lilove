@@ -317,6 +317,8 @@ export const tr = {
   registration_failed: 'Kayıt Başarısız',
   reply_to_elif: "Elif'e dön",
   request_timeout: 'İstek zaman aşımına uğradı',
+  request_outcome_unknown:
+    'Değişikliğin kaydedilip kaydedilmediği doğrulanamadı. Tekrar denemeden önce yenileyip sonucu kontrol edin.',
   restore_failed: 'Geri Yükleme Başarısız',
   restore_purchases: 'Satın Alımları Geri Yükle',
   retry: 'Yeniden Dene',

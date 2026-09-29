@@ -10,6 +10,7 @@ interface ApiError {
   message: string;
   code?: string;
   details?: any;
+  outcomeUnknown?: boolean;
 }
 
 class ApiClient {
@@ -33,7 +34,7 @@ class ApiClient {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private normalizeError(error: any): ApiError {
+  private normalizeError(error: any, fetchFailed = false): ApiError {
     if (error.response) {
       return {
         status: error.response.status,
@@ -43,7 +44,7 @@ class ApiClient {
       };
     }
 
-    if (error.request) {
+    if (error.request || (fetchFailed && error.name === 'TypeError')) {
       return {
         status: 0,
         message: t('network_error_no_response_received'),
@@ -58,8 +59,8 @@ class ApiClient {
     };
   }
 
-  private shouldRetry(error: ApiError, attempt: number): boolean {
-    if (attempt >= this.maxRetries) return false;
+  private shouldRetry(error: ApiError, attempt: number, maxRetries: number): boolean {
+    if (attempt >= maxRetries) return false;
 
     if (error.status >= 400 && error.status < 500 && error.status !== 408) {
       return false;
@@ -104,57 +105,52 @@ class ApiClient {
     }
 
     const url = `${this.baseURL}${endpoint}`;
-    const maxRetries = options?.maxRetries ?? this.maxRetries;
+    method = method.toUpperCase();
+    // A lost response does not mean the server rolled back a write. Until
+    // endpoints support idempotency keys, only read methods may be replayed.
+    const safeToRetry = method === 'GET' || method === 'HEAD';
+    const maxRetries = safeToRetry ? (options?.maxRetries ?? this.maxRetries) : 0;
     const retryDelay = options?.retryDelay ?? this.retryDelay;
     const timeout = options?.timeout ?? this.timeout;
 
     let lastError: ApiError | null = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      let requestStarted = false;
+      let responseStarted = false;
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        console.log('[API Client] Getting token for request to:', endpoint);
-        const token = options?.authorizationToken ?? (await tokenManager.getToken());
-        console.log('[API Client] Token present:', Boolean(token));
-
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
         };
 
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-          console.log('[API Client] Authorization header SET for:', endpoint);
-        } else {
-          console.log('[API Client] NO TOKEN - Authorization header NOT set for:', endpoint);
+        // Pin the initial account for this operation, including read retries.
+        if (jeton) {
+          headers['Authorization'] = `Bearer ${jeton}`;
         }
 
+        const body = data ? JSON.stringify(data) : undefined;
+        requestStarted = true;
         const response = await fetch(url, {
           method,
           headers,
-          body: data ? JSON.stringify(data) : undefined,
+          body,
           signal: controller.signal,
         });
-
-        clearTimeout(timeoutId);
+        responseStarted = true;
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          lastError = {
+          throw {
             status: response.status,
             message: errorData.message || `HTTP ${response.status}`,
             code: errorData.code,
             details: errorData,
           };
-
-          if (!this.shouldRetry(lastError, attempt)) {
-            throw lastError;
-          }
-        } else {
-          const responseData = await response.json();
-          return responseData;
         }
+        if (method === 'HEAD') return undefined as T;
+        return await response.json();
       } catch (error: any) {
         if (error.name === 'AbortError') {
           lastError = {
@@ -162,15 +158,29 @@ class ApiClient {
             message: t('request_timeout'),
             code: 'TIMEOUT',
           };
-        } else if (error.status) {
-          lastError = error;
+        } else if (typeof error.status === 'number') {
+          lastError = error as ApiError;
         } else {
-          lastError = this.normalizeError(error);
+          lastError = this.normalizeError(error, requestStarted && !responseStarted);
         }
 
-        if (lastError && !this.shouldRetry(lastError, attempt)) {
+        if (
+          !safeToRetry &&
+          requestStarted &&
+          (lastError.status === 0 ||
+            lastError.status === 408 ||
+            lastError.status >= 500 ||
+            (responseStarted && lastError.status === -1))
+        ) {
+          lastError = { ...lastError, outcomeUnknown: true, message: t('request_outcome_unknown') };
+        }
+
+        if (!this.shouldRetry(lastError, attempt, maxRetries)) {
           throw lastError;
         }
+      } finally {
+        // Keep the deadline through body consumption; clean it up on every exit.
+        clearTimeout(timeoutId);
       }
 
       if (attempt < maxRetries) {

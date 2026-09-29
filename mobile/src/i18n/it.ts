@@ -319,6 +319,8 @@ export const it = {
   registration_failed: 'Registrazione non riuscita',
   reply_to_elif: 'Rispondere a Giulia',
   request_timeout: 'Richiesta scaduta',
+  request_outcome_unknown:
+    'Non siamo riusciti a confermare se questa modifica è stata salvata. Aggiorna la schermata e verifica il risultato prima di riprovare.',
   restore_failed: 'Ripristino non riuscito',
   restore_purchases: 'Ripristina acquisti',
   retry: 'Riprova',

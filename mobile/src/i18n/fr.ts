@@ -324,6 +324,8 @@ export const fr = {
   registration_failed: "Échec de l'inscription",
   reply_to_elif: 'Répondre à Camille',
   request_timeout: 'Délai de la requête dépassé',
+  request_outcome_unknown:
+    'Nous n’avons pas pu confirmer si cette modification a été enregistrée. Actualisez la vue et vérifiez le résultat avant de réessayer.',
   restore_failed: 'Échec de la restauration',
   restore_purchases: 'Restaurer les achats',
   retry: 'Réessayer',

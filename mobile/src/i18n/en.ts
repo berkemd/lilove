@@ -316,6 +316,8 @@ export const en = {
   registration_failed: 'Registration Failed',
   reply_to_elif: 'Reply to Elif',
   request_timeout: 'Request timeout',
+  request_outcome_unknown:
+    'We couldn’t confirm whether this change was saved. Refresh to check before trying again.',
   restore_failed: 'Restore Failed',
   restore_purchases: 'Restore Purchases',
   retry: 'Retry',
