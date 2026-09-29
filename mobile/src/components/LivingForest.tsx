@@ -571,6 +571,9 @@ const baseStyles = StyleSheet.create({
     position: 'absolute',
   },
   infoOverlay: {
+    backgroundColor: '#263648',
+    borderRadius: 8,
+    padding: 6,
     position: 'absolute',
     top: 8,
     left: 8,
@@ -578,6 +581,7 @@ const baseStyles = StyleSheet.create({
   },
   levelInfo: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
     marginBottom: 6,
@@ -597,6 +601,7 @@ const baseStyles = StyleSheet.create({
     color: '#065F46',
   },
   levelName: {
+    flexShrink: 1,
     fontSize: 12,
     fontWeight: '600',
     color: '#FFFFFF',

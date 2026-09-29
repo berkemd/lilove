@@ -139,7 +139,12 @@ function mount(relative, imports = {}, props = {}) {
     },
     '../../store/authStore': { useAuthStore: () => ({ user: {}, userProfile: {} }) },
     '../../hooks/useCoinBalance': {
-      useCoinBalance: () => ({ balance: null, refresh: async () => null }),
+      useCoinBalance: () => ({
+        balance: null,
+        accountKey: 'user:test',
+        refresh: async () => null,
+        captureAccount: () => () => true,
+      }),
     },
     '../../i18n': { t: (key) => key },
     '../../theme/ThemeProvider': {
@@ -189,6 +194,8 @@ function mountAvatar(overrides = {}, imports = {}) {
       },
     },
     '../../components/LivingForest': { default: 'LivingForest' },
+    '../../components/AvatarPreview': { default: 'AvatarPreview' },
+    '../../lib/avatarPreview': loadSource('src/lib/avatarPreview.ts'),
     ...imports,
   });
 }
@@ -917,8 +924,11 @@ test('Avatar localizes all known fields and rarity labels without changing trait
       }
       if (category === 'appearance') {
         assert(textContent(tree).includes(`${catalog.level} 7`));
-        assert(textContent(tree).includes(`${catalog.avatar_zone_skin}:`));
-        assert(textContent(tree).includes(catalog.avatar_more_equipped.replace('{count}', '1')));
+        assert.deepEqual(
+          findTree(tree, (node) => node.type === 'AvatarPreview').props.equipped,
+          equipped,
+          'all equipped rows reach the honest preview; none are silently truncated'
+        );
         assert(
           byId(tree, 'button-get-coins').props.accessibilityLabel.includes(
             catalog.coin_balance_get_more_coins
@@ -1179,7 +1189,7 @@ test('Avatar discards post-unlock trait responses after switching accounts or re
       {
         getAvatarZones: async () => [zone],
         getTraitsByZone: async () => [trait],
-        getMyTraits: () => (++reads === 1 ? Promise.resolve([]) : laterTraits),
+        getMyTraits: () => (++reads === 2 ? laterTraits : Promise.resolve([])),
         unlockTrait: async () => {
           coins.fixture.response = { balance: 750 };
         },
@@ -1203,12 +1213,248 @@ test('Avatar discards post-unlock trait responses after switching accounts or re
     resolveTraits([{ traitId: 'paid-trait' }]);
     await purchase;
     assert.equal(
-      findTree(screen.render(), (node) => node.type === 'Modal').props.visible,
-      true,
-      'old response must not close current UI'
+      findTree(screen.render(), (node) => node.type === 'Modal'),
+      undefined,
+      'previous account UI is hidden immediately'
     );
+    screen.effects();
+    await flush();
+    screen.render();
+    screen.effects();
+    await flush();
     byId(screen.render(), 'trait-card-paid-trait').props.onPress();
     await flush();
     assert.equal(equips, 0, 'old account ownership must not become current ownership');
   }
+});
+
+test('Avatar replaces the actual preview after confirmed equip using the unchanged server IDs', async () => {
+  const coins = coinFixture();
+  const zone = { id: 'server-hair', key: 'hair', name: 'Hair' };
+  const short = {
+    id: 'short-id',
+    zoneId: zone.id,
+    name: 'Short',
+    isActive: true,
+    isDefault: true,
+    coinCost: 0,
+    unlockType: 'default',
+    rarity: 'common',
+  };
+  const long = { ...short, id: 'long-id', name: 'Long' };
+  const row = (trait) => ({ id: 'equipped-hair', zoneId: zone.id, traitId: trait.id, zone, trait });
+  let current = short;
+  const calls = [];
+  const screen = mountAvatar(
+    {
+      getAvatarZones: async () => [zone],
+      getMyEquipped: async () => [row(current)],
+      getTraitsByZone: async () => [short, long],
+      equipTrait: async (...args) => {
+        calls.push(args);
+        current = long;
+      },
+    },
+    coins.imports
+  );
+  screen.effects();
+  await flush();
+  byId(screen.render(), 'tab-category-hair_face').props.onPress();
+  screen.render();
+  screen.effects();
+  await flush();
+  assert.equal(
+    findTree(screen.render(), (node) => node.type === 'AvatarPreview').props.equipped[0].trait.name,
+    'Short'
+  );
+  byId(screen.render(), 'trait-card-long-id').props.onPress();
+  await flush();
+  assert.deepEqual(calls, [['server-hair', 'long-id']]);
+  const preview = findTree(screen.render(), (node) => node.type === 'AvatarPreview');
+  assert.equal(preview.props.equipped[0].trait.name, 'Long');
+  assert.equal(preview.props.demo, false);
+});
+
+test('Avatar never reveals a previous account from late initial reads or late equip reads', async () => {
+  for (const stage of ['initial', 'equip']) {
+    for (const nextAccount of ['user:B', 'user:A']) {
+      const coins = coinFixture();
+      const zone = { id: 'zone-skin', key: 'skin', name: 'Skin' };
+      const trait = {
+        id: 'trait-deep',
+        zoneId: zone.id,
+        name: 'Deep',
+        isActive: true,
+        isDefault: true,
+        coinCost: 0,
+        unlockType: 'default',
+        rarity: 'common',
+      };
+      const oldRow = { id: 'equipped', zoneId: zone.id, traitId: trait.id, zone, trait };
+      let resolveOld,
+        reads = 0;
+      const old = new Promise((resolve) => {
+        resolveOld = resolve;
+      });
+      const screen = mountAvatar(
+        {
+          getAvatarZones: async () => [zone],
+          getTraitsByZone: async () => [trait],
+          equipTrait: async () => {},
+          getMyEquipped: () => {
+            reads++;
+            return (stage === 'initial' && reads === 1) || (stage === 'equip' && reads === 2)
+              ? old
+              : Promise.resolve([]);
+          },
+        },
+        coins.imports
+      );
+      screen.effects();
+      await flush();
+      if (stage === 'equip') {
+        screen.render();
+        screen.effects();
+        await flush();
+        byId(screen.render(), 'trait-card-trait-deep').props.onPress();
+        await flush();
+        assert.equal(reads, 2);
+      }
+      coins.store.setAccount(null);
+      coins.store.setAccount(nextAccount);
+      assert.equal(
+        findTree(screen.render(), (node) => node.type === 'AvatarPreview'),
+        undefined,
+        'old view is hidden before effects'
+      );
+      screen.effects();
+      await flush();
+      resolveOld([oldRow]);
+      await flush();
+      const preview = findTree(screen.render(), (node) => node.type === 'AvatarPreview');
+      assert.deepEqual(preview.props.equipped, [], 'late old equipped row is not applied');
+    }
+  }
+});
+
+test('failed Avatar equip preserves the preview, announces failure, and only retries when the same trait is pressed', async () => {
+  for (const mode of ['rejected', 'uncertain', 'read-failed', 'malformed-read']) {
+    const coins = coinFixture();
+    const zone = { id: 'hair', key: 'hair', name: 'Hair' };
+    const trait = (name) => ({
+      id: name,
+      zoneId: zone.id,
+      name,
+      isDefault: true,
+      isActive: true,
+      coinCost: 0,
+      unlockType: 'default',
+      rarity: 'common',
+    });
+    const short = trait('Short'),
+      long = trait('Long');
+    const row = (trait) => ({ id: 'eq', zoneId: zone.id, traitId: trait.id, zone, trait });
+    let current = short,
+      calls = 0,
+      reads = 0;
+    const screen = mountAvatar(
+      {
+        getAvatarZones: async () => [zone],
+        getTraitsByZone: async () => [short, long],
+        getMyEquipped: async () => {
+          reads++;
+          if (calls === 1 && mode === 'read-failed') throw Error('offline');
+          if (calls === 1 && mode === 'malformed-read') return null;
+          return [row(current)];
+        },
+        equipTrait: async () => {
+          calls++;
+          if (calls === 1 && ['rejected', 'uncertain'].includes(mode))
+            throw { outcomeUnknown: mode === 'uncertain' };
+          current = long;
+        },
+      },
+      coins.imports
+    );
+    screen.effects();
+    await flush();
+    byId(screen.render(), 'tab-category-hair_face').props.onPress();
+    screen.render();
+    screen.effects();
+    await flush();
+    byId(screen.render(), 'trait-card-Long').props.onPress();
+    await flush();
+    let tree = screen.render();
+    assert.equal(calls, 1, 'no automatic mutation retry');
+    assert.equal(
+      findTree(tree, (n) => n.type === 'AvatarPreview').props.equipped[0].trait.name,
+      'Short'
+    );
+    const error = byId(tree, 'avatar-action-error');
+    assert.equal(error.props.accessibilityRole, 'alert');
+    assert.equal(
+      error.props.children,
+      mode === 'rejected' ? 'error. please_try_again_2' : 'request_outcome_unknown'
+    );
+    assert.equal(byId(tree, 'trait-card-Long').props.disabled, false);
+    byId(tree, 'trait-card-Long').props.onPress();
+    await flush();
+    tree = screen.render();
+    assert.equal(calls, 2);
+    assert.equal(byId(tree, 'avatar-action-error'), undefined);
+    assert.equal(
+      findTree(tree, (n) => n.type === 'AvatarPreview').props.equipped[0].trait.name,
+      'Long'
+    );
+  }
+});
+
+test('Avatar purchase failure stays visible inside its modal, preserves ownership and clears after explicit success', async () => {
+  const coins = coinFixture();
+  await coins.store.refresh();
+  const zone = { id: 'skin', key: 'skin', name: 'Skin' };
+  const trait = {
+    id: 'paid',
+    zoneId: zone.id,
+    name: 'Paid original',
+    isDefault: false,
+    coinCost: 250,
+    unlockType: 'purchase',
+    rarity: 'rare',
+  };
+  let calls = 0,
+    owned = false;
+  const screen = mountAvatar(
+    {
+      getAvatarZones: async () => [zone],
+      getTraitsByZone: async () => [trait],
+      getMyTraits: async () => (owned ? [{ traitId: 'paid' }] : []),
+      unlockTrait: async () => {
+        calls++;
+        if (calls === 1) throw Error('rejected');
+        owned = true;
+        coins.fixture.response = { balance: 750 };
+      },
+    },
+    coins.imports
+  );
+  screen.effects();
+  await flush();
+  screen.render();
+  screen.effects();
+  await flush();
+  byId(screen.render(), 'trait-card-paid').props.onPress();
+  await byId(screen.render(), 'button-confirm-purchase').props.onPress();
+  let tree = screen.render();
+  assert.equal(calls, 1);
+  assert.equal(owned, false);
+  assert.equal(byId(tree, 'avatar-purchase-error').props.accessibilityRole, 'alert');
+  assert.equal(findTree(tree, (n) => n.type === 'Modal').props.visible, true);
+  assert.deepEqual(findTree(tree, (n) => n.type === 'AvatarPreview').props.equipped, []);
+  await byId(tree, 'button-confirm-purchase').props.onPress();
+  tree = screen.render();
+  assert.equal(calls, 2);
+  assert.equal(owned, true);
+  assert.equal(findTree(tree, (n) => n.type === 'Modal').props.visible, false);
+  assert.equal(byId(tree, 'avatar-purchase-error'), undefined);
 });
