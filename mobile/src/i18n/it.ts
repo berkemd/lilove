@@ -220,7 +220,7 @@ export const it = {
   choose_your_plan: 'Scegli il tuo piano',
   close: 'Chiudi',
   clothing: 'Abbigliamento',
-  coin_balance_get_more_coins: 'Saldo monete. Ottieni altre monete.',
+  coin_balance_get_more_coins: 'Il tuo saldo',
   coin_balance_unavailable:
     'Il tuo saldo non è disponibile. Riprova ad aggiornarlo senza effettuare un altro acquisto.',
   coins: 'Monete',

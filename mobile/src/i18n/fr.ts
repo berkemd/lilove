@@ -221,7 +221,7 @@ export const fr = {
   choose_your_plan: 'Choisissez votre formule',
   close: 'Fermer',
   clothing: 'Vêtements',
-  coin_balance_get_more_coins: 'Solde de pièces. Obtenir plus de pièces.',
+  coin_balance_get_more_coins: 'Votre solde',
   coin_balance_unavailable:
     'Votre solde n’est pas disponible. Réessayez de le rafraîchir sans effectuer un nouvel achat.',
   coins: 'Pièces',

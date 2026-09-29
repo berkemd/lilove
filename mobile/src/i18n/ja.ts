@@ -216,7 +216,7 @@ export const ja = {
   choose_your_plan: 'プランを選択',
   close: '閉じる',
   clothing: '衣装',
-  coin_balance_get_more_coins: 'コイン残高。コインを追加。',
+  coin_balance_get_more_coins: '残高',
   coin_balance_unavailable:
     '残高を表示できません。再度購入せずに、残高の読み込みをお試しください。',
   coins: 'コイン',

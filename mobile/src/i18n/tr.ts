@@ -216,7 +216,7 @@ export const tr = {
   choose_your_plan: 'Planını Seç',
   close: 'Kapat',
   clothing: 'Kıyafet',
-  coin_balance_get_more_coins: 'Jeton bakiyesi. Daha fazla jeton al.',
+  coin_balance_get_more_coins: 'Bakiyen',
   coin_balance_unavailable:
     'Bakiyeniz şu anda görüntülenemiyor. Yenilemek için tekrar deneyin; yeniden satın almanız gerekmez.',
   coins: 'Jeton',

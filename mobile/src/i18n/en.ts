@@ -216,7 +216,7 @@ export const en = {
   choose_your_plan: 'Choose Your Plan',
   close: 'Close',
   clothing: 'Clothing',
-  coin_balance_get_more_coins: 'Coin balance. Get more coins.',
+  coin_balance_get_more_coins: 'Your Balance',
   coin_balance_unavailable:
     'Your balance is unavailable. Try again to refresh it without making another purchase.',
   coins: 'Coins',

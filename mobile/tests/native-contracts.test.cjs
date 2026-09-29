@@ -974,10 +974,9 @@ test('Avatar localizes all known fields and rarity labels without changing trait
           equipped,
           'all equipped rows reach the honest preview; none are silently truncated'
         );
-        assert(
-          byId(tree, 'button-get-coins').props.accessibilityLabel.includes(
-            catalog.coin_balance_get_more_coins
-          )
+        assert.equal(
+          byId(tree, 'button-get-coins').props.accessibilityLabel,
+          `—. ${catalog.your_balance}`
         );
         byId(tree, 'trait-card-trait-skin').props.onPress();
         await flush();
