@@ -424,6 +424,32 @@ test('demo overview follows the same selected-goal contract and updates only sam
   assert.equal(after.summary.completedTasks, selected.summary.completedTasks + 1);
 });
 
+test('demo next actions match unfinished goal steps and outcomes use the selected language', () => {
+  const demo = load('src/lib/demoData.ts', {
+    '../i18n': { t: (key) => `localized:${key}` },
+  });
+  demo.demoSifirla();
+  const goals = demo.demoCevap('GET', '/api/goals');
+  const overview = (id) =>
+    demo.demoCevap('GET', `/api/progress/overview?timeZone=UTC&goalId=${id}`);
+  for (const goal of goals) {
+    assert.ok(goal.targetOutcome.startsWith('localized:'), goal.id);
+    if (goal.status !== 'active') continue;
+    const next = overview(goal.id).nextTask;
+    assert.ok(next, goal.id);
+    assert.equal(next.goalId, goal.id);
+    assert.ok(
+      goal.steps.some((step) => !step.done && step.title === next.title),
+      goal.id
+    );
+  }
+  const otherGoalBefore = overview('g2');
+  demo.demoCevap('POST', `/api/tasks/${overview('g1').nextTask.id}/complete`);
+  assert.equal(overview('g1').nextTask, null);
+  assert.deepEqual(overview('g2').nextTask, otherGoalBefore.nextTask);
+  assert.deepEqual(overview('g2').summary, otherGoalBefore.summary);
+});
+
 test('canonical response zones accept equivalent requested aliases, never a different day zone', () => {
   assert.equal(
     readProgressOverview(response('g1'), 'US/Eastern', 'g1').timeZone,

@@ -381,7 +381,7 @@ test('actual Tasks screen displays demo records and refreshes their completed st
   });
   await new Promise(setImmediate);
   let tree = screen.render();
-  assert(findTree(tree, (node) => node.props?.children === 'book_the_dentist'));
+  assert(findTree(tree, (node) => node.props?.children === 'run_8k'));
   assert.equal(findTree(tree, (node) => node.key === 't1').props.disabled, false);
   assert.equal(findTree(tree, (node) => node.key === 't2').props.disabled, true);
   await findTree(tree, (node) => node.key === 't1').props.onPress();
