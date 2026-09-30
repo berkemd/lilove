@@ -732,6 +732,38 @@ const textContent = (node) => {
   return node?.props ? textContent(node.props.children) : '';
 };
 
+test('Goals localizes the learning alias without changing its stored category on save', async () => {
+  for (const locale of locales) {
+    const { catalog, imports } = localeCopy(locale);
+    const calls = [];
+    const goal = {
+      id: 'legacy-learning',
+      title: 'Read books',
+      category: 'learning',
+      status: 'active',
+      targetOutcome: '12 books',
+    };
+    const screen = mount('src/screens/goals/GoalsScreen.tsx', {
+      ...imports,
+      '../../lib/api': {
+        api: {
+          getGoals: async () => [goal],
+          updateGoal: async (...args) => calls.push(args),
+        },
+      },
+    });
+    screen.effects();
+    await flush();
+    const card = byId(screen.render(), 'card-goal-legacy-learning');
+    assert(textContent(card).includes(catalog.goal_category_education), locale);
+    card.props.onPress();
+    await byId(screen.render(), 'button-save-goal').props.onPress();
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0][0], 'legacy-learning');
+    assert.equal(calls[0][1].category, 'learning');
+  }
+});
+
 test('Goals localizes edit/create controls and labels while preserving source IDs, status and payloads', async () => {
   for (const locale of locales) {
     const { catalog, imports } = localeCopy(locale);

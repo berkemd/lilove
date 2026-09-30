@@ -220,6 +220,110 @@ test('actual HabitsScreen hides progress while loading, on error and without vis
   cleanup();
 });
 
+function mountHabitCategories(locale, records) {
+  const localized = loadSource(`src/i18n/${locale}.ts`)[locale];
+  const states = [];
+  const created = [];
+  let cursor = 0;
+  const snapshot = {
+    habits: records,
+    loading: false,
+    saving: false,
+    checkingId: null,
+    error: null,
+  };
+  const Screen = loadSource('src/screens/habits/HabitsScreen.tsx', {
+    react: {
+      useCallback: (fn) => fn,
+      useState(initial) {
+        const index = cursor++;
+        if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial;
+        return [
+          states[index],
+          (value) => {
+            states[index] = value;
+          },
+        ];
+      },
+      useSyncExternalStore: (_, read) => read(),
+    },
+    'react/jsx-runtime': { jsx, jsxs: jsx },
+    'react-native': native,
+    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
+    '@expo/vector-icons': { Ionicons: 'Ionicons' },
+    '@react-navigation/native': { useFocusEffect() {} },
+    '../../lib/api': { api: {} },
+    '../../lib/habits': {
+      HabitTracker: class {
+        subscribe() {}
+        getSnapshot() {
+          return snapshot;
+        }
+        async create(value) {
+          created.push(value);
+          return value;
+        }
+      },
+    },
+    '../../lib/habitProgress': progress,
+    '../../components/HabitProgressCard': { default: 'HabitProgressCard' },
+    '../../i18n': { t: (key) => localized[key] },
+    '../../theme/ThemeProvider': theme,
+  }).default;
+  return {
+    localized,
+    created,
+    render() {
+      cursor = 0;
+      return Screen();
+    },
+  };
+}
+
+test('actual HabitsScreen localizes known categories in every locale and preserves custom labels', () => {
+  const categories = ['health', 'productivity', 'learning', 'mindfulness', 'fitness', 'focus'];
+  const custom = ['Work / Office', 'constructor'];
+  for (const locale of ['en', 'tr', 'de', 'es', 'fr', 'it', 'ja']) {
+    const screen = mountHabitCategories(
+      locale,
+      [...categories, ...custom].map((category) => sample({ id: category, category }))
+    );
+    const tree = screen.render();
+    for (const category of [...categories, ...custom]) {
+      const card = find(tree, (node) => node.props?.testID === `habit-${category}`);
+      const renderedLabel = card.props.children.at(-1).props.children.props.children;
+      const expected = custom.includes(category)
+        ? category
+        : screen.localized[category === 'health' ? 'health' : `habit_category_${category}`];
+      assert.equal(typeof expected, 'string', `${locale}: missing category translation`);
+      assert.equal(renderedLabel, expected, `${locale}: ${category}`);
+    }
+  }
+});
+
+test('localized habit creation choices preserve the stored category identifier', async () => {
+  for (const locale of ['en', 'tr', 'de', 'es', 'fr', 'it', 'ja']) {
+    const screen = mountHabitCategories(locale, []);
+    find(screen.render(), (node) => node.props?.testID === 'new-habit').props.onPress();
+    let tree = screen.render();
+    const modal = find(tree, (node) => node.type === 'Modal');
+    assert.equal(modal.props.visible, true);
+    const label = screen.localized.habit_category_learning;
+    assert.equal(typeof label, 'string');
+    const choice = find(
+      modal,
+      (node) => node.type === 'TouchableOpacity' && node.props.children?.props?.children === label
+    );
+    assert(choice, `${locale}: localized learning option`);
+    choice.props.onPress();
+    find(tree, (node) => node.props?.testID === 'habit-title').props.onChangeText('Read');
+    tree = screen.render();
+    await find(tree, (node) => node.props?.testID === 'save-habit').props.onPress();
+    assert.equal(screen.created.length, 1);
+    assert.equal(screen.created[0].category, 'learning');
+  }
+});
+
 function mountCard() {
   const slots = [];
   const effects = [];
