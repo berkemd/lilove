@@ -1,6 +1,25 @@
 // LiLove · tr arayuz katalogu — URETILDI, elle duzenleme
 
 export const tr = {
+  auth_or: 'VEYA',
+  profile_photo_save_incomplete:
+    'Fotoğraf yüklendi ancak profilin güncellenemedi. Lütfen tekrar dene.',
+
+  profile_photo_format_unsupported: 'JPEG, PNG veya WebP biçiminde bir fotoğraf seç.',
+
+  coin_shop_about:
+    'Hedefler, alışkanlıklar ve başarımlarla jeton kazan. Bakiyeni avatar özellikleri ve mağaza öğeleri için kullan; satın almak zorunlu değil.',
+  coin_shop_unavailable: 'Bu sürümde jeton paketleri sunulmuyor. Mevcut bakiyen korunur.',
+  coin_shop_demo:
+    'Bu demo örnek veriler kullanır. Kendi ilerlemeni ve jeton bakiyeni kaydetmeye başlamak için hesap oluştur. Demo verileri aktarılmaz; demoda satın alma yapılamaz.',
+  coin_shop_load_failed: 'Jeton paketleri yüklenemedi. Lütfen daha sonra tekrar dene.',
+  coin_shop_added: 'Bakiyene {count} jeton eklendi.',
+  coin_shop_pack: '{count} jeton · {price}',
+  coin_shop_payment:
+    'Jeton paketleri LiLove içinde kullanılan tek seferlik satın alımlardır. Jetonların süresi dolmaz ve başkasına aktarılamaz. Ödeme, onayladığında Apple hesabından alınır.',
+  password_minimum_hint: 'Parola (en az {count} karakter)',
+  password_minimum_error: 'En az {count} karakterli bir parola kullan.',
+
   deletion_intro:
     'LiLove hesabınızı ve uygulama verilerinizi silin. Kimliğinizi doğrulamanız gerekecek. Silme işlemi başladıktan sonra bazı adımlar geri alınamaz.',
   deletion_subscription_notice:
@@ -196,7 +215,7 @@ export const tr = {
   choose_your_plan: 'Planını Seç',
   close: 'Kapat',
   clothing: 'Kıyafet',
-  coin_balance_get_more_coins: 'Jeton bakiyesi. Daha fazla jeton al.',
+  coin_balance_get_more_coins: 'Bakiyen',
   coin_balance_unavailable:
     'Bakiyeniz şu anda görüntülenemiyor. Yenilemek için tekrar deneyin; yeniden satın almanız gerekmez.',
   coins: 'Jeton',
@@ -283,6 +302,11 @@ export const tr = {
   grateful: 'Minnettar',
   growth_sanctuary: 'Gelişim Bahçesi',
   habit_created_successfully: 'Alışkanlık oluşturuldu!',
+  habit_category_productivity: 'Üretkenlik',
+  habit_category_learning: 'Öğrenme',
+  habit_category_mindfulness: 'Farkındalık',
+  habit_category_fitness: 'Fitness',
+  habit_category_focus: 'Odaklanma',
   habit_name: 'Alışkanlık adı *',
   habit_tracked_successfully_keep_it_up: 'Alışkanlık işlendi. Böyle devam!',
   habits: 'Alışkanlıklar',
@@ -293,7 +317,7 @@ export const tr = {
   how_are_you_feeling_today: 'Bugün nasıl hissediyorsun?',
   in_the_zone: 'Akışta',
   in_app_purchases_are_being_configured_please:
-    'Uygulama içi satın alma şu an yapılandırılıyor. Lütfen daha sonra dene ya da destekle iletişime geç.',
+    'Bu sürümde yeni abonelikler sunulmuyor. Mevcut aboneliğini geri yükleyebilir veya yönetebilirsin.',
   join_lilove_today: "Bugün LiLove'a katıl",
   just_being: 'Sadece var olmak',
   legal: 'Yasal',
@@ -486,7 +510,7 @@ export const tr = {
   well_done: '✅ Aferin!',
   purchase_needs_account_title: 'Önce ücretsiz bir hesap aç',
   purchase_needs_account_body:
-    'Aboneliğin LiLove hesabına bağlanır; böylece koçun ve geçmişin her cihazda seninle olur. Şu an örnek turdasın, hiçbir ücret alınmadı.',
+    'Örnek turda deneme verileri kullanılır; satın alma veya satın alımları geri yükleme yapılamaz. Hiçbir ödeme alınmadı. Mevcut satın alımlarını kontrol etmek için LiLove hesabını kullan.',
   habits_today: 'Bugünün alışkanlıkları',
   habits_completed_today: 'Bugün tamamlandı',
   habits_check: 'Bugün tamamla',
@@ -519,8 +543,8 @@ export const tr = {
   focus_add_task: 'Sıradaki adımı ekle',
   focus_complete: 'Bu adımı tamamlandı olarak işaretle',
   focus_week: 'Son 7 gün',
-  focus_week_count: '{count} görev tamamlandı olarak işaretlendi · {days} kayıt günü',
-  focus_day_count: '{date}: {count} görev tamamlandı olarak işaretlendi',
+  focus_week_count: 'Tamamlanan görevler: {count} · Aktif günler: {days}',
+  focus_day_count: '{date} · Tamamlanan görevler: {count}',
   focus_restart: 'Bir gün kaçırdıysan küçük bir adımla devam et.',
   focus_utc: 'Cihazın saat dilimi alınamadı; günler UTC ile gösteriliyor.',
 } as const;

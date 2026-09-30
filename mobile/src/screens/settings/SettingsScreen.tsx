@@ -149,7 +149,7 @@ export default function SettingsScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.settingItem}
-            onPress={() => openURL('mailto:support@lilove.org')}
+            onPress={() => openURL('https://berkemd.github.io/wristsuite/lilove/support.html')}
           >
             <View style={styles.settingLeft}>
               <Ionicons name="mail-outline" size={22} color={color('#6B7280')} />
@@ -164,7 +164,7 @@ export default function SettingsScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.settingItem}
-            onPress={() => openURL('https://lilove.org/privacy')}
+            onPress={() => openURL('https://berkemd.github.io/wristsuite/lilove/privacy.html')}
           >
             <View style={styles.settingLeft}>
               <Ionicons name="shield-outline" size={22} color={color('#6B7280')} />
@@ -175,7 +175,9 @@ export default function SettingsScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.settingItem}
-            onPress={() => openURL('https://lilove.org/terms')}
+            onPress={() =>
+              openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/')
+            }
           >
             <View style={styles.settingLeft}>
               <Ionicons name="document-text-outline" size={22} color={color('#6B7280')} />

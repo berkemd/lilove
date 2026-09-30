@@ -13,7 +13,6 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { tokenManager } from '../../services/tokenManager';
 import { DEMO_TOKEN, demoSifirla, demoProfil } from '../../lib/demoData';
-import * as AppleAuthentication from 'expo-apple-authentication';
 import appleAuth from '../../services/appleAuth';
 import { useGoogleAuth, getIdTokenFromResponse } from '../../services/googleAuth';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +20,11 @@ import Logo from '../../assets/Logo';
 import { t } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
-export default function LoginScreen({ navigation }: any) {
+export default function LoginScreen({
+  navigation,
+}: {
+  navigation: { navigate: (route: 'Register') => void };
+}) {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
 
@@ -29,7 +32,7 @@ export default function LoginScreen({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [isAppleAuthAvailable, setIsAppleAuthAvailable] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { login, appleLogin, googleLogin, isLoading, error, clearError } = useAuthStore();
+  const { login, appleLogin, googleLogin, isLoading, clearError } = useAuthStore();
 
   const {
     request: googleRequest,
@@ -67,18 +70,15 @@ export default function LoginScreen({ navigation }: any) {
         }
 
         await googleLogin({ idToken });
-      } catch (error: any) {
+      } catch (error) {
         console.error('[Google Auth] Error:', error);
-        Alert.alert(t('google_sign_in_failed'), error.message || t('please_try_again'));
+        Alert.alert(t('google_sign_in_failed'), t('please_try_again'));
       } finally {
         setIsGoogleLoading(false);
       }
     } else if (googleResponse?.type === 'error') {
       console.error('[Google Auth] Error response:', googleResponse.error);
-      Alert.alert(
-        t('google_sign_in_failed'),
-        googleResponse.error?.message || t('authentication_failed')
-      );
+      Alert.alert(t('google_sign_in_failed'), t('authentication_failed'));
     } else if (googleResponse?.type === 'cancel') {
       console.log('[Google Auth] User cancelled');
     }
@@ -88,8 +88,8 @@ export default function LoginScreen({ navigation }: any) {
     try {
       clearError();
       await googlePromptAsync();
-    } catch (error: any) {
-      Alert.alert(t('google_sign_in_failed'), error.message || t('please_try_again'));
+    } catch {
+      Alert.alert(t('google_sign_in_failed'), t('please_try_again'));
     }
   };
 
@@ -109,8 +109,9 @@ export default function LoginScreen({ navigation }: any) {
         // bir kopya tutmak, istatistiklerin sessizce ayrisma yoluydu.
         userProfile: demoProfil(),
       });
-    } catch (e: any) {
-      Alert.alert(t('could_not_start_the_tour'), String(e?.message ?? e));
+    } catch (e) {
+      const message = e && typeof e === 'object' && 'message' in e ? e.message : undefined;
+      Alert.alert(t('could_not_start_the_tour'), String(message ?? e));
     }
   };
 
@@ -118,10 +119,15 @@ export default function LoginScreen({ navigation }: any) {
     try {
       clearError();
       await login(email, password);
-    } catch (error: any) {
+    } catch (error) {
+      const response =
+        error && typeof error === 'object' && 'response' in error ? error.response : undefined;
+      const data =
+        response && typeof response === 'object' && 'data' in response ? response.data : undefined;
+      const message = data && typeof data === 'object' && 'error' in data ? data.error : undefined;
       Alert.alert(
         t('login_failed'),
-        error.response?.data?.error || t('please_check_your_credentials')
+        typeof message === 'string' && message ? message : t('please_check_your_credentials')
       );
     }
   };
@@ -131,10 +137,15 @@ export default function LoginScreen({ navigation }: any) {
       clearError();
       const response = await appleAuth.signIn();
       await appleLogin(response);
-    } catch (error: any) {
-      if (error.message !== 'Sign in was canceled') {
-        Alert.alert(t('apple_sign_in_failed'), error.message || t('please_try_again'));
-      }
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'ERR_REQUEST_CANCELED'
+      )
+        return;
+      Alert.alert(t('apple_sign_in_failed'), t('please_try_again'));
     }
   };
 
@@ -186,7 +197,7 @@ export default function LoginScreen({ navigation }: any) {
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
+            <Text style={styles.dividerText}>{t('auth_or')}</Text>
             <View style={styles.dividerLine} />
           </View>
 

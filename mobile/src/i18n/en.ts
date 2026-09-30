@@ -1,6 +1,26 @@
 // LiLove · en arayuz katalogu — URETILDI, elle duzenleme
 
 export const en = {
+  auth_or: 'OR',
+  profile_photo_save_incomplete:
+    'The photo uploaded, but your profile could not be updated. Please try again.',
+
+  profile_photo_format_unsupported: 'Choose a JPEG, PNG, or WebP photo.',
+
+  coin_shop_about:
+    'Earn coins through goals, habits and achievements. Use your balance for avatar traits and shop items; purchases are optional.',
+  coin_shop_unavailable:
+    'Coin packs are unavailable in this release. Your existing balance is preserved.',
+  coin_shop_demo:
+    'This demo uses sample data. Create an account to start recording your own progress and coin balance. Demo data is not transferred; purchases are unavailable in the demo.',
+  coin_shop_load_failed: 'We could not load coin packs. Please try again later.',
+  coin_shop_added: '{count} coins have been added to your balance.',
+  coin_shop_pack: '{count} coins · {price}',
+  coin_shop_payment:
+    'Coin packs are one-time purchases for use in LiLove. Coins do not expire and cannot be transferred. Payment is charged to your Apple Account when you confirm.',
+  password_minimum_hint: 'Password (at least {count} characters)',
+  password_minimum_error: 'Use a password with at least {count} characters.',
+
   deletion_intro:
     'Delete your LiLove account and its app data. You will need to confirm your identity. Once deletion starts, some steps cannot be undone.',
   deletion_subscription_notice:
@@ -196,7 +216,7 @@ export const en = {
   choose_your_plan: 'Choose Your Plan',
   close: 'Close',
   clothing: 'Clothing',
-  coin_balance_get_more_coins: 'Coin balance. Get more coins.',
+  coin_balance_get_more_coins: 'Your Balance',
   coin_balance_unavailable:
     'Your balance is unavailable. Try again to refresh it without making another purchase.',
   coins: 'Coins',
@@ -282,6 +302,11 @@ export const en = {
   grateful: 'Grateful',
   growth_sanctuary: 'Growth Sanctuary',
   habit_created_successfully: 'Habit created successfully!',
+  habit_category_productivity: 'Productivity',
+  habit_category_learning: 'Learning',
+  habit_category_mindfulness: 'Mindfulness',
+  habit_category_fitness: 'Fitness',
+  habit_category_focus: 'Focus',
   habit_name: 'Habit name *',
   habit_tracked_successfully_keep_it_up: 'Habit tracked successfully. Keep it up!',
   habits: 'Habits',
@@ -292,7 +317,7 @@ export const en = {
   how_are_you_feeling_today: 'How are you feeling today?',
   in_the_zone: 'In the zone',
   in_app_purchases_are_being_configured_please:
-    'In-app purchases are being configured. Please try again later or contact support.',
+    'New subscriptions are unavailable in this release. You can restore or manage an existing subscription.',
   join_lilove_today: 'Join LiLove Today',
   just_being: 'Just being',
   legal: 'Legal',
@@ -487,7 +512,7 @@ export const en = {
   well_done: '✅ Well Done!',
   purchase_needs_account_title: 'Create a free account first',
   purchase_needs_account_body:
-    "Your subscription is linked to your LiLove account, so your coach and your history follow you to every device. You're in the sample tour, and nothing has been charged.",
+    'The demo uses sample data and cannot make or restore purchases. No payment has been taken. Use your LiLove account to check existing purchases.',
   habits_today: 'Today’s habits',
   habits_completed_today: 'Completed today',
   habits_check: 'Mark done today',
@@ -520,8 +545,8 @@ export const en = {
   focus_add_task: 'Add your next step',
   focus_complete: 'Mark this step complete',
   focus_week: 'Last 7 days',
-  focus_week_count: '{count} tasks marked complete · {days} days with a record',
-  focus_day_count: '{date}: {count} tasks marked complete',
+  focus_week_count: 'Completed tasks: {count} · Active days: {days}',
+  focus_day_count: '{date} · Completed tasks: {count}',
   focus_restart: 'Missed a day? Continue with one small step.',
   focus_utc: 'Device time zone unavailable; days are shown in UTC.',
 } as const;

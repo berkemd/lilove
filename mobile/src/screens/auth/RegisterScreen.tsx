@@ -15,6 +15,8 @@ import { useAuthStore } from '../../store/authStore';
 import { t } from '../../i18n';
 import { useThemedStyles, useTheme } from '../../theme/ThemeProvider';
 
+const MIN_PASSWORD_LENGTH = 6;
+
 export default function RegisterScreen({ navigation }: any) {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
@@ -31,8 +33,11 @@ export default function RegisterScreen({ navigation }: any) {
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert(t('error'), t('password_must_be_at_least_6_characters'));
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      Alert.alert(
+        t('error'),
+        t('password_minimum_error').replace('{count}', String(MIN_PASSWORD_LENGTH))
+      );
       return;
     }
 
@@ -82,7 +87,10 @@ export default function RegisterScreen({ navigation }: any) {
 
             <TextInput
               style={[styles.input, { color: themeColor('#111827', 'text') }]}
-              placeholder={t('password_min_8_characters')}
+              placeholder={t('password_minimum_hint').replace(
+                '{count}',
+                String(MIN_PASSWORD_LENGTH)
+              )}
               value={password}
               onChangeText={setPassword}
               secureTextEntry

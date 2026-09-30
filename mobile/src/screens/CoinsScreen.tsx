@@ -32,11 +32,15 @@ import { useCoinBalance } from '../hooks/useCoinBalance';
 import { t } from '../i18n';
 import { purchaseBlockedInDemo } from '../lib/accountGate';
 import { useThemedStyles, useTheme } from '../theme/ThemeProvider';
+import { useAuthStore } from '../store/authStore';
+import { areNewCoinPurchasesAvailable } from '../lib/coinAvailability';
 
-export default function CoinsScreen({ navigation }: any) {
+export default function CoinsScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
   const coins = useCoinBalance();
+  const isDemo = useAuthStore((state) => state.isDemo);
+  const coinSalesAvailable = areNewCoinPurchasesAvailable();
 
   const [urunler, setUrunler] = useState<StoreProduct[]>([]);
   const [yukleniyor, setYukleniyor] = useState(true);
@@ -46,42 +50,49 @@ export default function CoinsScreen({ navigation }: any) {
   const yukle = useCallback(async () => {
     setYukleniyor(true);
     setHata(null);
+    setUrunler([]);
+    if (isDemo || !coinSalesAvailable) {
+      setYukleniyor(false);
+      return;
+    }
     try {
       const p = await loadCoinProducts();
       setUrunler(p);
       if (p.length === 0) {
-        setHata('The App Store is not reachable right now.');
+        setHata(t('coin_shop_unavailable'));
       }
-    } catch (e: any) {
-      setHata(e?.message || 'The App Store is not reachable right now.');
+    } catch {
+      setHata(t('coin_shop_load_failed'));
     } finally {
       setYukleniyor(false);
     }
-  }, []);
+  }, [isDemo, coinSalesAvailable]);
 
   useEffect(() => {
     yukle();
   }, [yukle]);
 
   const satinAl = async (urun: StoreProduct) => {
-    if (purchaseBlockedInDemo()) return;
+    if (purchaseBlockedInDemo() || !coinSalesAvailable) return;
     try {
       setAlinan(urun.id);
       const result = await coins.confirm(() => buyCoins(urun.id));
       if (result !== 'updated') return;
       Alert.alert(
         t('coins_added'),
-        `${COIN_AMOUNTS[urun.id as CoinId] ?? ''} coins are now in your balance.`
+        t('coin_shop_added').replace('{count}', String(COIN_AMOUNTS[urun.id as CoinId] ?? ''))
       );
-    } catch (e: any) {
+    } catch (e: unknown) {
       // Kullanıcının vazgeçmesi bir hata değildir; uyarı göstermiyoruz.
-      const kod = String(e?.code ?? '');
+      const code = e && typeof e === 'object' && 'code' in e ? e.code : undefined;
+      const message = e && typeof e === 'object' && 'message' in e ? e.message : undefined;
+      const kod = String(code ?? '');
       const iptal =
         kod.includes('USER_CANCELLED') ||
         kod.includes('E_USER_CANCELLED') ||
-        /cancel/i.test(String(e?.message ?? ''));
+        /cancel/i.test(String(message ?? ''));
       if (!iptal) {
-        Alert.alert(t('purchase_failed_2'), e?.message || t('please_try_again_2'));
+        Alert.alert(t('purchase_failed_2'), t('please_try_again_2'));
       }
     } finally {
       setAlinan(null);
@@ -106,10 +117,8 @@ export default function CoinsScreen({ navigation }: any) {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>{t('coins')}</Text>
-        <Text style={styles.subtitle}>
-          Coins unlock avatar traits and shop items. You also earn them by completing goals, habits
-          and achievements — buying is never required.
-        </Text>
+        {coinSalesAvailable && <Text style={styles.subtitle}>{t('coin_shop_about')}</Text>}
+        {isDemo && <Text style={styles.subtitle}>{t('coin_shop_demo')}</Text>}
 
         {coins.status === 'error' && (
           <View style={styles.hataKutu}>
@@ -127,14 +136,23 @@ export default function CoinsScreen({ navigation }: any) {
           </View>
         )}
 
-        {yukleniyor ? (
+        {isDemo || !coinSalesAvailable ? (
+          <View style={styles.merkez}>
+            <Ionicons
+              name="information-circle-outline"
+              size={28}
+              color={themeColor('#B45309', 'text')}
+            />
+            <Text style={styles.hataMetin}>{t('coin_shop_unavailable')}</Text>
+          </View>
+        ) : yukleniyor ? (
           <View style={styles.merkez}>
             <ActivityIndicator size="large" color={themeColor('#8B5CF6', 'text')} />
           </View>
         ) : hata ? (
           <View style={styles.hataKutu}>
             <Ionicons
-              name="cloud-offline-outline"
+              name="information-circle-outline"
               size={28}
               color={themeColor('#B45309', 'text')}
             />
@@ -160,7 +178,9 @@ export default function CoinsScreen({ navigation }: any) {
                 disabled={mesgul}
                 onPress={() => satinAl(u)}
                 accessibilityRole="button"
-                accessibilityLabel={`${miktar} coins for ${u.displayPrice}`}
+                accessibilityLabel={t('coin_shop_pack')
+                  .replace('{count}', String(miktar))
+                  .replace('{price}', u.displayPrice)}
               >
                 <View style={styles.paketSol}>
                   <View style={styles.paketIkon}>
@@ -168,7 +188,7 @@ export default function CoinsScreen({ navigation }: any) {
                   </View>
                   <View>
                     <Text style={styles.paketMiktar}>{miktar?.toLocaleString() ?? u.title}</Text>
-                    <Text style={styles.paketAlt}>coins</Text>
+                    <Text style={styles.paketAlt}>{t('coins')}</Text>
                   </View>
                 </View>
                 {alinan === u.id ? (
@@ -181,10 +201,9 @@ export default function CoinsScreen({ navigation }: any) {
           })
         )}
 
-        <Text style={styles.kucukMetin}>
-          Coins are a one-time purchase, consumed inside LiLove. They do not expire and are not
-          transferable. Payment is charged to your Apple Account at confirmation.
-        </Text>
+        {!isDemo && coinSalesAvailable && urunler.length > 0 && (
+          <Text style={styles.kucukMetin}>{t('coin_shop_payment')}</Text>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

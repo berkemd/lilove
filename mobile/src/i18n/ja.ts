@@ -1,6 +1,25 @@
 // LiLove · ja arayuz katalogu — URETILDI, elle duzenleme
 
 export const ja = {
+  auth_or: 'または',
+  profile_photo_save_incomplete:
+    '写真はアップロードされましたが、プロフィールを更新できませんでした。もう一度お試しください。',
+
+  profile_photo_format_unsupported: 'JPEG、PNG、またはWebP形式の写真を選択してください。',
+
+  coin_shop_about:
+    '目標・習慣・実績を通じてコインを獲得できます。コインはアバターのパーツやショップ商品に使えます。購入は任意です。',
+  coin_shop_unavailable: 'コインパックはこのリリースでは利用できません。既存の残高は保持されます。',
+  coin_shop_demo:
+    'このデモはサンプルデータを使用しています。アカウントを作成して、独自の進捗やコイン残高の記録を開始してください。デモデータは移行されず、デモでは購入はできません。',
+  coin_shop_load_failed: 'コインパックを読み込めませんでした。後ほどもう一度お試しください。',
+  coin_shop_added: '残高に{count}コインが追加されました。',
+  coin_shop_pack: '{count}コイン · {price}',
+  coin_shop_payment:
+    'コインパックはLiLove内で使える都度購入の商品です。コインに有効期限はなく、他のユーザーには譲渡できません。購入を確定するとAppleアカウントに請求されます。',
+  password_minimum_hint: 'パスワード（{count}文字以上）',
+  password_minimum_error: '{count}文字以上のパスワードをご使用ください。',
+
   deletion_intro:
     'LiLoveアカウントおよびアプリデータを削除します。本人確認が必要です。削除処理開始後、一部の手順は取り消せません。',
   deletion_subscription_notice:
@@ -196,7 +215,7 @@ export const ja = {
   choose_your_plan: 'プランを選択',
   close: '閉じる',
   clothing: '衣装',
-  coin_balance_get_more_coins: 'コイン残高。コインを追加。',
+  coin_balance_get_more_coins: '残高',
   coin_balance_unavailable:
     '残高を表示できません。再度購入せずに、残高の読み込みをお試しください。',
   coins: 'コイン',
@@ -284,6 +303,11 @@ export const ja = {
   grateful: '感謝',
   growth_sanctuary: '成長の聖域',
   habit_created_successfully: '習慣を作成しました。',
+  habit_category_productivity: '生産性',
+  habit_category_learning: '学習',
+  habit_category_mindfulness: 'マインドフルネス',
+  habit_category_fitness: 'フィットネス',
+  habit_category_focus: '集中',
   habit_name: '習慣の名前 *',
   habit_tracked_successfully_keep_it_up: '習慣を記録しました。この調子で！',
   habits: '習慣',
@@ -294,7 +318,7 @@ export const ja = {
   how_are_you_feeling_today: '今日の気分はどうですか？',
   in_the_zone: '没頭している',
   in_app_purchases_are_being_configured_please:
-    'アプリ内課金は現在設定中です。しばらくしてからお試しいただくか、サポートにご連絡ください。',
+    '新規サブスクリプションはこのリリースでは利用できません。既存のサブスクリプションの復元または管理が可能です。',
   join_lilove_today: '今日からLiLoveをはじめる',
   just_being: 'ただ、そこにいる',
   legal: '法的情報',
@@ -488,7 +512,7 @@ export const ja = {
   well_done: '✅ お見事！',
   purchase_needs_account_title: 'まず無料アカウントを作成してください',
   purchase_needs_account_body:
-    'サブスクリプションはLiLoveアカウントに紐づくため、コーチと記録はどのデバイスにも引き継がれます。現在はサンプルツアー中で、料金は発生していません。',
+    'デモではサンプルデータを使用しており、購入や購入の復元はできません。料金は発生していません。既存の購入を確認するには、LiLoveアカウントをご利用ください。',
   habits_today: '今日の習慣',
   habits_completed_today: '今日完了済み',
   habits_check: '今日完了としてマーク',
@@ -521,8 +545,8 @@ export const ja = {
   focus_add_task: '次のステップを追加',
   focus_complete: 'このステップを完了としてマーク',
   focus_week: '過去7日間',
-  focus_week_count: '{count}件のタスクを完了としてマーク · {days}日間の記録あり',
-  focus_day_count: '{date}: {count}件のタスクを完了としてマーク',
+  focus_week_count: '完了タスク：{count}件 · 記録日数：{days}日',
+  focus_day_count: '{date} · 完了タスク：{count}件',
   focus_restart: '記録のない日があっても、小さな一歩から再開できます。',
   focus_utc: '端末のタイムゾーンが利用できません。日付はUTCで表示されます。',
 } as const;

@@ -1,6 +1,27 @@
 // LiLove · es arayuz katalogu — URETILDI, elle duzenleme
 
 export const es = {
+  auth_or: 'O',
+  profile_photo_save_incomplete:
+    'La foto se cargó, pero no se pudo actualizar su perfil. Inténtelo de nuevo.',
+
+  profile_photo_format_unsupported: 'Elija una foto en formato JPEG, PNG o WebP.',
+
+  coin_shop_about:
+    'Gane monedas mediante objetivos, hábitos y logros. Use su saldo para adquirir rasgos de avatar y artículos de la tienda; las compras son opcionales.',
+  coin_shop_unavailable:
+    'Los paquetes de monedas no están disponibles en esta versión. Su saldo actual se conserva.',
+  coin_shop_demo:
+    'Esta demo utiliza datos de ejemplo. Cree una cuenta para comenzar a registrar su propio progreso y saldo de monedas. Los datos de demostración no se transfieren; las compras no están disponibles en la demo.',
+  coin_shop_load_failed:
+    'No se pudieron cargar los paquetes de monedas. Inténtelo de nuevo más tarde.',
+  coin_shop_added: '{count} monedas se han añadido a su saldo.',
+  coin_shop_pack: '{count} monedas · {price}',
+  coin_shop_payment:
+    'Los paquetes de monedas son compras únicas para usar en LiLove. Las monedas no caducan ni pueden transferirse. El pago se cargará a su cuenta de Apple al confirmar.',
+  password_minimum_hint: 'Contraseña (mínimo {count} caracteres)',
+  password_minimum_error: 'Use una contraseña de al menos {count} caracteres.',
+
   deletion_intro:
     'Elimine su cuenta de LiLove y sus datos de la aplicación. Deberá confirmar su identidad. Una vez iniciada la eliminación, algunos pasos no se pueden deshacer.',
   deletion_subscription_notice:
@@ -200,7 +221,7 @@ export const es = {
   choose_your_plan: 'Elige tu plan',
   close: 'Cerrar',
   clothing: 'Ropa',
-  coin_balance_get_more_coins: 'Saldo de monedas. Conseguir más monedas.',
+  coin_balance_get_more_coins: 'Tu saldo',
   coin_balance_unavailable:
     'Tu saldo no está disponible. Inténtalo de nuevo para actualizarlo sin realizar otra compra.',
   coins: 'Monedas',
@@ -287,6 +308,11 @@ export const es = {
   grateful: 'Agradecido',
   growth_sanctuary: 'Santuario del crecimiento',
   habit_created_successfully: '¡Hábito creado!',
+  habit_category_productivity: 'Productividad',
+  habit_category_learning: 'Aprendizaje',
+  habit_category_mindfulness: 'Atención plena',
+  habit_category_fitness: 'Fitness',
+  habit_category_focus: 'Enfoque',
   habit_name: 'Nombre del hábito *',
   habit_tracked_successfully_keep_it_up: 'Hábito registrado. ¡Sigue así!',
   habits: 'Hábitos',
@@ -297,7 +323,7 @@ export const es = {
   how_are_you_feeling_today: '¿Cómo te sientes hoy?',
   in_the_zone: 'En racha',
   in_app_purchases_are_being_configured_please:
-    'Las compras dentro de la app se están configurando. Inténtalo más tarde o contacta con soporte.',
+    'Las nuevas suscripciones no están disponibles en esta versión. Puede restaurar o gestionar una suscripción existente.',
   join_lilove_today: 'Únete hoy a LiLove',
   just_being: 'Simplemente estar',
   legal: 'Aspectos legales',
@@ -494,7 +520,7 @@ export const es = {
   well_done: '✅ ¡Bien hecho!',
   purchase_needs_account_title: 'Primero crea una cuenta gratuita',
   purchase_needs_account_body:
-    'Tu suscripción se vincula a tu cuenta de LiLove, para que tu coach y tu historial te acompañen en todos tus dispositivos. Estás en el recorrido de ejemplo y no se ha cobrado nada.',
+    'La demo usa datos de ejemplo y no permite realizar ni restaurar compras. No se ha cobrado nada. Usa tu cuenta de LiLove para revisar tus compras existentes.',
   habits_today: 'Hábitos de hoy',
   habits_completed_today: 'Completados hoy',
   habits_check: 'Marcar como hecho hoy',
@@ -527,8 +553,8 @@ export const es = {
   focus_add_task: 'Añade tu siguiente paso',
   focus_complete: 'Marcar este paso como completado',
   focus_week: 'Últimos 7 días',
-  focus_week_count: '{count} tareas marcadas como completadas · {days} días con registro',
-  focus_day_count: '{date}: {count} tareas marcadas como completadas',
+  focus_week_count: 'Tareas completadas: {count} · Días activos: {days}',
+  focus_day_count: '{date} · Tareas completadas: {count}',
   focus_restart: '¿Te has saltado un día? Continúa con un pequeño paso.',
   focus_utc: 'Zona horaria del dispositivo no disponible; los días se muestran en UTC.',
 } as const;

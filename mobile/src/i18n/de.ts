@@ -1,6 +1,27 @@
 // LiLove · de arayuz katalogu — URETILDI, elle duzenleme
 
 export const de = {
+  auth_or: 'ODER',
+  profile_photo_save_incomplete:
+    'Das Foto wurde hochgeladen, aber Ihr Profil konnte nicht aktualisiert werden. Bitte versuchen Sie es erneut.',
+
+  profile_photo_format_unsupported: 'Wählen Sie ein Foto im JPEG-, PNG- oder WebP-Format.',
+
+  coin_shop_about:
+    'Verdienen Sie Münzen durch Ziele, Gewohnheiten und Erfolge. Nutzen Sie Ihr Guthaben für Avatar-Features und Shop-Artikel; Käufe sind optional.',
+  coin_shop_unavailable:
+    'Münzenpakete sind in dieser Version nicht verfügbar. Ihr bestehendes Guthaben bleibt erhalten.',
+  coin_shop_demo:
+    'Diese Demo verwendet Beispieldaten. Erstellen Sie ein Konto, um Ihre eigenen Fortschritte und Münzbestände zu erfassen. Beispieldaten werden nicht übertragen; Käufe sind in der Demo nicht möglich.',
+  coin_shop_load_failed:
+    'Münzpakete konnten nicht geladen werden. Bitte versuchen Sie es später erneut.',
+  coin_shop_added: '{count} Münzen wurden Ihrem Guthaben hinzugefügt.',
+  coin_shop_pack: '{count} Münzen · {price}',
+  coin_shop_payment:
+    'Münzpakete sind einmalige Käufe für die Nutzung in LiLove. Münzen verfallen nicht und können nicht übertragen werden. Die Zahlung wird bei Bestätigung Ihrem Apple-Konto belastet.',
+  password_minimum_hint: 'Passwort (mindestens {count} Zeichen)',
+  password_minimum_error: 'Verwenden Sie ein Passwort mit mindestens {count} Zeichen.',
+
   deletion_intro:
     'Ihr LiLove-Konto und dessen App-Daten löschen. Sie müssen Ihre Identität bestätigen. Einmal gestartet, können einige Schritte nicht rückgängig gemacht werden.',
   deletion_subscription_notice:
@@ -203,7 +224,7 @@ export const de = {
   choose_your_plan: 'Wähle deinen Tarif',
   close: 'Schließen',
   clothing: 'Kleidung',
-  coin_balance_get_more_coins: 'Münzguthaben. Mehr Münzen holen.',
+  coin_balance_get_more_coins: 'Dein Guthaben',
   coin_balance_unavailable:
     'Ihr Guthaben kann gerade nicht angezeigt werden. Versuchen Sie, es zu aktualisieren. Ein erneuter Kauf ist nicht erforderlich.',
   coins: 'Münzen',
@@ -300,6 +321,11 @@ export const de = {
   grateful: 'Dankbar',
   growth_sanctuary: 'Garten des Wachstums',
   habit_created_successfully: 'Gewohnheit erstellt!',
+  habit_category_productivity: 'Produktivität',
+  habit_category_learning: 'Lernen',
+  habit_category_mindfulness: 'Achtsamkeit',
+  habit_category_fitness: 'Fitness',
+  habit_category_focus: 'Fokus',
   habit_name: 'Name der Gewohnheit *',
   habit_tracked_successfully_keep_it_up: 'Gewohnheit erfasst. Weiter so!',
   habits: 'Gewohnheiten',
@@ -310,7 +336,7 @@ export const de = {
   how_are_you_feeling_today: 'Wie fühlst du dich heute?',
   in_the_zone: 'Voll im Flow',
   in_app_purchases_are_being_configured_please:
-    'In-App-Käufe werden gerade eingerichtet. Bitte versuche es später erneut oder wende dich an den Support.',
+    'Neue Abonnements sind in dieser Version nicht verfügbar. Sie können ein bestehendes Abonnement wiederherstellen oder verwalten.',
   join_lilove_today: 'Werde noch heute Teil von LiLove',
   just_being: 'Einfach sein',
   legal: 'Rechtliches',
@@ -508,7 +534,7 @@ export const de = {
   well_done: '✅ Gut gemacht!',
   purchase_needs_account_title: 'Erstelle zuerst ein kostenloses Konto',
   purchase_needs_account_body:
-    'Dein Abo ist mit deinem LiLove-Konto verknüpft, damit Coach und Verlauf dir auf jedes Gerät folgen. Du bist gerade in der Beispieltour – es wurde nichts berechnet.',
+    'Die Demo verwendet Beispieldaten. Käufe und deren Wiederherstellung sind hier nicht möglich. Es wurde nichts berechnet. Prüfe bestehende Käufe mit deinem LiLove-Konto.',
   habits_today: 'Heutige Gewohnheiten',
   habits_completed_today: 'Heute erledigt',
   habits_check: 'Heute als erledigt markieren',
@@ -541,8 +567,8 @@ export const de = {
   focus_add_task: 'Nächsten Schritt hinzufügen',
   focus_complete: 'Diesen Schritt als erledigt markieren',
   focus_week: 'Letzte 7 Tage',
-  focus_week_count: '{count} Aufgaben als erledigt markiert · {days} Tage mit Eintrag',
-  focus_day_count: '{date}: {count} Aufgaben als erledigt markiert',
+  focus_week_count: 'Abgeschlossene Aufgaben: {count} · Aktive Tage: {days}',
+  focus_day_count: '{date} · Abgeschlossene Aufgaben: {count}',
   focus_restart: 'Einen Tag verpasst? Mach mit einem kleinen Schritt weiter.',
   focus_utc: 'Zeitzone des Geräts nicht verfügbar; Tage werden in UTC angezeigt.',
 } as const;

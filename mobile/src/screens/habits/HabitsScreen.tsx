@@ -110,8 +110,24 @@ export default function HabitsScreen() {
     return colors[category] || '#6B7280';
   };
 
-  const getCategoryLabel = (category: string): string =>
-    category === 'health' ? t('health') : category;
+  const getCategoryLabel = (category: string): string => {
+    switch (category) {
+      case 'health':
+        return t('health');
+      case 'productivity':
+        return t('habit_category_productivity');
+      case 'learning':
+        return t('habit_category_learning');
+      case 'mindfulness':
+        return t('habit_category_mindfulness');
+      case 'fitness':
+        return t('habit_category_fitness');
+      case 'focus':
+        return t('habit_category_focus');
+      default:
+        return category;
+    }
+  };
 
   const renderHabitCard = (habit: Habit) => {
     const categoryColor = getCategoryColor(habit.category);
@@ -548,6 +564,7 @@ const baseStyles = StyleSheet.create({
     fontWeight: 'bold',
   },
   habitStats: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: 12,
@@ -557,6 +574,8 @@ const baseStyles = StyleSheet.create({
     marginBottom: 12,
   },
   stat: {
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
   },
   statValue: {
@@ -566,6 +585,7 @@ const baseStyles = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
+    textAlign: 'center',
     fontSize: 12,
     color: '#6B7280',
   },

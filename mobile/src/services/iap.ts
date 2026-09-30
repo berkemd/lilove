@@ -43,6 +43,7 @@ import {
   getAvailablePurchases,
   purchaseUpdatedListener,
   purchaseErrorListener,
+  type Purchase,
 } from 'expo-iap';
 import { Platform } from 'react-native';
 // Ekranların tamamı `lib/api`yi kullanıyor; ikinci bir istemciye
@@ -52,6 +53,7 @@ import { COIN_IDS, SUBSCRIPTION_IDS, isCoinProduct } from '../config/products';
 import { tokenManager } from './tokenManager';
 import { DEMO_TOKEN } from '../lib/demoData';
 import { assertNewSubscriptionAvailable } from '../lib/subscriptionAvailability';
+import { assertNewCoinPurchaseAvailable } from '../lib/coinAvailability';
 
 /**
  * No purchase or restore is ever STARTED in the demo tour.
@@ -78,7 +80,7 @@ export type StoreProduct = {
 
 type Bekleyen = {
   coz: () => void;
-  reddet: (e: any) => void;
+  reddet: (e: unknown) => void;
   zamanlayici: ReturnType<typeof setTimeout>;
 };
 
@@ -87,15 +89,20 @@ let baglanti: Promise<void> | null = null;
 let aboneler: Array<{ remove: () => void }> = [];
 const bekleyenler = new Map<string, Bekleyen>();
 
-function urunKimligi(p: any): string {
+function urunKimligi(p: { productId?: unknown; id?: unknown } | null | undefined): string {
   return String(p?.productId ?? p?.id ?? '');
 }
 
-function islemKimligi(p: any): string {
+function islemKimligi(
+  p:
+    | { transactionId?: unknown; id?: unknown; originalTransactionIdentifierIOS?: unknown }
+    | null
+    | undefined
+): string {
   return String(p?.transactionId ?? p?.id ?? p?.originalTransactionIdentifierIOS ?? '');
 }
 
-function bekleyeniBitir(productId: string, hata?: any) {
+function bekleyeniBitir(productId: string, hata?: unknown) {
   const b = bekleyenler.get(productId);
   if (!b) return;
   bekleyenler.delete(productId);
@@ -116,7 +123,7 @@ async function dogrula(islemId: string, authorizationToken?: string): Promise<vo
   if (sonuc?.success !== true) throw new Error('Purchase verification was not confirmed');
 }
 
-async function dogrulaVeBitir(purchase: any): Promise<void> {
+async function dogrulaVeBitir(purchase: Purchase): Promise<void> {
   const islemId = islemKimligi(purchase);
   if (!islemId) throw new Error('Purchase has no transaction id');
 
@@ -150,7 +157,7 @@ async function baglantiKur(): Promise<void> {
   // her açılışta yeniden sunar. Bu dinleyici olmadan o satın alma
   // askıda kalır: kullanıcı ödemiştir, jeton gelmemiştir.
   aboneler.push(
-    purchaseUpdatedListener(async (purchase: any) => {
+    purchaseUpdatedListener(async (purchase) => {
       const pid = urunKimligi(purchase);
       try {
         await dogrulaVeBitir(purchase);
@@ -163,7 +170,7 @@ async function baglantiKur(): Promise<void> {
   );
 
   aboneler.push(
-    purchaseErrorListener((e: any) => {
+    purchaseErrorListener((e) => {
       // Hangi ürün olduğunu Apple her zaman söylemiyor; kimlik yoksa
       // bekleyen TEK satın almayı reddediyoruz (aynı anda iki satın
       // alma başlatılamaz, düğmeler kilitli).
@@ -188,7 +195,14 @@ export async function closeIAP(): Promise<void> {
   }
 }
 
-function esle(p: any): StoreProduct {
+function esle(p: {
+  id?: unknown;
+  productId?: unknown;
+  displayPrice?: unknown;
+  localizedPrice?: unknown;
+  title?: unknown;
+  description?: unknown;
+}): StoreProduct {
   return {
     id: urunKimligi(p),
     displayPrice: String(p?.displayPrice ?? p?.localizedPrice ?? ''),
@@ -204,7 +218,7 @@ function esle(p: any): StoreProduct {
  * "başarı" saymak, ürünsüz bir ödeme ekranını sessizce kabul etmek
  * olurdu — VagoTakt tam bu yüzden reddedildi. Üç deneme, artan bekleme.
  */
-async function ısrarla(f: () => Promise<any>): Promise<any[]> {
+async function ısrarla<T>(f: () => Promise<T[]>): Promise<T[]> {
   let bekleme = 400;
   for (let deneme = 1; deneme <= 3; deneme++) {
     try {
@@ -251,6 +265,9 @@ async function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> 
   if (tur === 'subs' || (SUBSCRIPTION_IDS as readonly string[]).includes(productId)) {
     assertNewSubscriptionAvailable();
   }
+  if (tur === 'inapp' || (COIN_IDS as readonly string[]).includes(productId)) {
+    assertNewCoinPurchaseAvailable();
+  }
   const hesap = await api.getIapAccountToken(productId);
   const appAccountToken = hesap?.appAccountToken;
   if (
@@ -272,7 +289,7 @@ async function satinAl(productId: string, tur: 'inapp' | 'subs'): Promise<void> 
     requestPurchase({
       request: { ios: { sku: productId, appAccountToken } },
       type: tur,
-    }).catch((e: any) => bekleyeniBitir(productId, e));
+    }).catch((e: unknown) => bekleyeniBitir(productId, e));
   });
 }
 
@@ -340,7 +357,7 @@ async function restoreForSession(
     throw new RestoreError('store');
   }
   await assertSession();
-  let mevcut: any[];
+  let mevcut: Purchase[];
   try {
     const purchases = await getAvailablePurchases();
     if (!Array.isArray(purchases)) throw new RestoreError('store');

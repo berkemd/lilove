@@ -38,6 +38,7 @@ const GOAL_CATEGORY_LABELS = new Map<string, Anahtar>([
   ['finance', 'goal_category_finance'],
   ['relationships', 'goal_category_relationships'],
   ['education', 'goal_category_education'],
+  ['learning', 'goal_category_education'],
 ]);
 
 const GOAL_STATUS_LABELS = new Map<string, Anahtar>([

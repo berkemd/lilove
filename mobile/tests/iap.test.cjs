@@ -26,6 +26,7 @@ function loadSource(relative, imports = {}, globals = {}) {
 
 const products = loadSource('src/config/products.ts');
 const subscriptionAvailability = loadSource('src/lib/subscriptionAvailability.ts');
+const coinAvailability = loadSource('src/lib/coinAvailability.ts');
 const coinId = products.COIN_IDS[0];
 const subscriptionId = products.SUBSCRIPTION_IDS[0];
 const accountA = 'bdd9fe22-f678-486b-96a6-8fdff0d7d905';
@@ -41,7 +42,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-function harness({ releaseReadyForTest = false } = {}) {
+function harness({ releaseReadyForTest = false, coinSalesReadyForTest = false } = {}) {
   const state = {
     token: 'signed-in-account',
     accountResponse: { appAccountToken: accountA },
@@ -124,6 +125,9 @@ function harness({ releaseReadyForTest = false } = {}) {
         },
       },
       '../config/products': products,
+      '../lib/coinAvailability': coinSalesReadyForTest
+        ? { assertNewCoinPurchaseAvailable() {} }
+        : coinAvailability,
       '../lib/subscriptionAvailability': releaseReadyForTest
         ? { assertNewSubscriptionAvailable() {} }
         : subscriptionAvailability,
@@ -235,7 +239,7 @@ test('missing or invalid account UUIDs cannot start a charge or a pending purcha
     { appAccountToken: '00000000-0000-0000-0000-000000000000' },
     { appAccountToken: `${accountA} ` },
   ]) {
-    const { iap, state } = harness();
+    const { iap, state } = harness({ coinSalesReadyForTest: true });
     state.accountResponse = response;
     await assert.rejects(iap.buyCoins(coinId), /account token is unavailable/);
     assert.deepEqual(state.requests, []);
@@ -244,7 +248,7 @@ test('missing or invalid account UUIDs cannot start a charge or a pending purcha
 });
 
 test('failed account preflight stops before StoreKit and permits a later retry', async () => {
-  const h = harness();
+  const h = harness({ coinSalesReadyForTest: true });
   await h.iap.initIAP();
   h.state.accountError = new Error('Payment service unavailable');
   await assert.rejects(h.iap.buyCoins(coinId), /Payment service unavailable/);
@@ -262,7 +266,7 @@ test('failed account preflight stops before StoreKit and permits a later retry',
 test('coin and subscription requests fetch a fresh account token and stay pending until verified', async () => {
   // Keep the existing transaction lifecycle test independent of the closed
   // release policy. Real-policy tests below prove new sales remain blocked.
-  const h = harness({ releaseReadyForTest: true });
+  const h = harness({ releaseReadyForTest: true, coinSalesReadyForTest: true });
   await h.iap.initIAP();
   for (const [productId, kind, accountToken] of [
     [coinId, 'inapp', accountA],
@@ -323,6 +327,42 @@ test('new subscriptions stop before account preflight, StoreKit and pending time
   assert.equal(state.timers.size, 0);
 });
 
+test('closed new coin sales block every pack and unknown inapp SKU before account, StoreKit or timers', async () => {
+  const { iap, state } = harness();
+  await iap.initIAP();
+  state.accountError = new Error('Closed coin sales reached account preflight');
+  assert.equal(coinAvailability.areNewCoinPurchasesAvailable(), false);
+  for (const id of [...products.COIN_IDS, 'unknown-inapp-sku']) {
+    await assert.rejects(iap.buyCoins(id), { code: 'COINS_UNAVAILABLE' });
+  }
+  assert.deepEqual(state.accountCalls, []);
+  assert.deepEqual(state.requests, []);
+  assert.deepEqual(state.verifyCalls, []);
+  assert.equal(state.timers.size, 0);
+  // Even a caller using the subscription wrapper cannot bypass the coin gate.
+  const wrongWrapper = harness({ releaseReadyForTest: true });
+  await assert.rejects(wrongWrapper.iap.buySubscription(coinId), { code: 'COINS_UNAVAILABLE' });
+  assert.deepEqual(wrongWrapper.state.accountCalls, []);
+  assert.deepEqual(wrongWrapper.state.requests, []);
+});
+
+test('closed new coin sales preserve unfinished consumable verification and StoreKit replay', async () => {
+  const h = harness();
+  await h.iap.initIAP();
+  const existing = { productId: coinId, transactionId: 'already-paid-coin' };
+  h.state.verify = async () => {
+    throw new Error('Verification offline');
+  };
+  await h.purchase(existing);
+  assert.deepEqual(h.state.finishes, []);
+  h.state.verify = async () => ({ success: true });
+  await h.purchase(existing);
+  assert.deepEqual(h.state.verifyCalls, ['already-paid-coin', 'already-paid-coin']);
+  assert.deepEqual(h.state.finishes, [{ purchase: existing, isConsumable: true }]);
+  assert.deepEqual(h.state.accountCalls, []);
+  assert.deepEqual(h.state.requests, []);
+});
+
 test('closed new sales do not block delivery and verification of existing subscription transactions', async () => {
   const h = harness();
   await h.iap.initIAP();
@@ -348,7 +388,7 @@ test('HTTP success without explicit success true rejects the purchase and never 
     { success: 'true' },
     { success: 1 },
   ]) {
-    const h = harness();
+    const h = harness({ coinSalesReadyForTest: true });
     await h.iap.initIAP();
     h.state.verify = async () => response;
     const requested = h.nextRequest();
@@ -362,7 +402,7 @@ test('HTTP success without explicit success true rejects the purchase and never 
 });
 
 test('a verification network failure leaves the transaction unfinished for a later StoreKit replay', async () => {
-  const h = harness();
+  const h = harness({ coinSalesReadyForTest: true });
   await h.iap.initIAP();
   h.state.verify = async () => {
     throw new Error('Network lost');
@@ -573,7 +613,7 @@ test('a token switch back to the original token still aborts the old restore ses
 });
 
 test('StoreKit rejection and cancellation clear pending timers without completing transactions', async () => {
-  const h = harness();
+  const h = harness({ coinSalesReadyForTest: true });
   await h.iap.initIAP();
   h.state.requestError = new Error('Store unavailable');
   await assert.rejects(h.iap.buyCoins(coinId), /Store unavailable/);

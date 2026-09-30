@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -14,11 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuthStore } from '../../store/authStore';
+import { captureAccountSession, useAuthStore } from '../../store/authStore';
 import storage from '../../services/storage';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
-import api from '../../lib/api';
+import api, { resolveProfilePhotoUrl } from '../../lib/api';
+import { updateUserProfile } from '../../lib/firebase';
 import { t } from '../../i18n';
 import { useTheme, useThemedStyles } from '../../theme/ThemeProvider';
 import { useSubscription } from '../../hooks/useSubscription';
@@ -56,14 +57,25 @@ export default function ProfileScreen({ navigation }: any) {
   const styles = useThemedStyles(baseStyles);
   const { color: themeColor } = useTheme();
 
-  const { user, userProfile, logout, updateUser } = useAuthStore();
+  const { user, userProfile, logout, isDemo } = useAuthStore();
   const subscription = useSubscription();
   const coins = useCoinBalance();
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageOperation = useRef<{ isCurrent: () => boolean } | null>(null);
+  const mounted = useRef(true);
+  const [uploadingFor, setUploadingFor] = useState<{ isCurrent: () => boolean } | null>(null);
+  const isUploadingImage = uploadingFor?.isCurrent() ?? false;
+  const profilePhotoUrl = resolveProfilePhotoUrl(userProfile?.photoURL);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [statsError, setStatsError] = useState(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,35 +118,62 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const handleImagePick = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permissionResult.granted) {
-      Alert.alert(t('permission_required'), t('please_allow_access_to_your_photo_library_to'));
+    if (imageOperation.current?.isCurrent()) return;
+    if (isDemo) {
+      Alert.alert(t('error'), t('not_available_in_demo_mode'));
       return;
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      await uploadProfilePicture(result.assets[0].uri);
-    }
-  };
-
-  const uploadProfilePicture = async (uri: string) => {
+    let account: ReturnType<typeof captureAccountSession>;
     try {
-      setIsUploadingImage(true);
-      const response = await api.uploadProfilePicture(uri);
-      updateUser({ photoURL: response.profileImageUrl });
+      account = captureAccountSession();
+    } catch {
+      return;
+    }
+    const operation: { isCurrent: () => boolean } = {
+      isCurrent: () =>
+        mounted.current && imageOperation.current === operation && account.isCurrent(),
+    };
+    imageOperation.current = operation;
+    setUploadingFor(operation);
+    let uploaded = false;
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!operation.isCurrent()) return;
+      if (!permission.granted) {
+        Alert.alert(t('permission_required'), t('please_allow_access_to_your_photo_library_to'));
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!operation.isCurrent() || result.canceled || !result.assets[0]) return;
+      const token = await account.user.getIdToken();
+      if (!operation.isCurrent()) return;
+      const response = await api.uploadProfilePicture(result.assets[0], token);
+      if (!operation.isCurrent()) return;
+      uploaded = true;
+      await updateUserProfile(account.uid, { photoURL: response.profileImageUrl });
+      if (!operation.isCurrent()) return;
       Alert.alert(t('success'), t('profile_picture_updated_successfully'));
-    } catch (err) {
-      Alert.alert(t('error'), t('failed_to_upload_profile_picture_please_try'));
+    } catch (error) {
+      if (!operation.isCurrent()) return;
+      const failure = error as { code?: string; outcomeUnknown?: boolean };
+      const message = uploaded
+        ? t('profile_photo_save_incomplete')
+        : failure.outcomeUnknown
+          ? t('request_outcome_unknown')
+          : failure.code === 'UNSUPPORTED_PHOTO_FORMAT'
+            ? t('profile_photo_format_unsupported')
+            : t('failed_to_upload_profile_picture_please_try');
+      Alert.alert(t('error'), message);
     } finally {
-      setIsUploadingImage(false);
+      if (operation.isCurrent()) {
+        setUploadingFor(null);
+        imageOperation.current = null;
+      }
     }
   };
 
@@ -177,12 +216,12 @@ export default function ProfileScreen({ navigation }: any) {
     {
       icon: 'help-circle-outline',
       label: t('help_support'),
-      action: () => Linking.openURL('mailto:support@lilove.org'),
+      action: () => Linking.openURL('https://berkemd.github.io/wristsuite/lilove/support.html'),
     },
     {
       icon: 'document-text-outline',
       label: t('privacy_policy'),
-      action: () => Linking.openURL('https://lilove.org/privacy'),
+      action: () => Linking.openURL('https://berkemd.github.io/wristsuite/lilove/privacy.html'),
     },
   ];
 
@@ -268,8 +307,8 @@ export default function ProfileScreen({ navigation }: any) {
               <View style={styles.avatarPlaceholder}>
                 <ActivityIndicator color={themeColor('#8B5CF6', 'text')} size="large" />
               </View>
-            ) : userProfile?.photoURL ? (
-              <Image source={{ uri: userProfile.photoURL }} style={styles.avatarImage} />
+            ) : profilePhotoUrl ? (
+              <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>
