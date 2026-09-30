@@ -543,8 +543,8 @@ export const tr = {
   focus_add_task: 'Sıradaki adımı ekle',
   focus_complete: 'Bu adımı tamamlandı olarak işaretle',
   focus_week: 'Son 7 gün',
-  focus_week_count: '{count} görev tamamlandı olarak işaretlendi · {days} kayıt günü',
-  focus_day_count: '{date}: {count} görev tamamlandı olarak işaretlendi',
+  focus_week_count: 'Tamamlanan görevler: {count} · Aktif günler: {days}',
+  focus_day_count: '{date} · Tamamlanan görevler: {count}',
   focus_restart: 'Bir gün kaçırdıysan küçük bir adımla devam et.',
   focus_utc: 'Cihazın saat dilimi alınamadı; günler UTC ile gösteriliyor.',
 } as const;

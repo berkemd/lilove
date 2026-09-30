@@ -328,41 +328,177 @@ function find(node, predicate) {
     .map((value) => find(value, predicate))
     .find(Boolean);
 }
-function card(state, locale = 'en', dark = false) {
+function card(state, locale = 'en', dark = false, globals = {}) {
   const { [locale]: catalog } = load(`src/i18n/${locale}.ts`);
   const actions = [];
   const element = (type, props) => ({ type, props });
-  const Component = load('src/components/DailyFocusCard.tsx', {
-    react: { useState: () => [false, () => {}] },
-    'react/jsx-runtime': { jsx: element, jsxs: element },
-    'react-native': {
-      StyleSheet: { create: (v) => v },
-      ActivityIndicator: 'ActivityIndicator',
-      View: 'View',
-      Text: 'Text',
-      TouchableOpacity: 'TouchableOpacity',
+  const Component = load(
+    'src/components/DailyFocusCard.tsx',
+    {
+      react: { useState: () => [false, () => {}] },
+      'react/jsx-runtime': { jsx: element, jsxs: element },
+      'react-native': {
+        StyleSheet: { create: (v) => v },
+        ActivityIndicator: 'ActivityIndicator',
+        View: 'View',
+        Text: 'Text',
+        TouchableOpacity: 'TouchableOpacity',
+      },
+      '@expo/vector-icons': { Ionicons: 'Icon' },
+      '../theme/ThemeProvider': { useTheme: () => ({ isDark: dark }) },
+      '../lib/focusDate': load('src/lib/focusDate.ts', {}, globals),
+      '../i18n': { dil: locale, t: (key) => catalog[key] },
+      '../hooks/useDailyFocus': {
+        useDailyFocus: () => ({
+          status: 'ready',
+          overview: response('g1'),
+          selectedGoalId: 'g1',
+          select: (id) => actions.push(['select', id]),
+          complete: () => actions.push(['complete']),
+          refresh: () => actions.push(['refresh']),
+          ...state,
+        }),
+      },
     },
-    '@expo/vector-icons': { Ionicons: 'Icon' },
-    '../theme/ThemeProvider': { useTheme: () => ({ isDark: dark }) },
-    '../i18n': { dil: locale, t: (key) => catalog[key] },
-    '../hooks/useDailyFocus': {
-      useDailyFocus: () => ({
-        status: 'ready',
-        overview: response('g1'),
-        selectedGoalId: 'g1',
-        select: (id) => actions.push(['select', id]),
-        complete: () => actions.push(['complete']),
-        refresh: () => actions.push(['refresh']),
-        ...state,
-      }),
-    },
-  }).default;
+    globals
+  ).default;
   const tree = Component({
     onGoals: () => actions.push(['goals']),
     onTasks: () => actions.push(['tasks']),
   });
   return { tree, actions, byId: (id) => find(tree, (node) => node.props?.testID === id), catalog };
 }
+
+test('daily date tiles keep numeric days when the runtime omits day format parts', () => {
+  class WeekdayPartsOnly extends Intl.DateTimeFormat {
+    formatToParts(date) {
+      return super.formatToParts(date).filter((part) => part.type !== 'day');
+    }
+  }
+  const ui = card({}, 'de', false, { Intl: { DateTimeFormat: WeekdayPartsOnly } });
+  const tiles = [];
+  function visit(node) {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'View' && node.props?.accessible) tiles.push(node);
+    Object.values(node).forEach(visit);
+  }
+  visit(ui.tree);
+  assert.equal(tiles.length, 7);
+  assert.deepEqual(
+    tiles.map((tile) => tile.props.children[0].props.children.split('\n')[0]),
+    ['2', '3', '4', '5', '6', '7', '8']
+  );
+  for (const tile of tiles) {
+    assert.doesNotMatch(tile.props.children[0].props.children, /undefined|null/);
+    assert.doesNotMatch(tile.props.accessibilityLabel, /undefined|null/);
+  }
+});
+
+test('focus dates retain UTC calendar days across seven locales, leap days and year boundaries', () => {
+  const { formatFocusDay } = load('src/lib/focusDate.ts');
+  const leapWeekdays = {
+    en: 'Thu',
+    tr: 'Per',
+    de: 'Do',
+    fr: 'jeu',
+    es: 'jue',
+    it: 'gio',
+    ja: '木',
+  };
+  const boundaries = [
+    ['2024-02-29', '29', 'Thu'],
+    ['2024-03-01', '1', 'Fri'],
+    ['2026-03-08', '8', 'Sun'],
+    ['2026-03-29', '29', 'Sun'],
+    ['2026-12-31', '31', 'Thu'],
+    ['2027-01-01', '1', 'Fri'],
+  ];
+  const previousZone = process.env.TZ;
+  try {
+    for (const zone of ['UTC', 'Pacific/Kiritimati', 'America/Adak']) {
+      process.env.TZ = zone;
+      for (const [locale, weekday] of Object.entries(leapWeekdays)) {
+        const leap = formatFocusDay('2024-02-29', locale);
+        const [leapDay, localizedWeekday] = leap.visible.split('\n');
+        assert.equal(leapDay, '29');
+        assert.equal(localizedWeekday.replace(/\.$/, ''), weekday);
+        assert.equal(leap.accessible, `${localizedWeekday} 2024-02-29`);
+        for (const [isoDate, day] of boundaries) {
+          const label = formatFocusDay(isoDate, locale);
+          assert.equal(label.visible.split('\n')[0], day, `${zone} ${locale} ${isoDate}`);
+          assert.ok(label.accessible.endsWith(isoDate));
+          assert.doesNotMatch(label.visible, /undefined|null/);
+        }
+      }
+      for (const [isoDate, day, weekday] of boundaries) {
+        assert.equal(formatFocusDay(isoDate, 'en').visible, `${day}\n${weekday}`, zone);
+      }
+    }
+  } finally {
+    if (previousZone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousZone;
+  }
+});
+
+test('focus dates preserve the original ISO fallback for invalid dates and unavailable Intl output', () => {
+  const { formatFocusDay } = load('src/lib/focusDate.ts');
+  for (const date of [
+    '2025-02-29',
+    '2026-02-30',
+    '2026-13-01',
+    '2026-00-10',
+    '2026-01-00',
+    '2026-1-02',
+    '2026-01-01T00:00:00Z',
+    'not-a-date',
+  ]) {
+    assert.deepEqual(formatFocusDay(date, 'en'), { accessible: date, visible: date });
+  }
+  const unavailable = [
+    function () {
+      throw new Error('Intl unavailable');
+    },
+    function () {
+      return {
+        format() {
+          throw new Error('format unavailable');
+        },
+      };
+    },
+    ...[undefined, null, '', ' ', 'undefined', 'null'].map(
+      (value) =>
+        function () {
+          return { format: () => value };
+        }
+    ),
+  ];
+  for (const DateTimeFormat of unavailable) {
+    const helper = load('src/lib/focusDate.ts', {}, { Intl: { DateTimeFormat } });
+    assert.deepEqual(helper.formatFocusDay('2026-01-01', 'de'), {
+      accessible: '2026-01-01',
+      visible: '2026-01-01',
+    });
+  }
+});
+
+test('the rendered daily card keeps visible and accessible ISO dates when Intl fails', () => {
+  const ui = card({}, 'de', false, {
+    Intl: {
+      DateTimeFormat() {
+        throw new Error('Unavailable in runtime');
+      },
+    },
+  });
+  for (const day of response('g1').days) {
+    const tile = find(
+      ui.tree,
+      (node) => node.type === 'View' && node.props?.accessibilityLabel?.includes(day.date)
+    );
+    assert.ok(tile, day.date);
+    assert.equal(tile.props.children[0].props.children, day.date);
+    assert.doesNotMatch(tile.props.accessibilityLabel, /undefined|null/);
+  }
+});
 
 test('real card offers explicit goal choice and the existing empty goal/task routes', () => {
   const picker = card({ overview: response(), selectedGoalId: null });

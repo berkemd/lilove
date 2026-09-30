@@ -553,9 +553,8 @@ export const it = {
   focus_add_task: 'Aggiungi il tuo prossimo passo',
   focus_complete: 'Contrassegna questo passo come completato',
   focus_week: 'Ultimi 7 giorni',
-  focus_week_count:
-    '{count} attività contrassegnate come completate · {days} giorni con attività registrate',
-  focus_day_count: '{date}: {count} attività contrassegnate come completate',
+  focus_week_count: 'Attività completate: {count} · Giorni attivi: {days}',
+  focus_day_count: '{date} · Attività completate: {count}',
   focus_restart: 'Hai perso un giorno? Riprendi con un piccolo passo.',
   focus_utc: 'Fuso orario del dispositivo non disponibile; i giorni sono mostrati in UTC.',
 } as const;

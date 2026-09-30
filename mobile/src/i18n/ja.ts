@@ -545,8 +545,8 @@ export const ja = {
   focus_add_task: '次のステップを追加',
   focus_complete: 'このステップを完了としてマーク',
   focus_week: '過去7日間',
-  focus_week_count: '{count}件のタスクを完了としてマーク · {days}日間の記録あり',
-  focus_day_count: '{date}: {count}件のタスクを完了としてマーク',
+  focus_week_count: '完了タスク：{count}件 · 記録日数：{days}日',
+  focus_day_count: '{date} · 完了タスク：{count}件',
   focus_restart: '記録のない日があっても、小さな一歩から再開できます。',
   focus_utc: '端末のタイムゾーンが利用できません。日付はUTCで表示されます。',
 } as const;

@@ -560,8 +560,8 @@ export const fr = {
   focus_add_task: 'Ajoutez votre prochaine étape',
   focus_complete: 'Marquer cette étape comme terminée',
   focus_week: '7 derniers jours',
-  focus_week_count: '{count} tâches marquées comme terminées · {days} jours avec une activité',
-  focus_day_count: '{date} : {count} tâches marquées comme terminées',
+  focus_week_count: 'Tâches terminées : {count} · Jours actifs : {days}',
+  focus_day_count: '{date} · Tâches terminées : {count}',
   focus_restart: 'Vous avez manqué un jour ? Reprenez avec une petite étape.',
   focus_utc: 'Fuseau horaire de l’appareil indisponible ; les jours sont affichés en UTC.',
 } as const;

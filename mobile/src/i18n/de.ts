@@ -567,8 +567,8 @@ export const de = {
   focus_add_task: 'Nächsten Schritt hinzufügen',
   focus_complete: 'Diesen Schritt als erledigt markieren',
   focus_week: 'Letzte 7 Tage',
-  focus_week_count: '{count} Aufgaben als erledigt markiert · {days} Tage mit Eintrag',
-  focus_day_count: '{date}: {count} Aufgaben als erledigt markiert',
+  focus_week_count: 'Abgeschlossene Aufgaben: {count} · Aktive Tage: {days}',
+  focus_day_count: '{date} · Abgeschlossene Aufgaben: {count}',
   focus_restart: 'Einen Tag verpasst? Mach mit einem kleinen Schritt weiter.',
   focus_utc: 'Zeitzone des Geräts nicht verfügbar; Tage werden in UTC angezeigt.',
 } as const;

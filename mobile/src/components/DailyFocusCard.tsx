@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useDailyFocus } from '../hooks/useDailyFocus';
 import { dil, t } from '../i18n';
 import { useTheme } from '../theme/ThemeProvider';
+import { formatFocusDay } from '../lib/focusDate';
 
 export default function DailyFocusCard({
   onGoals,
@@ -186,35 +187,19 @@ export default function DailyFocusCard({
                   </Text>
                   <View style={styles.days}>
                     {overview.days.map((day) => {
-                      let date = day.date;
-                      let visibleDate = day.date;
-                      try {
-                        date = new Intl.DateTimeFormat(dil, {
-                          weekday: 'short',
-                          day: 'numeric',
-                          timeZone: 'UTC',
-                        }).format(new Date(`${day.date}T12:00:00Z`));
-                        const parts = new Intl.DateTimeFormat(dil, {
-                          weekday: 'short',
-                          day: 'numeric',
-                          timeZone: 'UTC',
-                        }).formatToParts(new Date(`${day.date}T12:00:00Z`));
-                        visibleDate = `${parts.find((part) => part.type === 'day')?.value}\n${parts.find((part) => part.type === 'weekday')?.value}`;
-                      } catch {
-                        /* The UTC ISO date remains a truthful accessible fallback. */
-                      }
+                      const date = formatFocusDay(day.date, dil);
 
                       return (
                         <View
                           key={day.date}
                           accessible
                           accessibilityLabel={t('focus_day_count')
-                            .replace('{date}', date)
+                            .replace('{date}', date.accessible)
                             .replace('{count}', String(day.completed))}
                           style={[styles.day, { backgroundColor: colors.inset }]}
                         >
                           <Text style={[styles.dayDate, { color: colors.secondary }]}>
-                            {visibleDate}
+                            {date.visible}
                           </Text>
                           <Text style={[styles.dayCount, { color: colors.text }]}>
                             {day.completed}

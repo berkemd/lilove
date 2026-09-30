@@ -545,8 +545,8 @@ export const en = {
   focus_add_task: 'Add your next step',
   focus_complete: 'Mark this step complete',
   focus_week: 'Last 7 days',
-  focus_week_count: '{count} tasks marked complete · {days} days with a record',
-  focus_day_count: '{date}: {count} tasks marked complete',
+  focus_week_count: 'Completed tasks: {count} · Active days: {days}',
+  focus_day_count: '{date} · Completed tasks: {count}',
   focus_restart: 'Missed a day? Continue with one small step.',
   focus_utc: 'Device time zone unavailable; days are shown in UTC.',
 } as const;

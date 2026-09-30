@@ -553,8 +553,8 @@ export const es = {
   focus_add_task: 'Añade tu siguiente paso',
   focus_complete: 'Marcar este paso como completado',
   focus_week: 'Últimos 7 días',
-  focus_week_count: '{count} tareas marcadas como completadas · {days} días con registro',
-  focus_day_count: '{date}: {count} tareas marcadas como completadas',
+  focus_week_count: 'Tareas completadas: {count} · Días activos: {days}',
+  focus_day_count: '{date} · Tareas completadas: {count}',
   focus_restart: '¿Te has saltado un día? Continúa con un pequeño paso.',
   focus_utc: 'Zona horaria del dispositivo no disponible; los días se muestran en UTC.',
 } as const;
