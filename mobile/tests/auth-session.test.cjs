@@ -139,6 +139,9 @@ function session() {
   let currentToken = null;
   const profiles = [];
   const manager = {
+    setRequestTokenProvider() {
+      return () => {};
+    },
     async setToken(value) {
       currentToken = value;
     },

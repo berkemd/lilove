@@ -51,6 +51,7 @@ function harness({ releaseReadyForTest = false, coinSalesReadyForTest = false } 
     accountCalls: [],
     verifyCalls: [],
     verificationTokens: [],
+    readinessCalls: [],
     tokenListeners: new Set(),
     requests: [],
     finishes: [],
@@ -110,6 +111,11 @@ function harness({ releaseReadyForTest = false, coinSalesReadyForTest = false } 
       'react-native': { Platform: { OS: 'ios' } },
       '../lib/api': {
         api: {
+          waitForSubscriptionService: async (authorizationToken) => {
+            state.readinessCalls.push(authorizationToken);
+            if (state.readinessPending) await state.readinessPending;
+            if (state.readinessError) throw state.readinessError;
+          },
           getIapAccountToken: async (productId) => {
             state.events.push('account');
             state.accountCalls.push(productId);
@@ -673,5 +679,75 @@ test('canonical Expo origin takes precedence while legacy API fallbacks preserve
     assert.deepEqual(calls, [
       { url: `${scenario.expected}/api/iap/account-token`, authorization: 'Bearer session-token' },
     ]);
+  }
+});
+
+test('restore readiness waits once before any receipt verification and pins its account', async () => {
+  const h = harness();
+  const ready = deferred();
+  h.state.readinessPending = ready.promise;
+  h.state.available = [
+    { productId: subscriptionId, transactionId: 'one' },
+    { productId: subscriptionId, transactionId: 'two' },
+  ];
+  const result = h.iap.restore();
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  assert.deepEqual(h.state.readinessCalls, ['signed-in-account']);
+  assert.deepEqual(h.state.verifyCalls, []);
+  ready.resolve();
+  assert.equal(await result, 2);
+  assert.deepEqual(h.state.verifyCalls, ['one', 'two']);
+  assert.deepEqual(h.state.verificationTokens, ['signed-in-account', 'signed-in-account']);
+  assert.deepEqual(h.state.finishes, []);
+});
+
+test('restore readiness failure is shared across receipts without replaying a verification', async () => {
+  const h = harness();
+  h.state.readinessError = new Error('bounded service wait expired');
+  h.state.available = [
+    { productId: subscriptionId, transactionId: 'one' },
+    { productId: subscriptionId, transactionId: 'two' },
+  ];
+  await assert.rejects(h.iap.restore(), {
+    code: 'RESTORE_INCOMPLETE',
+    stage: 'verification',
+    verifiedCount: 0,
+    failedCount: 2,
+  });
+  assert.equal(h.state.readinessCalls.length, 1);
+  assert.deepEqual(h.state.verifyCalls, []);
+  assert.deepEqual(h.state.finishes, []);
+  assert.deepEqual(h.state.requests, []);
+});
+
+test('restore readiness account switch aborts before any transaction request', async () => {
+  const h = harness();
+  const ready = deferred();
+  h.state.readinessPending = ready.promise;
+  h.state.available = [{ productId: subscriptionId, transactionId: 'one' }];
+  const result = assert.rejects(h.iap.restore(), { code: 'RESTORE_INCOMPLETE', stage: 'account' });
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  h.state.token = 'different-account';
+  for (const listener of h.state.tokenListeners) listener(h.state.token);
+  ready.resolve();
+  await result;
+  assert.deepEqual(h.state.verifyCalls, []);
+  assert.equal(h.state.tokenListeners.size, 0);
+});
+
+test('restore readiness does not contact the server for empty, coin-only or malformed receipts', async () => {
+  for (const receipts of [
+    [],
+    [{ productId: coinId, transactionId: 'coin' }],
+    [{ productId: subscriptionId }],
+  ]) {
+    const h = harness();
+    h.state.available = receipts;
+    if (receipts.length && !receipts[0].transactionId) {
+      await assert.rejects(h.iap.restore(), { code: 'RESTORE_INCOMPLETE' });
+    } else {
+      assert.equal(await h.iap.restore(), 0);
+    }
+    assert.deepEqual(h.state.readinessCalls, []);
   }
 });

@@ -108,7 +108,7 @@ class ApiClient {
     // yapmak, ekranlara tek satır dokunmadan hesapsız bir tur
     // açıyor. Ekranlarda `if (demo)` dallanması olsaydı, yeni yazılan
     // her ekran o dalı unutur ve demo sessizce kırılırdı.
-    const jeton = options?.authorizationToken ?? (await tokenManager.getToken());
+    const jeton = options?.authorizationToken ?? (await tokenManager.getToken({ fresh: true }));
     if (jeton === DEMO_TOKEN) {
       const kapali = demoDisi(endpoint);
       if (kapali) {
@@ -467,6 +467,19 @@ export const api = {
   // sorarak belirliyor — istemcinin söylediğine değil.
   getIapAccountToken: async (productId: string) =>
     apiClient.post<{ appAccountToken: string }>('/api/iap/account-token', { productId }),
+  waitForSubscriptionService: async (authorizationToken: string): Promise<void> => {
+    // Explicit restore only: at most three 30-second reads, with bounded
+    // backoff. A ready response is not a receipt or an entitlement.
+    const result = await apiClient.get<{ ready?: boolean }>('/readyz', {
+      authorizationToken,
+      maxRetries: 2,
+    });
+    if (result?.ready !== true) {
+      throw Object.assign(new Error('Subscription service is not ready'), {
+        code: 'SERVICE_NOT_READY',
+      });
+    }
+  },
   verifyPurchase: async (transactionId: string, authorizationToken?: string) =>
     apiClient.post<{ success: boolean }>(
       '/api/subscription/verify',
