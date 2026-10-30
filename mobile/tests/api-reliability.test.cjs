@@ -276,3 +276,49 @@ test('demo still resolves locally without tokens, timers or network requests', a
   assert.equal(h.calls.length, 0);
   assert.equal(h.timers.size, 0);
 });
+
+test('subscription readiness recovers from a timed-out read with the pinned account and never posts', async () => {
+  const h = harness(({ signal }, attempt) =>
+    attempt === 1
+      ? new Promise((_, reject) =>
+          signal.addEventListener('abort', () =>
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+          )
+        )
+      : response(200, { ready: true })
+  );
+  const result = h.api.waitForSubscriptionService('restore-account');
+  await flush();
+  h.fireTimers();
+  await flush();
+  h.fireTimers();
+  await result;
+  assert.equal(h.calls.length, 2);
+  assert(
+    h.calls.every((call) => call.method === 'GET' && call.url === 'https://test.invalid/readyz')
+  );
+  assert(h.calls.every((call) => call.headers.Authorization === 'Bearer restore-account'));
+  assert.equal(h.tokenReads(), 0);
+  assert.equal(h.timers.size, 0);
+});
+
+test('subscription readiness rejects malformed success responses and bounds persistent unavailability', async () => {
+  for (const body of [{ ready: false }, {}, null, { ready: 'true' }]) {
+    const h = harness(() => response(200, body));
+    await assert.rejects(h.api.waitForSubscriptionService('restore-account'), {
+      code: 'SERVICE_NOT_READY',
+    });
+    assert.equal(h.calls.length, 1);
+  }
+  const h = harness(() => response(503));
+  const failed = assert.rejects(h.api.waitForSubscriptionService('restore-account'), {
+    status: 503,
+  });
+  for (let i = 0; i < 4; i++) {
+    await flush();
+    h.fireTimers();
+  }
+  await failed;
+  assert.equal(h.calls.length, 3);
+  assert.equal(h.timers.size, 0);
+});

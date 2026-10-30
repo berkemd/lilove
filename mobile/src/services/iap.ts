@@ -368,6 +368,7 @@ async function restoreForSession(
   await assertSession();
   let sayi = 0;
   let basarisiz = 0;
+  let readiness: Promise<void> | undefined;
   for (const p of mevcut) {
     await assertSession();
     if (isCoinProduct(urunKimligi(p))) continue;
@@ -377,6 +378,11 @@ async function restoreForSession(
       continue;
     }
     try {
+      // Only a restore with an eligible receipt may wake the existing
+      // service. Share even a failed wait across the batch; never replay POST.
+      readiness ??= api.waitForSubscriptionService(token);
+      await readiness;
+      await assertSession();
       // Pin the initiating token even if the account changes after the check.
       await dogrula(islemId, token);
       sayi++;
