@@ -85,6 +85,9 @@ function session() {
       },
       '../services/tokenManager': {
         tokenManager: {
+          setRequestTokenProvider() {
+            return () => {};
+          },
           async setToken(value) {
             control.token = value;
           },

@@ -80,6 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     activeSession?.dispose();
     let unsubscribeProfile: (() => void) | null = null;
     let unsubscribeAuth: () => void = () => {};
+    let releaseRequestTokenProvider: () => void = () => {};
     let profileTimer: ReturnType<typeof setTimeout> | null = null;
     let currentUser: User | null = null;
     let revision = 0;
@@ -163,12 +164,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         disposed = true;
         revision++;
         currentUser = null;
+        releaseRequestTokenProvider();
         unsubscribeAuth();
         detachProfile();
         if (activeSession === session) activeSession = null;
       },
     };
     activeSession = session;
+    releaseRequestTokenProvider = tokenManager.setRequestTokenProvider(async () => {
+      if (get().isDemo) return tokenManager.getCachedToken();
+      if (disposed || suspended || !currentUser || !get().isAuthenticated) return null;
+      const lease = captureAccountSession();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        // Expiration does not itself emit onIdTokenChanged. Let the SDK refresh
+        // only when needed, before HTTP; never replay a write after an auth error.
+        const token = await Promise.race([
+          Promise.resolve().then(() => lease.user.getIdToken()),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(
+                  Object.assign(new Error(t('request_timeout')), {
+                    code: 'AUTH_TOKEN_TIMEOUT',
+                    status: 408,
+                  })
+                ),
+              15000
+            );
+          }),
+        ]);
+        if (disposed || suspended || !lease.isCurrent()) {
+          throw Object.assign(new Error(t('login_failed')), { code: 'AUTH_SESSION_CHANGED' });
+        }
+        return token;
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    });
     unsubscribeAuth = subscribeToAuthState(async (firebaseUser) => {
       if (disposed || suspended || (!firebaseUser && get().isDemo)) return;
       if (get().user?.uid !== firebaseUser?.uid) authActionRevision++;

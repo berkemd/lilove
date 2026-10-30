@@ -108,7 +108,7 @@ class ApiClient {
     // yapmak, ekranlara tek satır dokunmadan hesapsız bir tur
     // açıyor. Ekranlarda `if (demo)` dallanması olsaydı, yeni yazılan
     // her ekran o dalı unutur ve demo sessizce kırılırdı.
-    const jeton = options?.authorizationToken ?? (await tokenManager.getToken());
+    const jeton = options?.authorizationToken ?? (await tokenManager.getToken({ fresh: true }));
     if (jeton === DEMO_TOKEN) {
       const kapali = demoDisi(endpoint);
       if (kapali) {

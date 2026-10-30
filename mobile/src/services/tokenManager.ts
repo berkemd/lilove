@@ -11,6 +11,7 @@ let tokenRevision = 0;
 let refreshRevision = 0;
 let persistence: Promise<void> = Promise.resolve();
 const tokenListeners = new Set<(token: string | null) => void>();
+let requestTokenProvider: (() => Promise<string | null>) | null = null;
 
 function notifyToken(token: string | null) {
   const revision = tokenRevision;
@@ -35,7 +36,15 @@ function persist(operation: () => Promise<void>): Promise<void> {
 }
 
 export const tokenManager = {
-  async getToken(): Promise<string | null> {
+  async getToken(options?: { fresh?: boolean }): Promise<string | null> {
+    if (options?.fresh && requestTokenProvider) {
+      const provider = requestTokenProvider;
+      const token = await provider();
+      if (provider !== requestTokenProvider) {
+        throw Object.assign(new Error('Session changed'), { code: 'AUTH_SESSION_CHANGED' });
+      }
+      return token;
+    }
     if (tokenLoaded) return cachedToken;
     const revision = tokenRevision;
     try {
@@ -103,6 +112,13 @@ export const tokenManager = {
 
   getCachedToken(): string | null {
     return cachedToken;
+  },
+
+  setRequestTokenProvider(provider: () => Promise<string | null>): () => void {
+    requestTokenProvider = provider;
+    return () => {
+      if (requestTokenProvider === provider) requestTokenProvider = null;
+    };
   },
 
   onTokenChange(listener: (token: string | null) => void): () => void {
