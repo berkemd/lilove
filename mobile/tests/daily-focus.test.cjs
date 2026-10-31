@@ -630,6 +630,8 @@ test('hook pins the authenticated token and invalidates A-B-A work while token a
       },
     },
     '../lib/demoData': { DEMO_TOKEN: 'demo-session' },
+    '../lib/credentialDeadline': load('src/lib/credentialDeadline.ts'),
+    '../i18n': { t: (key) => key },
     '../lib/dailyFocus': { DailyFocusStore },
     '../lib/progressOverview': {
       deviceTimeZone: () => ({ timeZone: 'America/New_York', fallback: false }),
