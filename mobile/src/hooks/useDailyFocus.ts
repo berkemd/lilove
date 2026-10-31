@@ -7,6 +7,8 @@ import { api } from '../lib/api';
 import { DEMO_TOKEN } from '../lib/demoData';
 import { DailyFocusStore } from '../lib/dailyFocus';
 import { deviceTimeZone } from '../lib/progressOverview';
+import { withCredentialDeadline } from '../lib/credentialDeadline';
+import { t } from '../i18n';
 
 function accountKey() {
   const { user, isAuthenticated, isDemo } = useAuthStore.getState();
@@ -19,7 +21,11 @@ async function authorization(key: string, current: () => boolean) {
   if (key === 'demo') return DEMO_TOKEN;
   const user = useAuthStore.getState().user;
   if (!user) throw new Error('Account changed');
-  const token = await user.getIdToken();
+  const token = await withCredentialDeadline(
+    () => user.getIdToken(),
+    () =>
+      Object.assign(new Error(t('request_timeout')), { code: 'AUTH_TOKEN_TIMEOUT', status: 408 })
+  );
   if (!current() || key !== accountKey() || user !== useAuthStore.getState().user)
     throw new Error('Account changed');
   return token;
