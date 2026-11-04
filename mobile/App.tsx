@@ -10,16 +10,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from './src/store/authStore';
 import notificationService from './src/services/notifications';
 import { initIAP } from './src/services/iap';
+import { startOptionalServices } from './src/services/appStartup';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ProfileRecovery } from './src/components/ProfileRecovery';
 import { AccountDeletionDialog } from './src/components/AccountDeletionDialog';
-import {
-  registerForPushNotifications,
-  addNotificationReceivedListener,
-  addNotificationResponseListener,
-} from './src/services/pushNotifications';
-import { api } from './src/services/api';
-import { tokenManager } from './src/services/tokenManager';
 import { COACH_RELEASE_AVAILABLE } from './src/lib/coachAvailability';
 import { t } from './src/i18n';
 
@@ -212,50 +206,40 @@ function AppContent() {
 
   useEffect(() => {
     const cleanupAuth = initializeAuth();
-    initializeServices();
-    return cleanupAuth;
+    const cleanupServices = startOptionalServices({
+      initIAP,
+      setupListeners: () =>
+        notificationService.setupNotificationListeners(
+          (notification) => console.log('[Push] Notification received:', notification),
+          (response) => console.log('[Push] Notification tapped:', response)
+        ),
+      onError: (service, error) => console.error(`[App] ${service} setup failed:`, error),
+    });
+    return () => {
+      cleanupServices();
+      cleanupAuth();
+    };
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && userProfile) {
-      setupPushNotifications();
-    }
-  }, [isAuthenticated, userProfile]);
-
-  const setupPushNotifications = async () => {
-    try {
-      const token = await registerForPushNotifications();
-      if (token) {
-        console.log('[Push] Push token registered:', token.substring(0, 20) + '...');
-      }
-    } catch (error) {
-      console.error('[Push] Failed to setup push notifications:', error);
-    }
-  };
-
-  const initializeServices = async () => {
-    try {
-      await initIAP();
-      console.log('[App] StoreKit initialized');
-    } catch (error) {
-      console.error('[App] StoreKit init failed:', error);
-    }
-
-    await notificationService.registerForPushNotifications();
-
-    const receivedSubscription = addNotificationReceivedListener((notification) => {
-      console.log('[Push] Notification received:', notification);
-    });
-
-    const responseSubscription = addNotificationResponseListener((response) => {
-      console.log('[Push] Notification tapped:', response);
-    });
-
-    notificationService.setupNotificationListeners(
-      (notification) => console.log('Notification received:', notification),
-      (response) => console.log('Notification response:', response)
-    );
-  };
+    const user = useAuthStore.getState().user;
+    if (!isAuthenticated || isDemo || profileStatus !== 'ready' || !userProfile || !user) return;
+    let active = true;
+    const isCurrent = () => {
+      const current = useAuthStore.getState();
+      return (
+        active &&
+        current.isAuthenticated &&
+        !current.isDemo &&
+        current.profileStatus === 'ready' &&
+        current.user === user
+      );
+    };
+    void notificationService.registerForPushNotifications(isCurrent);
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, isDemo, profileStatus, userProfile]);
 
   if (isLoading || !ready) {
     return (

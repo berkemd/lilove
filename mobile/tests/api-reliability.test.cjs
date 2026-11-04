@@ -322,3 +322,12 @@ test('subscription readiness rejects malformed success responses and bounds pers
   assert.equal(h.calls.length, 3);
   assert.equal(h.timers.size, 0);
 });
+
+test('push registration uses the checked credential without looking up another session', async () => {
+  const h = harness(() => response(200), ['session-B']);
+  await h.api.updatePushToken('synthetic-device-token', 'session-A');
+  assert.equal(h.tokenReads(), 0);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].headers.Authorization, 'Bearer session-A');
+  assert.equal(h.calls[0].body, JSON.stringify({ token: 'synthetic-device-token' }));
+});
