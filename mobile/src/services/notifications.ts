@@ -2,7 +2,8 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import api from './api';
+import { api } from '../lib/api';
+import { tokenManager } from './tokenManager';
 
 // Configure notifications handler
 Notifications.setNotificationHandler({
@@ -16,61 +17,63 @@ Notifications.setNotificationHandler({
 class NotificationService {
   private pushToken: string | null = null;
 
-  async registerForPushNotifications(): Promise<string | null> {
-    let token: string | null = null;
+  async registerForPushNotifications(
+    isCurrent: () => boolean = () => true
+  ): Promise<string | null> {
+    try {
+      if (!isCurrent()) return null;
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#8B5CF6',
+        });
+      }
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#8B5CF6',
-      });
-    }
+      if (!isCurrent()) return null;
+      if (!Device.isDevice) {
+        console.log('Must use physical device for Push Notifications');
+        return null;
+      }
 
-    if (Device.isDevice) {
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      if (!isCurrent()) return null;
       let finalStatus = existingStatus;
-      
       if (existingStatus !== 'granted') {
         const { status } = await Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
-      
+      if (!isCurrent()) return null;
       if (finalStatus !== 'granted') {
         console.log('Failed to get push token for push notification!');
         return null;
       }
-      
-      try {
-        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-        if (!projectId) {
-          console.error('EAS Project ID not found');
-          return null;
-        }
 
-        token = (await Notifications.getExpoPushTokenAsync({
-          projectId,
-        })).data;
-        
-        this.pushToken = token;
-        
-        // Send token to backend
-        await this.sendTokenToBackend(token);
-        
-      } catch (error) {
-        console.error('Error getting push token:', error);
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      if (!projectId) {
+        console.error('EAS Project ID not found');
+        return null;
       }
-    } else {
-      console.log('Must use physical device for Push Notifications');
+      const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      if (!isCurrent()) return null;
+      this.pushToken = token;
+      await this.sendTokenToBackend(token, isCurrent);
+      return token;
+    } catch (error) {
+      // Permission and channel calls can reject on a real device too.
+      console.error('Error registering push notifications:', error);
+      return null;
     }
-
-    return token;
   }
 
-  async sendTokenToBackend(token: string) {
+  async sendTokenToBackend(token: string, isCurrent: () => boolean = () => true) {
     try {
-      await api.updatePushToken(token);
+      if (!isCurrent()) return;
+      const authorizationToken = await tokenManager.getToken({ fresh: true });
+      if (!authorizationToken || !isCurrent()) return;
+      // Pin the checked session; the API must not look up a different account again.
+      await api.updatePushToken(token, authorizationToken);
     } catch (error) {
       console.error('Failed to send push token to backend:', error);
     }
@@ -159,17 +162,24 @@ class NotificationService {
       }
     });
 
-    // Handle notification responses (when user taps on notification)
-    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
-      if (onNotificationResponse) {
-        onNotificationResponse(response);
-      }
-    });
-
-    // Return cleanup function
-    return () => {
+    let responseListener: ReturnType<typeof Notifications.addNotificationResponseReceivedListener>;
+    try {
+      responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+        if (onNotificationResponse) {
+          onNotificationResponse(response);
+        }
+      });
+    } catch (error) {
       Notifications.removeNotificationSubscription(notificationListener);
-      Notifications.removeNotificationSubscription(responseListener);
+      throw error;
+    }
+
+    return () => {
+      try {
+        Notifications.removeNotificationSubscription(notificationListener);
+      } finally {
+        Notifications.removeNotificationSubscription(responseListener);
+      }
     };
   }
 

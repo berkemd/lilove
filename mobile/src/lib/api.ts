@@ -455,7 +455,8 @@ export const api = {
   getLeaderboard: async (category: string = 'overall') =>
     apiClient.get(`/api/leaderboard?category=${category}`),
 
-  updatePushToken: async (token: string) => apiClient.post('/api/user/push-token', { token }),
+  updatePushToken: async (token: string, authorizationToken?: string) =>
+    apiClient.post('/api/user/push-token', { token }, { authorizationToken }),
 
   // STOREKIT 2'DE MAKBUZ YOK, İMZALI İŞLEM VAR.
   //
